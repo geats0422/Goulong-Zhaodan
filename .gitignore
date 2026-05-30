@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# OS
+~*
+
+# Logs
+*.log
+npm-debug.log*
+
+# OpenCode
+.opencode/
+.opencode/.tmp/
+.opencode/node_modules/
+
+# Test artifacts
+test-results/
+playwright-report/
+screenshots/
+
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# Data directories
+data/
+
+# Alembic
+backend/alembic/versions/__pycache__/
+
+# Vendor (large external repos)
+backend/vendor/
+reference/
