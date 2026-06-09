@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 STORAGE_ROOT = "data/knowledge"
+
+
+def safe_path_segment(value: str, fallback: str = "untitled", max_length: int = 100) -> str:
+    normalized = re.sub(r"[^\w.\-]", "_", value).strip("._-")
+    result = normalized or fallback
+    return result[:max_length]
 
 
 def build_storage_path(
