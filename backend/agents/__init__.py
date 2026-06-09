@@ -20,6 +20,18 @@ if TYPE_CHECKING:
     from pydantic_ai import Agent as AgentType
 
 
+def _make_model():
+    """根据 settings 创建 OpenAI 兼容模型实例。"""
+    from pydantic_ai.models.openai import OpenAIModel
+    from pydantic_ai.providers.openai import OpenAIProvider
+
+    provider = OpenAIProvider(
+        base_url=settings.model_base_url,
+        api_key=settings.model_api_key,
+    )
+    return OpenAIModel(settings.model_name, provider=provider)
+
+
 # ─── 懒加载缓存 ───
 _agents: dict[str, AgentType] = {}
 
@@ -27,7 +39,7 @@ _agents: dict[str, AgentType] = {}
 def get_regulation_analyst() -> AgentType:
     if "regulation_analyst" not in _agents:
         _agents["regulation_analyst"] = Agent(
-            f"openai:{settings.model_name}",
+            _make_model(),
             deps_type=InspectionDeps,
             output_type=str,
             instructions=REGULATION_ANALYST_SYSTEM_PROMPT,
@@ -39,7 +51,7 @@ def get_regulation_analyst() -> AgentType:
 def get_compliance_inspector() -> AgentType:
     if "compliance_inspector" not in _agents:
         _agents["compliance_inspector"] = Agent(
-            f"openai:{settings.model_name}",
+            _make_model(),
             deps_type=InspectionDeps,
             output_type=str,
             instructions=COMPLIANCE_INSPECTOR_SYSTEM_PROMPT,
@@ -50,7 +62,7 @@ def get_compliance_inspector() -> AgentType:
 def get_inspection_agent() -> AgentType:
     if "inspection_agent" not in _agents:
         _agents["inspection_agent"] = Agent(
-            f"openai:{settings.model_name}",
+            _make_model(),
             deps_type=InspectionDeps,
             output_type=str,
             instructions=INSPECTION_COORDINATOR_SYSTEM_PROMPT,
