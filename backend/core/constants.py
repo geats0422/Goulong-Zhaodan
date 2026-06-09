@@ -6,6 +6,11 @@ ENGINEERING_CATEGORIES: dict[str, str] = {
     "urban_renewal": "城市更新",
 }
 
+APPLICATION_SCENARIOS: dict[str, str] = {
+    "bidding": "招投标",
+    "contract": "合同",
+}
+
 ALLOWED_FILE_EXTENSIONS: list[str] = [".docx", ".doc", ".pptx", ".xlsx", ".pdf"]
 
 
@@ -13,6 +18,12 @@ def validate_category(key: str) -> str:
     if key not in ENGINEERING_CATEGORIES:
         raise ValueError(f"Invalid category key: {key}")
     return ENGINEERING_CATEGORIES[key]
+
+
+def validate_application_scenario(key: str) -> str:
+    if key not in APPLICATION_SCENARIOS:
+        raise ValueError(f"Invalid application scenario: {key}")
+    return APPLICATION_SCENARIOS[key]
 
 
 def validate_file_type(filename: str) -> str:

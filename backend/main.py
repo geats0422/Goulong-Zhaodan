@@ -6,9 +6,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from core.config import settings
 from core.database import init_db
 from routers.inspection import router as inspection_router
 from routers.knowledge import router as knowledge_router
+from routers.auth import router as auth_router
+from routers.settings import router as settings_router
 
 
 @asynccontextmanager
@@ -26,7 +29,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5174", "http://localhost:5173"],
+    allow_origins=settings.cors_origins.split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -34,6 +37,8 @@ app.add_middleware(
 
 app.include_router(inspection_router)
 app.include_router(knowledge_router, prefix="/api/v1")
+app.include_router(auth_router)
+app.include_router(settings_router)
 
 
 @app.get("/health")
