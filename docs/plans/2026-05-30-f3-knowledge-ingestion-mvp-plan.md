@@ -161,7 +161,7 @@
 |------|---------|
 | MarkItDown 安装失败或依赖冲突 | 先在虚拟环境独立验证；MVP 可先 mock 转换结果 |
 | PageIndex 对某些格式输出为空 | 设计文档 D12 已定义部分保留策略 |
-| PostgreSQL 未本地安装 | 任务 2 提供 SQLite fallback 配置用于开发 |
+| PostgreSQL 未本地安装 | 先启动本地 PostgreSQL 或配置远程开发库；不使用 SQLite 作为业务数据库 |
 | 同步处理大文件超时 | MVP 先限制文件大小 50MB |
 | 子类名称唯一约束冲突 | 数据库 UNIQUE 约束 + API 层提前校验 |
 
