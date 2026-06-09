@@ -41,7 +41,7 @@ from main import app  # noqa: E402
 
 
 async def _override_user():
-    return {"user_id": "default", "api_key": "goulong-dev-key"}
+    return {"user_id": "42", "api_key": "goulong-dev-key"}
 
 
 @pytest.fixture
@@ -51,6 +51,7 @@ def mock_db():
     session.refresh = AsyncMock()
     session.flush = AsyncMock()
     session.add = MagicMock()
+    session.add_all = MagicMock()
     session.execute = AsyncMock()
     session.scalar = AsyncMock()
     session.scalars = AsyncMock()
@@ -82,16 +83,27 @@ def _make_subcategory(id=1, category_key="traditional", name="房建"):
 def _make_document(id=1, title="招标文件", subcategory_id=1, current_version_id=1):
     return MagicMock(
         spec=["id", "title", "subcategory_id", "current_version_id",
-               "current_version", "subcategory", "created_at", "updated_at"],
+               "current_version", "subcategory", "created_at", "updated_at",
+               "owner_type", "owner_user_id", "application_scenario", "source_path"],
         id=id,
         title=title,
         subcategory_id=subcategory_id,
         current_version_id=current_version_id,
         current_version=None,
         subcategory=None,
+        owner_type="user",
+        owner_user_id=42,
+        application_scenario="bidding",
+        source_path=None,
         created_at=datetime(2025, 1, 1),
         updated_at=datetime(2025, 1, 1),
     )
+
+
+def _result_scalar(value):
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = value
+    return result
 
 
 def _make_version(id=1, document_id=1, version_number=1, display_name="招标文件.pdf",
@@ -252,6 +264,69 @@ class TestUploadAndIngest:
         )
         assert response.status_code == 400
 
+    def test_upload_accepts_application_scenario(self, client, mock_db, monkeypatch, tmp_path):
+        import routers.knowledge as knowledge_router
+        import services.knowledge_ingestion as ingestion_mod
+
+        sub = _make_subcategory(id=7, category_key="traditional", name="房建")
+        mock_db.execute.side_effect = [
+            _result_scalar(None),  # subcategory does not exist, create it
+            _result_scalar(None),  # no existing document for owner/scenario
+        ]
+
+        def assign_ids(obj):
+            if obj.__class__.__name__ == "EngineeringSubcategory":
+                obj.id = 7
+            elif obj.__class__.__name__ == "KnowledgeDocument":
+                obj.id = 11
+            elif obj.__class__.__name__ == "DocumentVersion":
+                obj.id = 13
+
+        mock_db.refresh.side_effect = assign_ids
+        monkeypatch.setattr(knowledge_router, "build_storage_path", lambda *args: tmp_path)
+        monkeypatch.setattr(knowledge_router, "save_upload_file", lambda path, content: path.write_bytes(content))
+        monkeypatch.setattr(ingestion_mod, "convert_to_markdown", lambda path: "# 标题\n内容")
+        monkeypatch.setattr(ingestion_mod, "build_index_nodes", AsyncMock(return_value=[]))
+
+        response = client.post(
+            "/api/v1/knowledge/upload",
+            data={
+                "category": "traditional",
+                "subcategory_name": sub.name,
+                "application_scenario": "contract",
+            },
+            files={"file": ("合同文件.pdf", b"content", "application/pdf")},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["application_scenario"] == "contract"
+        created_doc = next(
+            call.args[0]
+            for call in mock_db.add.call_args_list
+            if call.args[0].__class__.__name__ == "KnowledgeDocument"
+        )
+        assert created_doc.owner_type == "user"
+        assert created_doc.owner_user_id == 42
+        assert created_doc.application_scenario == "contract"
+        existing_doc_query = str(mock_db.execute.call_args_list[1].args[0])
+        assert "owner_type" in existing_doc_query
+        assert "owner_user_id" in existing_doc_query
+        assert "application_scenario" in existing_doc_query
+
+    def test_upload_rejects_invalid_application_scenario(self, client, mock_db):
+        response = client.post(
+            "/api/v1/knowledge/upload",
+            data={
+                "category": "traditional",
+                "subcategory_name": "房建",
+                "application_scenario": "invalid",
+            },
+            files={"file": ("test.pdf", b"content", "application/pdf")},
+        )
+
+        assert response.status_code == 400
+        mock_db.execute.assert_not_called()
+
 
 class TestGetOverview:
     def test_returns_nested_structure(self, client, mock_db):
@@ -275,7 +350,31 @@ class TestGetOverview:
         assert len(trad["subcategories"]) == 1
         assert trad["subcategories"][0]["name"] == "房建"
         assert len(trad["subcategories"][0]["documents"]) == 1
-        assert trad["subcategories"][0]["documents"][0]["title"] == "招标文件"
+        doc_item = trad["subcategories"][0]["documents"][0]
+        assert doc_item["title"] == "招标文件"
+        assert doc_item["owner_type"] == "user"
+        assert doc_item["application_scenario"] == "bidding"
+
+    def test_overview_system_document_metadata(self, client, mock_db):
+        sub = _make_subcategory(id=1, category_key="traditional", name="房建")
+        doc = _make_document(id=1, title="默认法规", subcategory_id=1)
+        doc.owner_type = "system"
+        doc.owner_user_id = None
+        doc.application_scenario = "contract"
+        sub.documents = [doc]
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [sub]
+        mock_db.execute.return_value = mock_result
+
+        response = client.get("/api/v1/knowledge/overview")
+
+        assert response.status_code == 200
+        data = response.json()
+        trad = next(c for c in data["categories"] if c["key"] == "traditional")
+        doc_item = trad["subcategories"][0]["documents"][0]
+        assert doc_item["owner_type"] == "system"
+        assert doc_item["application_scenario"] == "contract"
 
     def test_overview_with_no_subcategories(self, client, mock_db):
         mock_result = MagicMock()

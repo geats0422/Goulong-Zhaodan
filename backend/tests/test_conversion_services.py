@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import types
+import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -18,6 +19,7 @@ if "markitdown" not in sys.modules:
     _fake_md.MarkItDown = MagicMock()
     sys.modules["markitdown"] = _fake_md
 
+from services import markdown_converter  # noqa: E402
 from services.markdown_converter import ConversionError, convert_to_markdown  # noqa: E402
 from services.page_indexer import IndexNodeCreate, build_index_nodes  # noqa: E402
 
@@ -73,6 +75,38 @@ class TestConvertToMarkdown:
             MockMD.return_value.convert.return_value = mock_result
             with pytest.raises(ConversionError, match="empty content"):
                 convert_to_markdown(test_file)
+
+    def test_docx_fallback_extracts_chinese_text_when_markitdown_fails(self, tmp_path: Path) -> None:
+        test_file = tmp_path / "resume.docx"
+        document_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>大模型与Agent开发课程简历模板</w:t></w:r></w:p>
+    <w:p><w:r><w:t>项目经历</w:t></w:r></w:p>
+  </w:body>
+</w:document>"""
+        with zipfile.ZipFile(test_file, "w") as archive:
+            archive.writestr("word/document.xml", document_xml)
+
+        with patch("services.markdown_converter.MarkItDown") as MockMD:
+            MockMD.return_value.convert.side_effect = RuntimeError("No converter attempted a conversion")
+            result = convert_to_markdown(test_file)
+
+        assert "大模型与Agent开发课程简历模板" in result
+        assert "项目经历" in result
+
+    def test_word_piece_table_extracts_legacy_doc_chinese_text(self) -> None:
+        content = "钢筋加工运输专业劳务分包合同"
+        word_document = bytearray(256)
+        word_document[100 : 100 + len(content.encode("utf-16le"))] = content.encode("utf-16le")
+        cp_table = (0).to_bytes(4, "little") + len(content).to_bytes(4, "little")
+        pcd = b"\x00\x00" + (100).to_bytes(4, "little") + b"\x00\x00"
+        piece_table = cp_table + pcd
+        clx = b"\x02" + len(piece_table).to_bytes(4, "little") + piece_table
+
+        result = markdown_converter._extract_word_piece_table_text(bytes(word_document), clx)
+
+        assert result == content
 
 
 class TestBuildIndexNodes:
