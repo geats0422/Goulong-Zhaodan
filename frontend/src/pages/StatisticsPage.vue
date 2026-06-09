@@ -1,6 +1,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
+import { useAuth } from '../composables/useAuth.js'
+
+const { fetchWithAuth } = useAuth()
 
 const loading = ref(true)
 const error = ref('')
@@ -45,7 +48,7 @@ async function fetchStats() {
   loading.value = true
   error.value = ''
   try {
-    const response = await fetch('/inspection/stats/history?range=7d')
+    const response = await fetchWithAuth('/inspection/stats/history?range=7d')
     if (!response.ok) {
       throw new Error('统计接口请求失败')
     }

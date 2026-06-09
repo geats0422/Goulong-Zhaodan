@@ -149,21 +149,21 @@ const plans = [
   width: 96px;
   height: 1px;
   margin-bottom: 18px;
-  background: linear-gradient(90deg, transparent, #d4af37, transparent);
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
 }
 
 .home-hero h1 {
   margin: 16px 0;
-  color: #f2ca50;
+  color: var(--gold);
   font-family: "Syne", "Noto Serif SC", serif;
   font-size: clamp(4rem, 11vw, 8.8rem);
   line-height: 0.95;
   letter-spacing: -0.06em;
-  text-shadow: 0 0 28px rgba(212, 175, 55, 0.28);
+  text-shadow: 0 0 28px color-mix(in srgb, var(--gold) 28%, transparent);
 }
 
 .hero-subtitle {
-  color: #e5e2e1;
+  color: var(--text);
   font-family: "Syne", "Noto Serif SC", serif;
   font-size: clamp(1.5rem, 3vw, 2.6rem);
   font-weight: 800;
@@ -173,7 +173,7 @@ const plans = [
 .lead {
   max-width: 760px;
   margin-top: 22px;
-  color: #d0c5af;
+  color: var(--muted);
   font-size: 18px;
 }
 
@@ -187,7 +187,7 @@ const plans = [
 
 .marketing-section {
   padding: 88px 0;
-  border-top: 1px solid rgba(212, 175, 55, 0.16);
+  border-top: 1px solid color-mix(in srgb, var(--gold) 16%, transparent);
 }
 
 .section-heading {
@@ -198,7 +198,7 @@ const plans = [
 .final-cta h2,
 .security-layout h2 {
   margin: 8px 0 0;
-  color: #e5e2e1;
+  color: var(--text);
   font-family: "Syne", "Noto Serif SC", serif;
   font-size: clamp(2rem, 4vw, 3.2rem);
   line-height: 1.12;
@@ -212,7 +212,7 @@ const plans = [
 }
 
 .split-heading a {
-  color: #f2ca50;
+  color: var(--gold);
   text-decoration: none;
   font-family: "JetBrains Mono", monospace;
   font-size: 12px;
@@ -235,8 +235,8 @@ const plans = [
 .metrics-grid article,
 .circuit-card {
   position: relative;
-  border: 1px solid rgba(212, 175, 55, 0.18);
-  background: linear-gradient(180deg, rgba(32, 31, 31, 0.92), rgba(14, 14, 14, 0.92));
+  border: 1px solid color-mix(in srgb, var(--gold) 18%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 92%, transparent), color-mix(in srgb, var(--bg) 92%, transparent));
 }
 
 .problem-grid article {
@@ -250,7 +250,7 @@ const plans = [
 .problem-grid strong,
 .circuit-card h3,
 .plan-grid strong {
-  color: #e5e2e1;
+  color: var(--text);
   font-family: "Syne", "Noto Serif SC", serif;
   font-size: 24px;
 }
@@ -259,7 +259,7 @@ const plans = [
 .circuit-card p,
 .security-layout p,
 .metrics-grid span {
-  color: #d0c5af;
+  color: var(--muted);
   line-height: 1.7;
 }
 
@@ -276,7 +276,7 @@ const plans = [
   position: absolute;
   width: 18px;
   height: 18px;
-  border-color: #d4af37;
+  border-color: var(--gold);
   border-style: solid;
 }
 
@@ -293,7 +293,7 @@ const plans = [
 }
 
 .security-strip {
-  background: radial-gradient(circle at 72% 50%, rgba(212, 175, 55, 0.13), transparent 34%), rgba(18, 18, 18, 0.64);
+  background: radial-gradient(circle at 72% 50%, color-mix(in srgb, var(--gold) 13%, transparent), transparent 34%), color-mix(in srgb, var(--surface) 64%, transparent);
 }
 
 .security-layout {
@@ -313,7 +313,7 @@ const plans = [
 
 .metrics-grid strong {
   display: block;
-  color: #f2ca50;
+  color: var(--gold);
   font-size: 48px;
   line-height: 1;
 }
@@ -325,7 +325,7 @@ const plans = [
 .plan-grid strong {
   display: block;
   margin: 24px 0 12px;
-  color: #f2ca50;
+  color: var(--gold);
   font-size: 34px;
 }
 
@@ -333,8 +333,15 @@ const plans = [
   margin-bottom: 96px;
   padding: 72px 32px;
   text-align: center;
-  border: 1px solid rgba(212, 175, 55, 0.22);
-  background: radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.18), transparent 45%), #121212;
+  border: 1px solid color-mix(in srgb, var(--gold) 22%, transparent);
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--gold) 18%, transparent), transparent 45%), var(--surface);
+}
+
+[data-theme="light"] .problem-grid article,
+[data-theme="light"] .metrics-grid article,
+[data-theme="light"] .circuit-card,
+[data-theme="light"] .final-cta {
+  box-shadow: 0 16px 42px rgba(88, 65, 15, 0.08);
 }
 
 @media (max-width: 980px) {
