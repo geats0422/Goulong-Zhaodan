@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuth } from '../../composables/useAuth.js'
 import { applyThemeMode, getStoredThemeMode, persistThemeMode } from '../../theme'
 
 defineProps({
@@ -8,6 +9,7 @@ defineProps({
 })
 
 const router = useRouter()
+const { currentUser, logout } = useAuth()
 const showNotifications = ref(false)
 const showAccountMenu = ref(false)
 const showThemeMenu = ref(false)
@@ -40,6 +42,13 @@ const toggleAccountMenu = () => {
   showThemeMenu.value = false
 }
 
+const goToNavItem = (href) => {
+  showNotifications.value = false
+  showAccountMenu.value = false
+  showThemeMenu.value = false
+  router.push(href)
+}
+
 const selectThemeMode = (mode) => {
   themeMode.value = mode
   persistThemeMode(mode)
@@ -60,6 +69,8 @@ const goToSettings = () => {
 }
 
 const activeThemeOption = computed(() => themeOptions.find((item) => item.value === themeMode.value) ?? themeOptions[2])
+const username = computed(() => currentUser.value?.username || '用户')
+const avatarText = computed(() => username.value.slice(0, 1).toUpperCase())
 
 const handleSystemThemeChange = () => {
   if (themeMode.value === 'system') {
@@ -82,15 +93,15 @@ onBeforeUnmount(() => {
 <template>
   <nav class="dashboard-nav">
     <div class="dashboard-nav-inner">
-      <a class="dashboard-brand" href="/dashboard">
+      <button class="dashboard-brand" type="button" @click="goToNavItem('/dashboard')">
         <span class="material-symbols-outlined">security</span>
         <span>句龙 · 照胆</span>
-      </a>
+      </button>
 
       <div class="dashboard-links">
-        <a v-for="item in navItems" :key="item.key" :class="{ active: item.key === active }" :href="item.href">
+        <button v-for="item in navItems" :key="item.key" type="button" :class="{ active: item.key === active }" @click="goToNavItem(item.href)">
           {{ item.label }}
-        </a>
+        </button>
       </div>
 
       <div class="dashboard-actions">
@@ -126,7 +137,7 @@ onBeforeUnmount(() => {
         </button>
 
         <div class="nav-popover-anchor">
-          <button class="avatar-button" type="button" aria-label="用户菜单" :aria-expanded="showAccountMenu" @click="toggleAccountMenu">张</button>
+          <button class="avatar-button" type="button" :aria-label="`用户菜单：${username}`" :aria-expanded="showAccountMenu" @click="toggleAccountMenu">{{ avatarText }}</button>
           <div v-if="showAccountMenu" class="account-menu" role="menu" aria-label="用户菜单">
             <span class="hud-corner corner-tl"></span>
             <span class="hud-corner corner-br"></span>
@@ -134,7 +145,7 @@ onBeforeUnmount(() => {
               <span class="material-symbols-outlined">switch_account</span>
               切换账号
             </button>
-            <button type="button" role="menuitem">
+            <button type="button" role="menuitem" @click="logout">
               <span class="material-symbols-outlined">logout</span>
               退出账号
             </button>

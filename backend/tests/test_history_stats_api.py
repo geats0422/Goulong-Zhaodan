@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 
 from fastapi.testclient import TestClient
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -21,16 +22,28 @@ fake_inspector_module.run_inspection = _fake_run_inspection
 sys.modules["agents.inspector"] = fake_inspector_module
 
 from main import app  # noqa: E402
+from core.auth import get_current_user  # noqa: E402
 from routers import inspection as inspection_router  # noqa: E402
+
+
+async def _override_user():
+    return {"user_id": "1", "username": "testuser", "is_active": True}
 
 
 client = TestClient(app)
 
-API_HEADERS = {"X-API-Key": "goulong-dev-key"}
+API_HEADERS = {"Authorization": "Bearer test-token"}
 
 
 def setup_function() -> None:
     inspection_router._inspection_records.clear()
+
+
+@pytest.fixture(autouse=True)
+def auth_override():
+    app.dependency_overrides[get_current_user] = _override_user
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_history_stats_empty_data() -> None:
@@ -53,6 +66,7 @@ def test_history_stats_aggregation_and_rate() -> None:
         [
             {
                 "id": 1,
+                "user_id": 1,
                 "project_id": "default",
                 "document_name": "a.txt",
                 "issues": [{"title": "违规"}],
@@ -61,6 +75,7 @@ def test_history_stats_aggregation_and_rate() -> None:
             },
             {
                 "id": 2,
+                "user_id": 1,
                 "project_id": "default",
                 "document_name": "b.txt",
                 "issues": [],
@@ -84,18 +99,26 @@ def test_history_stats_aggregation_and_rate() -> None:
 
 
 def test_missing_api_key_returns_401() -> None:
-    response = client.get("/inspection/stats/history")
-    assert response.status_code == 401
-    assert "Missing API key" in response.json()["detail"]
+    app.dependency_overrides.pop(get_current_user, None)
+    try:
+        clean_client = TestClient(app)
+        response = clean_client.get("/inspection/stats/history")
+        assert response.status_code == 401
+    finally:
+        app.dependency_overrides[get_current_user] = _override_user
 
 
 def test_invalid_api_key_returns_401() -> None:
-    response = client.get(
-        "/inspection/stats/history",
-        headers={"X-API-Key": "wrong-key"},
-    )
-    assert response.status_code == 401
-    assert "Invalid API key" in response.json()["detail"]
+    app.dependency_overrides.pop(get_current_user, None)
+    try:
+        clean_client = TestClient(app)
+        response = clean_client.get(
+            "/inspection/stats/history",
+            headers={"Authorization": "Bearer invalid.token.here"},
+        )
+        assert response.status_code == 401
+    finally:
+        app.dependency_overrides[get_current_user] = _override_user
 
 
 def test_valid_api_key_returns_200() -> None:

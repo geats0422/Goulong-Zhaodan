@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-import re
-
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.auth import get_current_user
-from core.constants import validate_category, validate_file_type, ENGINEERING_CATEGORIES
+from core.constants import (
+    validate_application_scenario,
+    validate_category,
+    validate_file_type,
+    ENGINEERING_CATEGORIES,
+)
 from core.database import get_db_session
 from models.knowledge import (
     EngineeringSubcategory,
@@ -17,13 +20,34 @@ from models.knowledge import (
     DocumentVersion,
     IndexNode,
 )
-from services.file_storage import build_storage_path, save_upload_file
-from services.markdown_converter import convert_to_markdown, ConversionError
-from services.page_indexer import build_index_nodes, IndexingError
+from services.file_storage import build_storage_path, save_upload_file, safe_path_segment
+from services.knowledge_ingestion import ingest_document_content
 
 MAX_FILE_SIZE = 50 * 1024 * 1024
 
 router = APIRouter(prefix="/knowledge", tags=["知识库"])
+
+
+def _current_user_id(user: dict) -> int:
+    try:
+        return int(user["user_id"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=401, detail="Invalid user") from exc
+
+
+def _is_document_visible(doc: KnowledgeDocument, user_id: int) -> bool:
+    return doc.owner_type == "system" or doc.owner_user_id == user_id
+
+
+def _visible_document_filter(user_id: int):
+    return or_(
+        KnowledgeDocument.owner_type == "system",
+        KnowledgeDocument.owner_user_id == user_id,
+    )
+
+
+def _safe_path_segment(value: str, fallback: str = "untitled") -> str:
+    return safe_path_segment(value, fallback)
 
 
 class SubcategoryItem(BaseModel):
@@ -78,6 +102,7 @@ class UploadResponse(BaseModel):
     status: str
     category: str
     subcategory: str
+    application_scenario: str
     node_count: int
     error: str | None
 
@@ -86,6 +111,8 @@ class OverviewDocument(BaseModel):
     id: int
     title: str
     current_version: VersionInfo | None
+    owner_type: str
+    application_scenario: str
     created_at: str
 
 
@@ -110,6 +137,7 @@ async def get_knowledge_overview(
     db: AsyncSession = Depends(get_db_session),
     user: dict = Depends(get_current_user),
 ):
+    user_id = _current_user_id(user)
     categories: list[OverviewCategory] = []
     for key, label in ENGINEERING_CATEGORIES.items():
         result = await db.execute(
@@ -127,6 +155,8 @@ async def get_knowledge_overview(
         for sub in subs:
             doc_items: list[OverviewDocument] = []
             for doc in sub.documents:
+                if not _is_document_visible(doc, user_id):
+                    continue
                 ver_info = None
                 if doc.current_version is not None:
                     ver_info = VersionInfo(
@@ -139,6 +169,8 @@ async def get_knowledge_overview(
                         id=doc.id,
                         title=doc.title,
                         current_version=ver_info,
+                        owner_type=doc.owner_type,
+                        application_scenario=doc.application_scenario,
                         created_at=doc.created_at.isoformat() if doc.created_at else "",
                     )
                 )
@@ -241,6 +273,7 @@ async def list_subcategories(
 async def upload_and_ingest(
     file: UploadFile = File(...),
     category: str = Form(...),
+    application_scenario: str = Form("bidding"),
     subcategory_id: int | None = Form(None),
     subcategory_name: str | None = Form(None),
     db: AsyncSession = Depends(get_db_session),
@@ -252,7 +285,12 @@ async def upload_and_ingest(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    safe_name = re.sub(r"[^\w.\-]", "_", filename)
+    try:
+        validate_application_scenario(application_scenario)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    safe_name = safe_path_segment(filename, fallback=filename)
 
     try:
         category_label = validate_category(category)
@@ -260,14 +298,19 @@ async def upload_and_ingest(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     sub = await _get_or_create_subcategory(db, category, subcategory_id, subcategory_name)
+    owner_user_id = _current_user_id(user)
 
     stem = filename[: filename.rfind(".")] if "." in filename else filename
     stem = stem.strip() or "untitled"
+    safe_stem = _safe_path_segment(stem)
 
     result = await db.execute(
         select(KnowledgeDocument).where(
             KnowledgeDocument.title == stem,
             KnowledgeDocument.subcategory_id == sub.id,
+            KnowledgeDocument.owner_type == "user",
+            KnowledgeDocument.owner_user_id == owner_user_id,
+            KnowledgeDocument.application_scenario == application_scenario,
         )
     )
     existing_doc = result.scalar_one_or_none()
@@ -283,7 +326,13 @@ async def upload_and_ingest(
         document = existing_doc
     else:
         version_number = 1
-        document = KnowledgeDocument(title=stem, subcategory_id=sub.id)
+        document = KnowledgeDocument(
+            title=stem,
+            subcategory_id=sub.id,
+            owner_type="user",
+            owner_user_id=owner_user_id,
+            application_scenario=application_scenario,
+        )
         db.add(document)
         await db.flush()
         await db.refresh(document)
@@ -296,7 +345,7 @@ async def upload_and_ingest(
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="文件大小超过 50MB 限制")
 
-    storage_dir = build_storage_path(category, sub.name, stem, version_number)
+    storage_dir = build_storage_path(category, _safe_path_segment(sub.name, "subcategory"), safe_stem, version_number)
     original_path = storage_dir / safe_name
 
     version = DocumentVersion(
@@ -314,48 +363,9 @@ async def upload_and_ingest(
 
     save_upload_file(original_path, content)
 
-    node_count = 0
-    error_msg = None
-
-    try:
-        markdown_text = convert_to_markdown(str(original_path))
-        md_path = original_path.parent / f"{stem}.md"
-        md_path.parent.mkdir(parents=True, exist_ok=True)
-        md_path.write_text(markdown_text, encoding="utf-8")
-        version.markdown_path = str(md_path)
-        version.status = "converting"
-        await db.flush()
-
-        index_nodes = await build_index_nodes(markdown_text, md_path=str(md_path))
-        created_nodes: list[IndexNode] = []
-        for node_data in index_nodes:
-            parent_id = None
-            if node_data.parent_index is not None and node_data.parent_index < len(created_nodes):
-                parent_id = created_nodes[node_data.parent_index].id
-            node = IndexNode(
-                version_id=version.id,
-                parent_id=parent_id,
-                node_type=node_data.node_type,
-                path_label=node_data.path_label,
-                content=node_data.content,
-                position=node_data.position,
-            )
-            created_nodes.append(node)
-        db.add_all(created_nodes)
-        await db.flush()
-
-        node_count = len(created_nodes)
-        version.status = "completed"
-    except (ConversionError, IndexingError) as exc:
-        if isinstance(exc, ConversionError):
-            version.status = "convert_failed"
-        else:
-            version.status = "index_failed"
-        error_msg = str(exc)
-        version.error_message = error_msg
-
-    if version.status in ("completed", "convert_failed", "index_failed"):
-        document.current_version_id = version.id
+    node_count, error_msg = await ingest_document_content(
+        db, document, version, str(original_path), safe_stem,
+    )
     await db.commit()
     await db.refresh(version)
 
@@ -367,6 +377,7 @@ async def upload_and_ingest(
         status=version.status,
         category=category_label,
         subcategory=sub.name,
+        application_scenario=application_scenario,
         node_count=node_count,
         error=error_msg,
     )
@@ -378,8 +389,17 @@ async def list_documents(
     db: AsyncSession = Depends(get_db_session),
     user: dict = Depends(get_current_user),
 ):
+    user_id = _current_user_id(user)
     result = await db.execute(
-        select(KnowledgeDocument).where(KnowledgeDocument.subcategory_id == subcategory_id)
+        select(KnowledgeDocument)
+        .where(
+            KnowledgeDocument.subcategory_id == subcategory_id,
+            _visible_document_filter(user_id),
+        )
+        .options(
+            selectinload(KnowledgeDocument.current_version),
+            selectinload(KnowledgeDocument.subcategory),
+        )
     )
     docs = result.scalars().all()
 
@@ -412,8 +432,12 @@ async def get_document_nodes(
     db: AsyncSession = Depends(get_db_session),
     user: dict = Depends(get_current_user),
 ):
+    user_id = _current_user_id(user)
     result = await db.execute(
-        select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
+        select(KnowledgeDocument).where(
+            KnowledgeDocument.id == document_id,
+            _visible_document_filter(user_id),
+        )
     )
     document = result.scalar_one_or_none()
     if document is None:

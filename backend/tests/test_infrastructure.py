@@ -19,6 +19,8 @@ for mod_name in [
         sys.modules[mod_name] = types.ModuleType(mod_name)
 
 from core.constants import (  # noqa: E402
+    APPLICATION_SCENARIOS,
+    validate_application_scenario,
     validate_category,
     validate_file_type,
 )
@@ -35,6 +37,17 @@ def test_validate_category_valid() -> None:
 def test_validate_category_invalid() -> None:
     with pytest.raises(ValueError, match="Invalid category key"):
         validate_category("nonexistent")
+
+
+def test_validate_application_scenario_valid() -> None:
+    assert APPLICATION_SCENARIOS["bidding"] == "招投标"
+    assert validate_application_scenario("bidding") == "招投标"
+    assert validate_application_scenario("contract") == "合同"
+
+
+def test_validate_application_scenario_invalid() -> None:
+    with pytest.raises(ValueError, match="Invalid application scenario"):
+        validate_application_scenario("invalid")
 
 
 def test_validate_file_type_valid() -> None:
@@ -79,6 +92,10 @@ def test_save_upload_file(tmp_path: Path) -> None:
 def test_models_importable() -> None:
     assert EngineeringSubcategory.__tablename__ == "engineering_subcategories"
     assert KnowledgeDocument.__tablename__ == "knowledge_documents"
+    assert hasattr(KnowledgeDocument, "owner_type")
+    assert hasattr(KnowledgeDocument, "owner_user_id")
+    assert hasattr(KnowledgeDocument, "application_scenario")
+    assert hasattr(KnowledgeDocument, "source_path")
     assert DocumentVersion.__tablename__ == "document_versions"
     assert IndexNode.__tablename__ == "index_nodes"
 

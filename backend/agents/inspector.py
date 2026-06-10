@@ -14,6 +14,17 @@ from app.prompts.inspection_prompts import (
 from core.deps import InspectionDeps
 
 
+def _allowed_refs(deps: InspectionDeps) -> list[str]:
+    regulation_base = deps.regulation_base or {}
+    refs = [
+        str(source.get("title", "")).strip()
+        for source in regulation_base.get("sources", [])
+        if str(source.get("title", "")).strip()
+    ]
+    refs.extend(f"违禁词:{word}" for word in (deps.taboo_words or []) if word)
+    return refs
+
+
 @dataclass
 class InspectionResult:
     """体检报告结构化结果"""
@@ -35,7 +46,7 @@ async def run_inspection(
     """
     # 阶段 1: 法规分析
     regulation_result = await get_regulation_analyst().run(
-        format_regulation_prompt(document_text),
+        format_regulation_prompt(document_text, deps.regulation_base),
         deps=deps,
     )
 
@@ -43,6 +54,7 @@ async def run_inspection(
     inspection_prompt = format_inspection_prompt(
         document_text=document_text,
         regulation_result=regulation_result.output,
+        regulation_base=deps.regulation_base,
         taboo_words=deps.taboo_words,
     )
 
@@ -55,6 +67,7 @@ async def run_inspection(
     summary_prompt = format_summary_prompt(
         regulation_result=regulation_result.output,
         inspection_result=inspection_result.output,
+        allowed_refs=_allowed_refs(deps),
     )
 
     final_result = await get_inspection_agent().run(

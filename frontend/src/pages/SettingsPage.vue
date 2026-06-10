@@ -1,6 +1,15 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
+import {
+  createTabooWord,
+  deleteTabooWord,
+  getSettingsOverview,
+  updateKnowledgeDocument,
+  updatePassword,
+  updateProfile,
+  updateTabooWord,
+} from '../services/settingsApi.js'
 
 const activeTab = ref('system')
 const tabs = [
@@ -9,19 +18,125 @@ const tabs = [
   { key: 'taboo', label: '[违禁词设置]' },
 ]
 
-const bindings = [
-  { name: '微信', status: '未绑定', active: false },
-  { name: '支付宝', status: '已绑定', active: true },
-]
+const loading = ref(true)
+const error = ref('')
+const saving = ref(false)
+const message = ref('')
+const profile = ref(null)
+const knowledge = ref([])
+const tabooWords = ref([])
+const profileForm = ref({ display_name: '', wechat_bound: false, alipay_bound: false, burn_after_read: true })
+const passwordForm = ref({ old_password: '', new_password: '' })
+const tabooForm = ref({ word: '', replacement: '', note: '' })
+const editingTabooId = ref(null)
 
-const knowledgeCards = [
-  ['房建类', '施工组织设计、建筑安全规范'],
-  ['市政类', '城市管网规划、绿化工程标准'],
-  ['路桥类', '桥梁载荷测试、高速公路施工'],
-  ['新基建', '数据中心建设、5G基站选址'],
-]
+const quotaPercent = computed(() => {
+  if (!profile.value?.monthly_quota) return 0
+  return Math.min(100, (profile.value.quota_used / profile.value.monthly_quota) * 100)
+})
 
-const tabooWords = ['旧版主体名称V1', '内部绝密代号X7', '绝对化极限违约金条款']
+async function loadSettings() {
+  loading.value = true
+  error.value = ''
+  try {
+    const data = await getSettingsOverview()
+    profile.value = data.profile
+    knowledge.value = data.knowledge || []
+    tabooWords.value = data.taboo_words || []
+    profileForm.value = {
+      display_name: data.profile.display_name,
+      wechat_bound: data.profile.wechat_bound,
+      alipay_bound: data.profile.alipay_bound,
+      burn_after_read: data.profile.burn_after_read,
+    }
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '设置加载失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function saveProfile() {
+  saving.value = true
+  message.value = ''
+  try {
+    profile.value = await updateProfile(profileForm.value)
+    message.value = '系统设置已保存'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '保存失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function savePassword() {
+  saving.value = true
+  message.value = ''
+  try {
+    await updatePassword(passwordForm.value)
+    passwordForm.value = { old_password: '', new_password: '' }
+    message.value = '密码已更新'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '密码更新失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function toggleDocument(doc) {
+  const next = !doc.enabled
+  doc.enabled = next
+  try {
+    await updateKnowledgeDocument(doc.id, next)
+    message.value = next ? '知识库文档已启用' : '知识库文档已停用'
+  } catch (err) {
+    doc.enabled = !next
+    error.value = err instanceof Error ? err.message : '知识库设置保存失败'
+  }
+}
+
+function editTaboo(word) {
+  editingTabooId.value = word.id
+  tabooForm.value = { word: word.word, replacement: word.replacement || '', note: word.note || '' }
+}
+
+function resetTabooForm() {
+  editingTabooId.value = null
+  tabooForm.value = { word: '', replacement: '', note: '' }
+}
+
+async function submitTabooWord() {
+  saving.value = true
+  message.value = ''
+  try {
+    if (editingTabooId.value) {
+      const updated = await updateTabooWord(editingTabooId.value, tabooForm.value)
+      tabooWords.value = tabooWords.value.map((item) => (item.id === updated.id ? updated : item))
+      message.value = '违禁词已更新'
+    } else {
+      const created = await createTabooWord(tabooForm.value)
+      tabooWords.value.push(created)
+      message.value = '违禁词已添加'
+    }
+    resetTabooForm()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '违禁词保存失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function removeTabooWord(wordId) {
+  try {
+    await deleteTabooWord(wordId)
+    tabooWords.value = tabooWords.value.filter((item) => item.id !== wordId)
+    message.value = '违禁词已删除'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '删除失败'
+  }
+}
+
+onMounted(loadSettings)
 </script>
 
 <template>
@@ -36,8 +151,12 @@ const tabooWords = ['旧版主体名称V1', '内部绝密代号X7', '绝对化�
       </div>
 
       <header class="settings-header">
-        <h1>系统配置与权限矩阵</h1>
+        <h1>系统配置与个人设置</h1>
       </header>
+
+      <div v-if="loading" class="settings-state">正在加载设置...</div>
+      <div v-else-if="error" class="settings-error">{{ error }}</div>
+      <div v-if="message" class="settings-message">{{ message }}</div>
 
       <nav class="settings-tabs" aria-label="设置分类">
         <button v-for="tab in tabs" :key="tab.key" :class="{ active: activeTab === tab.key }" type="button" @click="activeTab = tab.key">
@@ -45,7 +164,7 @@ const tabooWords = ['旧版主体名称V1', '内部绝密代号X7', '绝对化�
         </button>
       </nav>
 
-      <section v-if="activeTab === 'system'" class="settings-content system-settings">
+      <section v-if="!loading && profile && activeTab === 'system'" class="settings-content system-settings">
         <article class="settings-card circuit-card card-primary">
           <header>
             <span class="material-symbols-outlined">account_balance_wallet</span>
@@ -54,14 +173,14 @@ const tabooWords = ['旧版主体名称V1', '内部绝密代号X7', '绝对化�
           <div class="quota-grid">
             <div>
               <p class="setting-label">当前订阅等级</p>
-              <strong><span class="material-symbols-outlined">workspace_premium</span>年度订阅 (Annual Pass)</strong>
+              <strong><span class="material-symbols-outlined">workspace_premium</span>{{ profile.subscription_plan }}</strong>
             </div>
             <div>
               <div class="quota-head">
                 <p class="setting-label">本月可用体检额度</p>
-                <span>142 / 500</span>
+                <span>{{ profile.quota_used }} / {{ profile.monthly_quota }}</span>
               </div>
-              <div class="quota-track"><i></i></div>
+              <div class="quota-track"><i :style="{ width: `${quotaPercent}%` }"></i></div>
             </div>
           </div>
         </article>
@@ -74,21 +193,36 @@ const tabooWords = ['旧版主体名称V1', '内部绝密代号X7', '绝对化�
           <div class="identity-grid">
             <label>
               <span>用户名</span>
-              <input readonly value="ZHL-ADMIN-8821" />
+              <input readonly :value="profile.username" />
             </label>
             <label>
-              <span>密码</span>
-              <input readonly type="password" value="****************" />
+              <span>显示名称</span>
+              <input v-model="profileForm.display_name" maxlength="100" />
             </label>
           </div>
           <div class="binding-section">
             <p class="setting-label">第三方鉴权绑定</p>
             <div class="binding-row">
-              <span v-for="binding in bindings" :key="binding.name" class="binding-chip" :class="{ active: binding.active }">
-                {{ binding.name }} <small>{{ binding.status }}</small>
+              <span class="binding-chip" :class="{ active: profileForm.wechat_bound }">
+                微信 <small>{{ profileForm.wechat_bound ? '已绑定' : '未绑定' }}</small>
+                <button type="button" @click="profileForm.wechat_bound = !profileForm.wechat_bound">切换</button>
+              </span>
+              <span class="binding-chip" :class="{ active: profileForm.alipay_bound }">
+                支付宝 <small>{{ profileForm.alipay_bound ? '已绑定' : '未绑定' }}</small>
+                <button type="button" @click="profileForm.alipay_bound = !profileForm.alipay_bound">切换</button>
               </span>
             </div>
           </div>
+          <button class="settings-action" type="button" :disabled="saving" @click="saveProfile">保存系统设置</button>
+        </article>
+
+        <article class="settings-card">
+          <header><span class="material-symbols-outlined muted-icon">lock_reset</span><h2>修改密码</h2></header>
+          <div class="identity-grid">
+            <label><span>旧密码</span><input v-model="passwordForm.old_password" type="password" /></label>
+            <label><span>新密码</span><input v-model="passwordForm.new_password" type="password" minlength="6" /></label>
+          </div>
+          <button class="settings-action" type="button" :disabled="saving" @click="savePassword">更新密码</button>
         </article>
 
         <article class="settings-card circuit-card card-primary safety-card">
@@ -102,40 +236,49 @@ const tabooWords = ['旧版主体名称V1', '内部绝密代号X7', '绝对化�
           <div class="burn-toggle">
             <span>阅后即焚模式</span>
             <label aria-label="阅后即焚模式">
-              <input checked type="checkbox" />
+              <input v-model="profileForm.burn_after_read" type="checkbox" />
               <i></i>
             </label>
           </div>
         </article>
       </section>
 
-      <section v-else-if="activeTab === 'knowledge'" class="settings-content knowledge-settings">
-        <article class="settings-card public-tree">
-          <header><span class="material-symbols-outlined">public</span><h2>公共索引树</h2></header>
-          <ul>
-            <li>招投标法律法规基准</li>
-            <li>国家行业标准库V4</li>
-            <li>地方性合规审查补充</li>
-          </ul>
-        </article>
-        <article class="settings-card private-archive circuit-card card-primary">
-          <header><span class="material-symbols-outlined">folder_special</span><h2>私有企业卷宗</h2></header>
-          <div class="knowledge-grid">
-            <div v-for="card in knowledgeCards" :key="card[0]"><strong>{{ card[0] }}</strong><span>{{ card[1] }}</span></div>
+      <section v-else-if="!loading && activeTab === 'knowledge'" class="settings-content knowledge-settings full-width">
+        <article v-for="category in knowledge" :key="category.category_key" class="settings-card private-archive circuit-card card-primary">
+          <header><span class="material-symbols-outlined">folder_special</span><h2>{{ category.category_label }}</h2></header>
+          <div v-if="category.subcategories.length" class="knowledge-grid">
+            <div v-for="sub in category.subcategories" :key="sub.id">
+              <strong>{{ sub.name }}</strong>
+              <span v-if="!sub.documents.length">暂无文档</span>
+              <label v-for="doc in sub.documents" :key="doc.id" class="doc-toggle">
+                <input type="checkbox" :checked="doc.enabled" @change="toggleDocument(doc)" />
+                <span>{{ doc.title }}</span>
+              </label>
+            </div>
           </div>
+          <p v-else class="empty-state">暂无知识库文档</p>
         </article>
       </section>
 
-      <section v-else class="settings-content taboo-settings">
+      <section v-else-if="!loading" class="settings-content taboo-settings">
         <article class="settings-card taboo-card">
           <header><span class="material-symbols-outlined">warning</span><h2>生成与审查规避标准</h2></header>
           <p>设置绝对红线规避标准，引擎在处理文本时将严格隔离以下词条。</p>
-          <div class="taboo-input">
-            <input placeholder="输入需规避的敏感词汇..." />
-            <button type="button">隔离入库</button>
-          </div>
-          <div class="taboo-list">
-            <span v-for="word in tabooWords" :key="word">[{{ word }}]<button type="button" aria-label="移除词条">×</button></span>
+          <form class="taboo-input" @submit.prevent="submitTabooWord">
+            <input v-model="tabooForm.word" placeholder="输入需规避的敏感词汇..." required maxlength="100" />
+            <input v-model="tabooForm.replacement" placeholder="建议替换词（可选）" maxlength="100" />
+            <input v-model="tabooForm.note" placeholder="备注（可选）" />
+            <button type="submit" :disabled="saving">{{ editingTabooId ? '保存修改' : '隔离入库' }}</button>
+            <button v-if="editingTabooId" type="button" @click="resetTabooForm">取消</button>
+          </form>
+          <div v-if="!tabooWords.length" class="empty-state">暂无违禁词</div>
+          <div v-else class="taboo-list">
+            <span v-for="word in tabooWords" :key="word.id">
+              [{{ word.word }}]
+              <small v-if="word.replacement">替换为：{{ word.replacement }}</small>
+              <button type="button" @click="editTaboo(word)">编辑</button>
+              <button type="button" aria-label="移除词条" @click="removeTabooWord(word.id)">×</button>
+            </span>
           </div>
         </article>
       </section>
@@ -233,6 +376,31 @@ const tabooWords = ['旧版主体名称V1', '内部绝密代号X7', '绝对化�
   max-width: 960px;
 }
 
+.settings-content.full-width {
+  max-width: 1120px;
+}
+
+.settings-state,
+.settings-error,
+.settings-message,
+.empty-state {
+  border: 1px solid #4d4635;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  background: #1c1b1b;
+  color: #d0c5af;
+}
+
+.settings-error {
+  border-color: rgba(255, 180, 171, 0.55);
+  color: #ffb4ab;
+}
+
+.settings-message {
+  border-color: rgba(74, 222, 128, 0.35);
+  color: #34d399;
+}
+
 .system-settings,
 .knowledge-settings,
 .taboo-settings {
@@ -253,6 +421,21 @@ const tabooWords = ['旧版主体名称V1', '内部绝密代号X7', '绝对化�
   padding: 24px;
   background: rgba(18, 18, 18, 0.72);
   backdrop-filter: blur(20px);
+}
+
+.settings-action {
+  margin-top: 22px;
+  border: 1px solid #d4af37;
+  padding: 10px 18px;
+  background: rgba(212, 175, 55, 0.1);
+  color: #f2ca50;
+  cursor: pointer;
+}
+
+.settings-action:disabled,
+.taboo-input button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .card-primary {
@@ -404,6 +587,13 @@ const tabooWords = ['旧版主体名称V1', '内部绝密代号X7', '绝对化�
   color: #99907c;
 }
 
+.binding-chip button {
+  border: 0;
+  background: transparent;
+  color: #f2ca50;
+  cursor: pointer;
+}
+
 .binding-chip.active small {
   color: #f2ca50;
 }
@@ -499,6 +689,19 @@ const tabooWords = ['旧版主体名称V1', '内部绝密代号X7', '绝对化�
   font-size: 12px;
 }
 
+.doc-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: #d0c5af;
+  font-size: 13px;
+}
+
+.doc-toggle input {
+  accent-color: #d4af37;
+}
+
 .taboo-card {
   border-top: 2px solid #ffb4ab;
   overflow: hidden;
@@ -550,6 +753,10 @@ const tabooWords = ['旧版主体名称V1', '内部绝密代号X7', '绝对化�
 
 .taboo-list span {
   border-color: rgba(255, 180, 171, 0.5);
+}
+
+.taboo-list small {
+  color: #99907c;
 }
 
 .taboo-list button {

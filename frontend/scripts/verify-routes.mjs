@@ -25,6 +25,7 @@ if (missing.length) {
 
 const router = readFileSync(resolve(root, 'src/router.js'), 'utf8')
 const app = readFileSync(resolve(root, 'src/App.vue'), 'utf8')
+const viteConfig = readFileSync(resolve(root, 'vite.config.ts'), 'utf8')
 const marketingHome = readFileSync(resolve(root, 'src/pages/MarketingHomePage.vue'), 'utf8')
 const marketingNavbar = readFileSync(resolve(root, 'src/components/marketing/MarketingNavbar.vue'), 'utf8')
 const dashboard = readFileSync(resolve(root, 'src/pages/DashboardPage.vue'), 'utf8')
@@ -49,6 +50,16 @@ if (!router.includes('MarketingHomePage')) {
   throw new Error('Root route must render the Vue marketing home page')
 }
 
+if (!viteConfig.includes("'/api'") && !viteConfig.includes('"/api"')) {
+  throw new Error('Vite dev server must proxy /api requests to the backend')
+}
+
+for (const unsafeProxy of ["'/knowledge'", "'/settings'", "'/inspection'"]) {
+  if (viteConfig.includes(unsafeProxy)) {
+    throw new Error(`Vite proxy must not hijack frontend route prefix ${unsafeProxy}`)
+  }
+}
+
 if (!app.includes('<RouterView')) {
   throw new Error('App.vue must render RouterView')
 }
@@ -59,6 +70,10 @@ if (!dashboard.includes('极速载入案卷') || !dashboard.includes('当前挂�
 
 if (!dashboard.includes('AppTopNav') || dashboard.includes('<nav class="dashboard-nav"')) {
   throw new Error('Dashboard page must reuse AppTopNav instead of declaring its own top nav')
+}
+
+if (!dashboard.includes('ref="fileInput"') || !dashboard.includes('@click="openFilePicker"') || !dashboard.includes('type="file"')) {
+  throw new Error('Dashboard start inspection action must open the system file picker')
 }
 
 if (!inspectionDesk.includes('智能审查诊断书') || !inspectionDesk.includes('物理销毁案卷') || !inspectionDesk.includes('A区数据中心项目招标文件')) {
@@ -75,6 +90,10 @@ if (!knowledgeBase.includes('企业专属参考卷宗库') || !knowledgeBase.inc
 
 if (!knowledgeBase.includes('AppTopNav') || !appTopNav.includes('/knowledge-base') || !appTopNav.includes('知识库')) {
   throw new Error('Knowledge base page must use shared AppTopNav with a 知识库 link')
+}
+
+if (!appTopNav.includes('goToNavItem') || appTopNav.includes(':href="item.href"')) {
+  throw new Error('AppTopNav must use Vue Router navigation instead of anchor href full-page navigation')
 }
 
 if (!appTopNav.includes("'dashboard' },\n  { label: '体检台', href: '/history'") || !appTopNav.includes("'inspection' },\n  { label: '知识库'") || !appTopNav.includes("'knowledge' },\n  { label: '数据统计', href: '/statistics'") || !appTopNav.includes("'statistics' },\n  { label: '设置'")) {
@@ -105,8 +124,8 @@ if (appTopNav.includes('实验室')) {
   throw new Error('AppTopNav must not include the 实验室 navigation item')
 }
 
-if (!settings.includes('系统配置与权限矩阵') || !settings.includes('令鉴与配额') || !settings.includes('数据安全锁')) {
-  throw new Error('Settings page must restore the Stitch system settings sections')
+if (!settings.includes('系统配置与个人设置') || !settings.includes('令鉴与配额') || !settings.includes('数据安全锁')) {
+  throw new Error('Settings page must provide the MVP personal settings sections')
 }
 
 if (!settings.includes('AppTopNav') || !appTopNav.includes('/settings') || !appTopNav.includes('设置')) {
@@ -127,6 +146,14 @@ if (!appTopNav.includes('themeMode') || !appTopNav.includes('toggleThemeMenu') |
 
 if (!appTopNav.includes('深色') || !appTopNav.includes('浅色') || !appTopNav.includes('系统配置')) {
   throw new Error('Theme toggle must expose 深色、浅色、系统配置 options')
+}
+
+if (!marketingNavbar.includes('themeMode') || !marketingNavbar.includes('toggleThemeMenu') || !marketingNavbar.includes('applyThemeMode')) {
+  throw new Error('Marketing navbar must provide the same theme mode toggle as the app')
+}
+
+if (!marketingNavbar.includes('深色') || !marketingNavbar.includes('浅色') || !marketingNavbar.includes('系统配置')) {
+  throw new Error('Marketing theme toggle must expose 深色、浅色、系统配置 options')
 }
 
 if (!theme.includes('localStorage') || !theme.includes('matchMedia') || !theme.includes('dataset.theme')) {
