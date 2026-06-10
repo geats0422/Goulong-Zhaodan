@@ -37,7 +37,6 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(["subcategory_id"], ["engineering_subcategories.id"]),
-        sa.ForeignKeyConstraint(["current_version_id"], ["document_versions.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
 
@@ -56,6 +55,14 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(["document_id"], ["knowledge_documents.id"]),
         sa.PrimaryKeyConstraint("id"),
+    )
+
+    op.create_foreign_key(
+        "knowledge_documents_current_version_id_fkey",
+        "knowledge_documents",
+        "document_versions",
+        ["current_version_id"],
+        ["id"],
     )
 
     op.create_table(
@@ -77,6 +84,11 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("index_nodes")
+    op.drop_constraint(
+        "knowledge_documents_current_version_id_fkey",
+        "knowledge_documents",
+        type_="foreignkey",
+    )
     op.drop_table("document_versions")
     op.drop_table("knowledge_documents")
     op.drop_table("engineering_subcategories")

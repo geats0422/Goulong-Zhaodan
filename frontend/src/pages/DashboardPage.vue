@@ -1,13 +1,60 @@
 <script setup>
+import { computed, onMounted, ref } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
+import InspectionReviewModal from '../components/inspection/InspectionReviewModal.vue'
+import { useAuth } from '../composables/useAuth.js'
+import { fetchInspectionRecords } from '../services/inspectionApi.js'
+
+const { currentUser } = useAuth()
+const username = computed(() => currentUser.value?.username || '用户')
+const fileInput = ref(null)
+const selectedFile = ref(null)
+const modalOpen = ref(false)
+const recentRecords = ref([])
 
 const rules = ['招投标法', '房建施工规范']
 const avoidRules = ['内部代号X7', '旧版公司名']
-const records = [
-  { icon: 'picture_as_pdf', name: 'A区数据中心投标文件.pdf', status: '3 Warnings', tone: 'amber' },
-  { icon: 'description', name: '2026标准外包合同.docx', status: 'Clean Pass', tone: 'green' },
-  { icon: 'picture_as_pdf', name: '第三季度采购需求.pdf', status: 'Avoidance Triggered', tone: 'red' },
-]
+function riskText(risk, issueCount = 0) {
+  if (risk === 'pending') return '等待审查'
+  if (risk === 'low') return '纯净通过'
+  if (risk === 'medium') return `${issueCount} 处疑点`
+  if (risk === 'high') return `${issueCount} 处高风险`
+  return '未评级'
+}
+
+function riskTone(risk) {
+  return ({ pending: 'amber', low: 'green', medium: 'amber', high: 'red' })[risk] || 'amber'
+}
+
+async function loadRecentRecords() {
+  const data = await fetchInspectionRecords({ page: 1, page_size: 3 })
+  recentRecords.value = (data.items || []).map((record) => ({
+    icon: record.document_name.toLowerCase().endsWith('.pdf') ? 'picture_as_pdf' : 'description',
+    name: record.document_name,
+    status: riskText(record.overall_risk, record.issue_count),
+    tone: riskTone(record.overall_risk),
+  }))
+}
+
+function openFilePicker() {
+  fileInput.value?.click()
+}
+
+function handleFileSelected(event) {
+  const [file] = event.target.files || []
+  if (!file) return
+  selectedFile.value = file
+  modalOpen.value = true
+}
+
+function handleModalClose() {
+  modalOpen.value = false
+  selectedFile.value = null
+  if (fileInput.value) fileInput.value.value = ''
+  loadRecentRecords()
+}
+
+onMounted(() => loadRecentRecords())
 </script>
 
 <template>
@@ -22,12 +69,12 @@ const records = [
           <strong>靶场大盘</strong>
         </div>
         <div class="dashboard-title-row">
-          <h1>欢迎调遣，<span>经办人张三</span></h1>
+          <h1>欢迎调遣，<span>经办人{{ username }}</span></h1>
           <div class="secure-status"><i></i>TEE 本地静默保护中</div>
         </div>
       </header>
 
-      <section class="dropzone-card">
+      <section class="dropzone-card" @click="openFilePicker">
         <div class="grid-pattern"></div>
         <div class="dropzone-inner">
           <div class="upload-orb">
@@ -37,10 +84,11 @@ const records = [
             <h2>极速载入案卷</h2>
             <p>拖拽企业材料包至此，或点击调用系统窗口</p>
           </div>
-          <button class="primary-action" type="button">
+          <button class="primary-action" type="button" @click.stop="openFilePicker">
             <span class="material-symbols-outlined">add_circle</span>
             发起智能初审
           </button>
+          <input ref="fileInput" class="visually-hidden-file" type="file" accept=".pdf,.doc,.docx,.txt,.md" @change="handleFileSelected" />
         </div>
       </section>
 
@@ -78,7 +126,8 @@ const records = [
             </button>
           </header>
           <div class="record-list">
-            <div v-for="record in records" :key="record.name" class="record-item">
+            <div v-if="recentRecords.length === 0" class="record-empty">暂无体检记录</div>
+            <div v-for="record in recentRecords" :key="record.name" class="record-item">
               <div class="record-title">
                 <span class="material-symbols-outlined">{{ record.icon }}</span>
                 <span>{{ record.name }}</span>
@@ -123,5 +172,11 @@ const records = [
       </div>
       <span>© 2024 句龙 · 照胆. SECURED BY TIGER TALLY PROTOCOL</span>
     </footer>
+
+    <InspectionReviewModal
+      :file="selectedFile"
+      :open="modalOpen"
+      @close="handleModalClose"
+    />
   </div>
 </template>

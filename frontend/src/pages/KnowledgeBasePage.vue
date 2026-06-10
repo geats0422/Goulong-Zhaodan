@@ -1,6 +1,9 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
+import { useAuth } from '../composables/useAuth.js'
+
+const { fetchWithAuth } = useAuth()
 
 const CATEGORIES = [
   { key: 'new_infrastructure', label: '新基建' },
@@ -18,6 +21,7 @@ const uploadForm = ref({
   category: 'traditional',
   subcategory_id: '',
   subcategory_name: '',
+  application_scenario: 'bidding',
 })
 
 function mapDocumentStatus(status) {
@@ -33,12 +37,21 @@ function getIcon(name) {
   return name.endsWith('.pdf') ? 'picture_as_pdf' : 'description'
 }
 
+function mapApplicationScenario(scenario) {
+  if (scenario === 'contract') return '合同'
+  return '招投标'
+}
+
 async function fetchAllData() {
   loading.value = true
   error.value = null
   try {
-    const res = await fetch('/api/v1/knowledge/overview')
+    const res = await fetchWithAuth('/api/v1/knowledge/overview')
     if (!res.ok) throw new Error('获取知识库数据失败')
+    const contentType = res.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error('服务器返回非预期响应')
+    }
     const data = await res.json()
 
     categoryGroups.value = (data.categories || []).map((cat) => ({
@@ -56,6 +69,8 @@ async function fetchAllData() {
             status: mapped.label,
             state: mapped.state,
             size: '',
+            owner_type: doc.owner_type,
+            application_scenario: doc.application_scenario,
           }
         }),
       })),
@@ -68,7 +83,7 @@ async function fetchAllData() {
 }
 
 function openUploadModal() {
-  uploadForm.value = { file: null, category: 'traditional', subcategory_id: '', subcategory_name: '' }
+  uploadForm.value = { file: null, category: 'traditional', subcategory_id: '', subcategory_name: '', application_scenario: 'bidding' }
   showUploadModal.value = true
 }
 
@@ -93,8 +108,13 @@ async function submitUpload() {
     if (uploadForm.value.subcategory_name) {
       form.append('subcategory_name', uploadForm.value.subcategory_name)
     }
-    const res = await fetch('/api/v1/knowledge/upload', { method: 'POST', body: form })
+    form.append('application_scenario', uploadForm.value.application_scenario)
+    const res = await fetchWithAuth('/api/v1/knowledge/upload', { method: 'POST', body: form })
     if (!res.ok) throw new Error('上传失败')
+    const uploadContentType = res.headers.get('content-type')
+    if (!uploadContentType || !uploadContentType.includes('application/json')) {
+      throw new Error('服务器返回非预期响应')
+    }
     showUploadModal.value = false
     await fetchAllData()
   } catch (e) {
@@ -164,10 +184,10 @@ onMounted(fetchAllData)
                   <div class="asset-card-head">
                     <span class="material-symbols-outlined file-icon">{{ asset.icon }}</span>
                     <div class="asset-actions">
-                      <button type="button" title="重命名" aria-label="重命名">
+                      <button v-if="asset.owner_type !== 'system'" type="button" title="重命名" aria-label="重命名">
                         <span class="material-symbols-outlined">edit</span>
                       </button>
-                      <button type="button" title="删除" aria-label="删除">
+                      <button v-if="asset.owner_type !== 'system'" type="button" title="删除" aria-label="删除">
                         <span class="material-symbols-outlined">delete</span>
                       </button>
                     </div>
@@ -175,7 +195,12 @@ onMounted(fetchAllData)
 
                   <div class="asset-body">
                     <h3>{{ asset.name }}</h3>
+                    <p class="asset-scenario">任务场景：{{ mapApplicationScenario(asset.application_scenario) }}</p>
                     <div class="asset-meta">
+                      <span v-if="asset.owner_type === 'system'" class="status-chip status-system">
+                        <i></i>
+                        [系统默认]
+                      </span>
                       <span class="status-chip" :class="`status-${asset.state}`">
                         <i></i>
                         [{{ asset.status }}]
@@ -189,6 +214,12 @@ onMounted(fetchAllData)
           </template>
 
           <div v-if="group.subcategories.length === 0" class="empty-category">
+            <p>暂无文档</p>
+          </div>
+        </section>
+
+        <section v-if="categoryGroups.length === 0" class="asset-category">
+          <div class="empty-category">
             <p>暂无文档</p>
           </div>
         </section>
@@ -215,6 +246,13 @@ onMounted(fetchAllData)
             <option v-for="sub in currentCategorySubcategories" :key="sub.id" :value="String(sub.id)">{{ sub.name }}</option>
           </select>
           <input v-model="uploadForm.subcategory_name" placeholder="或输入新子类名称" />
+        </div>
+        <div class="upload-field">
+          <label>应用场景</label>
+          <select v-model="uploadForm.application_scenario">
+            <option value="bidding">招投标</option>
+            <option value="contract">合同</option>
+          </select>
         </div>
         <div class="upload-actions">
           <button type="button" class="btn-cancel" @click="closeUploadModal" :disabled="uploading">取消</button>
@@ -572,6 +610,14 @@ onMounted(fetchAllData)
   color: #f2ca50;
 }
 
+.asset-scenario {
+  margin: 10px 0 0;
+  color: #d0c5af;
+  font-family: "Geist", "Noto Sans SC", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .asset-meta {
   display: flex;
   flex-wrap: wrap;
@@ -780,5 +826,48 @@ onMounted(fetchAllData)
   .asset-grid {
     grid-template-columns: 1fr;
   }
+}
+.status-system {
+  border-color: rgba(212, 175, 55, 0.5);
+  background: rgba(212, 175, 55, 0.12);
+  color: #d4af37;
+}
+
+.status-system i {
+  background: #d4af37;
+}
+
+[data-theme="light"] .upload-dialog {
+  background: #ffffff;
+  border-color: rgba(180, 160, 100, 0.4);
+}
+
+[data-theme="light"] .asset-scenario {
+  color: #6f5630;
+  font-weight: 600;
+}
+
+[data-theme="light"] .upload-dialog h3 {
+  color: #1a1a1a;
+}
+
+[data-theme="light"] .upload-field input,
+[data-theme="light"] .upload-field select {
+  background: #f8f7f4;
+  color: #1a1a1a;
+  border-color: rgba(180, 160, 100, 0.35);
+}
+
+[data-theme="light"] .upload-field input[type="file"]::file-selector-button {
+  color: #8b7a00;
+}
+
+[data-theme="light"] .btn-cancel {
+  color: #555;
+}
+
+[data-theme="light"] .btn-submit {
+  background: #d4af37;
+  color: #fff;
 }
 </style>

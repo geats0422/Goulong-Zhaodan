@@ -11,6 +11,7 @@ class InspectionDeps:
 
     project_id: str = "default"
     user_id: str = "anonymous"
+    application_scenario: str = "bidding"
     regulation_base: dict[str, Any] | None = None  # 知识库内容
     taboo_words: list[str] | None = None  # 违禁词列表
     db: Any | None = None  # 数据库连接（预留）

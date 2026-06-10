@@ -56,11 +56,15 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  border: 0;
+  padding: 0;
+  background: transparent;
   color: #f2ca50;
   text-decoration: none;
   font-family: "Noto Serif", "Noto Serif SC", serif;
   font-size: 24px;
   font-weight: 700;
+  cursor: pointer;
 }
 
 .dashboard-brand .material-symbols-outlined {
@@ -74,23 +78,27 @@
   gap: 32px;
 }
 
-.dashboard-links a {
+.dashboard-links button {
   position: relative;
   display: inline-flex;
   align-items: center;
   height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
   color: #d0c5af;
   text-decoration: none;
   font-weight: 500;
   letter-spacing: 0.04em;
+  cursor: pointer;
 }
 
-.dashboard-links a:hover,
-.dashboard-links a.active {
+.dashboard-links button:hover,
+.dashboard-links button.active {
   color: #f2ca50;
 }
 
-.dashboard-links a.active::before {
+.dashboard-links button.active::before {
   content: "";
   position: absolute;
   left: 0;
@@ -100,7 +108,7 @@
   background: #f2ca50;
 }
 
-.dashboard-links a.active::after {
+.dashboard-links button.active::after {
   content: "";
   position: absolute;
   left: 50%;
@@ -214,6 +222,15 @@
   overflow: hidden;
   border: 1px solid rgba(212, 175, 55, 0.22);
   background: #121212;
+  cursor: pointer;
+}
+
+.visually-hidden-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .dropzone-card::before,
@@ -620,7 +637,7 @@
     overflow-x: auto;
   }
 
-  .dashboard-links a {
+  .dashboard-links button {
     height: 34px;
   }
 
@@ -2358,8 +2375,8 @@ p {
 }
 
 [data-theme="light"] .dashboard-brand,
-[data-theme="light"] .dashboard-links a:hover,
-[data-theme="light"] .dashboard-links a.active,
+[data-theme="light"] .dashboard-links button:hover,
+[data-theme="light"] .dashboard-links button.active,
 [data-theme="light"] .dashboard-title-row h1 span,
 [data-theme="light"] .breadcrumb strong,
 [data-theme="light"] .knowledge-breadcrumb strong,
@@ -2369,7 +2386,7 @@ p {
   color: #9b7416 !important;
 }
 
-[data-theme="light"] .dashboard-links a,
+[data-theme="light"] .dashboard-links button,
 [data-theme="light"] .breadcrumb,
 [data-theme="light"] .knowledge-breadcrumb,
 [data-theme="light"] .asset-meta > span:last-child,
@@ -2405,8 +2422,8 @@ p {
   background-color: transparent !important;
 }
 
-[data-theme="light"] .dashboard-links a.active::before,
-[data-theme="light"] .dashboard-links a.active::after,
+[data-theme="light"] .dashboard-links button.active::before,
+[data-theme="light"] .dashboard-links button.active::after,
 [data-theme="light"] .knowledge-header h1::after,
 [data-theme="light"] .category-title i,
 [data-theme="light"] .cyber-line::after,

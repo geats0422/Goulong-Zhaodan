@@ -29,6 +29,11 @@ This is a monorepo containing a frontend and backend. Agentic coding tools shoul
 - **Async buffering**: Redis (I/O buffering for large-file parsing and long-running tasks)
 - **Infrastructure & compliance**: Alibaba Cloud stack (security/compliance readiness and private deployment path)
 
+## Virtual Environment
+- **Backend uses `uv`** as the virtual environment and package manager.
+- Always run backend commands through `uv run` (e.g., `uv run python`, `uv run pytest`, `uv run uvicorn`).
+- Do not use `python` or `pip` directly in the backend directory; use `uv run` to ensure the correct environment.
+
 ## Required Verification Before Finishing
 - Lint + typecheck (frontend)
 - Lint + type check (backend)

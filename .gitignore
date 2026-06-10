@@ -8,6 +8,8 @@ __pycache__/
 dist/
 build/
 coverage/
+*.db
+uv.lock
 
 # Environment
 .env

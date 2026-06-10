@@ -63,7 +63,9 @@ async def _parse_with_pageindex(
 
 
 async def _run_pageindex_md_to_tree(md_path: str) -> list[IndexNodeCreate]:
-    vendor_path = Path(__file__).resolve().parents[1] / "vendor" / "pageindex"
+    from core.config import settings
+
+    vendor_path = Path(__file__).resolve().parents[1] / settings.pageindex_vendor_path
     if not vendor_path.exists():
         raise IndexingError("pageindex vendor not found")
 
@@ -76,8 +78,9 @@ async def _run_pageindex_md_to_tree(md_path: str) -> list[IndexNodeCreate]:
     except Exception as exc:
         raise IndexingError(f"pageindex import failed: {exc}") from exc
 
-    if not os.environ.get("OPENAI_API_KEY"):
-        raise IndexingError("OPENAI_API_KEY not set")
+    os.environ.setdefault("OPENAI_API_KEY", settings.model_api_key)
+    if settings.model_base_url:
+        os.environ.setdefault("OPENAI_API_BASE", settings.model_base_url)
 
     tree = await md_to_tree(
         md_path=md_path,
@@ -86,7 +89,7 @@ async def _run_pageindex_md_to_tree(md_path: str) -> list[IndexNodeCreate]:
         if_add_node_text=True,
         if_add_node_id=True,
         if_add_doc_description=False,
-        model=None,
+        model=settings.model_name,
         summary_token_threshold=200,
     )
 
@@ -95,7 +98,16 @@ async def _run_pageindex_md_to_tree(md_path: str) -> list[IndexNodeCreate]:
 
         tree = json.loads(tree)
 
-    return _convert_tree_to_nodes(tree)
+    structure = tree.get("structure", tree) if isinstance(tree, dict) else tree
+
+    return _convert_tree_list_to_nodes(structure)
+
+
+def _convert_tree_list_to_nodes(structure: list[dict[str, Any]]) -> list[IndexNodeCreate]:
+    nodes: list[IndexNodeCreate] = []
+    for root in structure:
+        _walk_tree(root, nodes, depth=0, parent_index=None, path_prefix="")
+    return nodes
 
 
 def _convert_tree_to_nodes(tree: dict[str, Any]) -> list[IndexNodeCreate]:

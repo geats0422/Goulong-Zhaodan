@@ -14,13 +14,22 @@ class Settings(BaseSettings):
 
     api_key: str = "goulong-dev-key"
 
-    database_url: str = "sqlite+aiosqlite:///./data/goulong.db"
+    jwt_secret_key: str = "goulong-jwt-dev-secret-change-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
+
+    database_url: str = "postgresql+asyncpg://postgres:your-password@localhost:5432/goulong"
 
     pageindex_vendor_path: str = "vendor/pageindex"
+
+    # CORS 跨域配置（逗号分隔）
+    cors_origins: str = "http://localhost:5174,http://localhost:5173"
 
     # 应用行为
     log_level: str = "INFO"
     max_document_length: int = 8000  # 单次体检最大字符数
+    inspection_prompt_char_budget: int = 60000  # 体检 Agent 单次提示词字符预算
 
     model_config = SettingsConfigDict(
         env_file=".env",         # 本地开发时若存在 .env 则读取（不提交到 git）

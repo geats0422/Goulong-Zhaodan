@@ -15,8 +15,8 @@
 
 <style scoped>
 .marketing-footer {
-  border-top: 1px solid rgba(212, 175, 55, 0.18);
-  background: rgba(10, 10, 10, 0.92);
+  border-top: 1px solid color-mix(in srgb, var(--gold) 18%, transparent);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
 }
 
 .marketing-footer-row {
@@ -27,19 +27,19 @@
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  color: #99907c;
+  color: var(--muted);
   font-family: "JetBrains Mono", monospace;
   font-size: 12px;
   letter-spacing: 0.04em;
 }
 
 .marketing-footer a {
-  color: #d0c5af;
+  color: var(--muted);
   text-decoration: none;
 }
 
 .marketing-footer a:hover {
-  color: #f2ca50;
+  color: var(--gold);
 }
 
 @media (max-width: 760px) {

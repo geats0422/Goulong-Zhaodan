@@ -4,8 +4,13 @@ from models.knowledge import (
     Base,
     DocumentVersion,
     EngineeringSubcategory,
+    InspectionRecord,
     IndexNode,
+    KnowledgeDocumentSetting,
     KnowledgeDocument,
+    TabooWord,
+    User,
+    UserProfile,
 )
 
 __all__ = [
@@ -14,4 +19,9 @@ __all__ = [
     "KnowledgeDocument",
     "DocumentVersion",
     "IndexNode",
+    "InspectionRecord",
+    "User",
+    "UserProfile",
+    "TabooWord",
+    "KnowledgeDocumentSetting",
 ]

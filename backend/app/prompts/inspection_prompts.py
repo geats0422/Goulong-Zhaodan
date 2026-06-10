@@ -5,18 +5,32 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
+
+from core.config import settings
+
+DEFAULT_PROMPT_CHAR_BUDGET = 60000
+MIN_DOCUMENT_CHARS = 2000
+
+
+def _prompt_char_budget() -> int:
+    return max(MIN_DOCUMENT_CHARS, settings.inspection_prompt_char_budget or DEFAULT_PROMPT_CHAR_BUDGET)
+
+
+def _truncate_text(text: str, max_chars: int) -> str:
+    if max_chars <= 0:
+        return ""
+    if len(text) <= max_chars:
+        return text
+    return f"{text[:max_chars]}\n...[内容已截断]"
 
 # ─── 1. 法规分析师系统提示 ───
 REGULATION_ANALYST_SYSTEM_PROMPT = """你是一名工程法规分析师。你的职责是：
-1. 根据上传的工程文档内容，匹配适用的法律法规条款
+1. 只能根据用户当前启用的知识库内容匹配适用依据
 2. 识别文档中可能存在的合规风险点
 3. 列出相关条文和合规要求
 4. 你只能分析法规，不能修改任何文档内容
-
-适用场景：
-- 传统基建：适用《建筑法》《招标投标法》《安全生产法》等
-- 新基建：额外适用《数据安全法》《网络安全法》等
-- 市政工程：适用市政相关规范
+5. 禁止引用未出现在知识库来源中的法规、法律、规范名称
 
 输出格式要求：
 - 列出发现的风险点
@@ -71,26 +85,60 @@ INSPECTION_COORDINATOR_SYSTEM_PROMPT = """你是句龙照胆系统的体检台�
 
 # ─── 4. 格式化函数 ───
 
-def format_regulation_prompt(document_text: str, max_length: int = 8000) -> str:
+def format_regulation_prompt(
+    document_text: str,
+    regulation_base: dict[str, Any] | None = None,
+    max_length: int | None = None,
+) -> str:
     """格式化法规分析请求"""
-    return f"请分析以下工程文档的法规合规性：\n\n{document_text[:max_length]}"
+    max_length = max_length or _prompt_char_budget()
+    return f"""请分析以下工程文档的法规合规性。
+
+{format_regulation_base_context(regulation_base)}
+
+文档内容：
+{_truncate_text(document_text, max_length)}
+
+要求：只能引用上述知识库来源标题，禁止引用未配置的法律法规名称。"""
+
+
+def format_regulation_base_context(regulation_base: dict[str, Any] | None) -> str:
+    if not regulation_base:
+        return "当前没有可用知识库来源。"
+    sources = regulation_base.get("sources", [])
+    snippets = regulation_base.get("snippets", [])
+    source_lines = [f"- {source.get('title')}" for source in sources if source.get("title")]
+    snippet_lines = [
+        f"- [{snippet.get('title')}] {snippet.get('path_label')}: {snippet.get('content')}"
+        for snippet in snippets
+        if snippet.get("content")
+    ]
+    return "知识库来源（仅允许引用这些标题）：\n" + "\n".join(source_lines) + "\n\n知识库片段：\n" + "\n".join(snippet_lines)
 
 
 def format_inspection_prompt(
     document_text: str,
     regulation_result: str,
+    regulation_base: dict[str, Any] | None = None,
     taboo_words: list[str] | None = None,
-    max_length: int = 8000,
+    max_length: int | None = None,
 ) -> str:
     """格式化合规检查请求"""
+    max_length = max_length or _prompt_char_budget()
     taboo_context = ""
     if taboo_words:
         taboo_context = f"\n\n用户配置的违禁词列表：{', '.join(taboo_words)}"
 
+    regulation_context = format_regulation_base_context(regulation_base)
+    fixed_context_len = len(regulation_context) + len(regulation_result) + len(taboo_context) + 700
+    document_budget = max(MIN_DOCUMENT_CHARS, max_length - fixed_context_len)
+
     return f"""请对以下工程文档进行全面合规检查：
 
 文档内容：
-{document_text[:max_length]}
+{_truncate_text(document_text, document_budget)}
+
+{regulation_context}
 
 法规分析结果：
 {regulation_result}
@@ -101,18 +149,32 @@ def format_inspection_prompt(
 2. 隐含风险（金额异常、条款冲突）
 3. 违禁词
 4. 表述不妥当
-5. 合规性"""
+5. 合规性
+
+引用约束：所有 regulation_ref / citation / regulation_refs 只能使用上述“知识库来源”标题或“违禁词:<词>”，禁止输出未配置的法律名称。"""
 
 
-def format_summary_prompt(regulation_result: str, inspection_result: str) -> str:
+def format_summary_prompt(
+    regulation_result: str,
+    inspection_result: str,
+    allowed_refs: list[str],
+    max_length: int | None = None,
+) -> str:
     """格式化汇总报告请求"""
+    max_length = max_length or _prompt_char_budget()
+    refs_text = chr(10).join(f"- {ref}" for ref in allowed_refs) or "- 无"
+    fixed_context_len = len(refs_text) + 500
+    result_budget = max(1000, (max_length - fixed_context_len) // 2)
     return f"""请汇总以下审查结果，生成结构化体检报告：
 
 法规分析：
-{regulation_result}
+{_truncate_text(regulation_result, result_budget)}
 
 合规检查：
-{inspection_result}
+{_truncate_text(inspection_result, result_budget)}
+
+允许引用来源：
+{refs_text}
 
 请输出 JSON 格式：
 {{
@@ -120,7 +182,9 @@ def format_summary_prompt(regulation_result: str, inspection_result: str) -> str
   "summary": "总体评价",
   "issues": [...],
   "regulation_refs": [...]
-}}"""
+}}
+
+要求：regulation_refs 以及 issues 中的 regulation_ref/citation 只能从“允许引用来源”选择，禁止编造或补充其他法规名称。"""
 
 
 def format_inspection_date() -> str:
