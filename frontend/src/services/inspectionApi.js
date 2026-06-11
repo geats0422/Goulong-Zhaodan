@@ -60,6 +60,12 @@ export async function deleteInspectionRecord(recordId) {
   return parseResponse(await fetchWithAuth(`/inspection/records/${recordId}`, { method: 'DELETE' }))
 }
 
+export async function burnInspectionRecord(recordId) {
+  return parseResponse(await fetchWithAuth(`/inspection/records/${recordId}/burn`, {
+    method: 'POST',
+  }))
+}
+
 function stripExtension(filename) {
   return filename.replace(/\.[^.]+$/, '')
 }

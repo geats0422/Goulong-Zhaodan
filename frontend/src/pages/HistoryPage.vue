@@ -4,6 +4,7 @@ import AppTopNav from '../components/app/AppTopNav.vue'
 import DocumentPreviewPane from '../components/inspection/DocumentPreviewPane.vue'
 import InspectionReportPane from '../components/inspection/InspectionReportPane.vue'
 import {
+  burnInspectionRecord,
   deleteInspectionRecord,
   downloadInspectionReportPdf,
   fetchInspectionRecord,
@@ -134,6 +135,18 @@ async function exportReviewReport() {
     await downloadInspectionReportPdf(reviewReport.value.id, reviewReport.value.document_name)
   } catch (e) {
     reviewError.value = e.message || '导出审查报告失败'
+  }
+}
+
+async function burnRecordContent() {
+  if (!selectedRecord.value) return
+  if (!window.confirm('焚烧后原文不可恢复，确认焚烧？')) return
+  error.value = ''
+  try {
+    await burnInspectionRecord(selectedRecord.value.id)
+    selectedRecord.value.parsed_content = ''
+  } catch (e) {
+    error.value = e.message || '焚烧原文失败'
   }
 }
 
@@ -331,6 +344,12 @@ onMounted(() => loadRecords(1))
               <li v-for="ref in selectedRecord.regulation_refs" :key="ref">{{ ref }}</li>
             </ul>
           </section>
+
+          <div v-if="selectedRecord.parsed_content" class="detail-section">
+            <button type="button" class="burn-action" @click="burnRecordContent">
+              <span class="material-symbols-outlined">local_fire_department</span>焚烧原文
+            </button>
+          </div>
         </template>
       </section>
     </div>
@@ -734,6 +753,23 @@ onMounted(() => loadRecords(1))
   padding-left: 18px;
   color: rgba(44, 36, 22, 0.78);
   line-height: 1.8;
+}
+
+.burn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid rgba(178, 58, 44, 0.36);
+  background: rgba(178, 58, 44, 0.08);
+  color: #b23a2c;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.burn-action:hover {
+  border-color: #b23a2c;
+  background: rgba(178, 58, 44, 0.16);
 }
 
 @media (max-width: 900px) {

@@ -48,6 +48,8 @@ VALID_PASSWORD = "TestPass123"
 @pytest_asyncio.fixture
 async def client():
     await init_db()
+    from core.rate_limit import register_limiter
+    register_limiter.reset()
     assert_safe_database_for_cleanup()
     if engine.dialect.name == "postgresql":
         async with engine.begin() as conn:

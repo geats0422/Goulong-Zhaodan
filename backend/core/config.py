@@ -35,6 +35,9 @@ class Settings(BaseSettings):
 
     api_key_encryption_secret: str = "dev-encryption-secret-change-in-production"
 
+    environment: str = "development"
+    data_encryption_key: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",         # 本地开发时若存在 .env 则读取（不提交到 git）
         env_file_encoding="utf-8",
@@ -57,3 +60,17 @@ def get_model_config() -> dict[str, str]:
         "api_key": settings.model_api_key,
         "base_url": settings.model_base_url,
     }
+
+
+def assert_production_security() -> None:
+    if settings.environment != "production":
+        return
+    defaults = {
+        "jwt_secret_key": "goulong-jwt-dev-secret-change-in-production",
+        "api_key_encryption_secret": "dev-encryption-secret-change-in-production",
+    }
+    for attr, default in defaults.items():
+        if getattr(settings, attr) == default:
+            raise RuntimeError(f"生产环境不允许使用默认 {attr}")
+    if not settings.model_api_key:
+        raise RuntimeError("生产环境必须配置 MODEL_API_KEY")

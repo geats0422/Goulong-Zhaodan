@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from core.config import settings
+from core.data_masking import mask_sensitive_data
 
 DEFAULT_PROMPT_CHAR_BUDGET = 60000
 MIN_DOCUMENT_CHARS = 2000
@@ -142,6 +143,13 @@ def get_prompts_for_scenario(scenario: str) -> dict[str, str]:
 
 # ─── 4. 格式化函数 ───
 
+def _safe_mask(text: str) -> str:
+    try:
+        return mask_sensitive_data(text).text
+    except Exception:
+        return text
+
+
 def format_regulation_prompt(
     document_text: str,
     regulation_base: dict[str, Any] | None = None,
@@ -149,12 +157,13 @@ def format_regulation_prompt(
 ) -> str:
     """格式化法规分析请求"""
     max_length = max_length or _prompt_char_budget()
+    masked_text = _safe_mask(document_text)
     return f"""请分析以下工程文档的法规合规性。
 
 {format_regulation_base_context(regulation_base)}
 
 文档内容：
-{_truncate_text(document_text, max_length)}
+{_truncate_text(masked_text, max_length)}
 
 要求：只能引用上述知识库来源标题，禁止引用未配置的法律法规名称。"""
 
@@ -182,6 +191,7 @@ def format_inspection_prompt(
 ) -> str:
     """格式化合规检查请求"""
     max_length = max_length or _prompt_char_budget()
+    masked_text = _safe_mask(document_text)
     taboo_context = ""
     if taboo_words:
         taboo_context = f"\n\n用户配置的违禁词列表：{', '.join(taboo_words)}"
@@ -193,7 +203,7 @@ def format_inspection_prompt(
     return f"""请对以下工程文档进行全面合规检查：
 
 文档内容：
-{_truncate_text(document_text, document_budget)}
+{_truncate_text(masked_text, document_budget)}
 
 {regulation_context}
 

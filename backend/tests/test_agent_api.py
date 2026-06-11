@@ -45,7 +45,10 @@ SQLITE_URL = "sqlite+aiosqlite:///:memory:"
 @pytest_asyncio.fixture
 async def client():
     import core.database as db_mod
+    from core.rate_limit import register_limiter
     from models import Base
+
+    register_limiter.reset()
 
     test_engine = create_async_engine(SQLITE_URL, echo=False)
     test_session_factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
