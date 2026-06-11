@@ -2,13 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
 import {
-  createApiKey,
   createTabooWord,
   deleteTabooWord,
-  getApiKeySecret,
   getSettingsOverview,
-  listApiKeys,
-  revokeApiKey,
   updateKnowledgeDocument,
   updatePassword,
   updateProfile,
@@ -18,9 +14,10 @@ import {
 const activeTab = ref('system')
 const tabs = [
   { key: 'system', label: '[系统设置]' },
+  { key: 'billing', label: '[账单与订阅管理]' },
+  { key: 'model', label: '[AI模型与偏好]' },
   { key: 'knowledge', label: '[知识库设置]' },
   { key: 'taboo', label: '[违禁词设置]' },
-  { key: 'apikey', label: '[API Key]' },
 ]
 
 const loading = ref(true)
@@ -35,48 +32,28 @@ const passwordForm = ref({ old_password: '', new_password: '' })
 const tabooForm = ref({ word: '', replacement: '', note: '' })
 const editingTabooId = ref(null)
 
-const apiKeys = ref([])
-const apiKeyLoading = ref(false)
-const apiKeyError = ref('')
-const revealedKeys = ref({})
-const newKeyResult = ref(null)
-const apiKeyForm = ref({
-  name: '',
-  client_type: 'mcp',
-  scope_template: 'mcp_readonly',
-  scopes: [],
-  expires_at: '',
+const modelForm = ref({
+  model_name: 'gpt-4o',
+  temperature: 0.3,
+  max_tokens: 4000,
+  reasoning_effort: 'medium',
+  enable_data_masking: true,
 })
 
-const clientTypeLabels = {
-  mcp: 'MCP',
-  cli: 'CLI',
-  skill: 'Skill',
-  agent: 'Agent',
-  other: '其他',
-}
-
-const scopeTemplateLabels = {
-  mcp_readonly: 'MCP 只读',
-  cli_inspection: 'CLI 审查',
-  agent_automation: 'Agent 自动化',
-  custom: '高级自定义',
-}
-
-const availableScopes = [
-  'read:settings',
-  'write:settings',
-  'read:knowledge',
-  'write:knowledge',
-  'read:taboo',
-  'write:taboo',
-  'read:api-keys',
-  'write:api-keys',
+const plans = [
+  { key: 'free', name: '免费体验', price: '¥0', period: '永久', quota: 50, features: ['基础智能审查', '单文件上传', 'Markdown 报告'] },
+  { key: 'personal', name: '个人版', price: '¥39', period: '/月', quota: 500, features: ['多文件材料包', '私域红线标准', '本地脱敏', '阅后即焚'] },
+  { key: 'team', name: '团队版', price: '¥299', period: '/月', quota: 3000, features: ['团队协作', '审计留痕', '自定义红线', '优先支持'] },
+  { key: 'enterprise', name: '企业定制', price: '议价', period: '按合同', quota: '不限', features: ['私有化部署', 'SSO 单点登录', 'SLA 保障', '专属客户成功'] },
 ]
 
 const quotaPercent = computed(() => {
   if (!profile.value?.monthly_quota) return 0
   return Math.min(100, (profile.value.quota_used / profile.value.monthly_quota) * 100)
+})
+
+const currentPlan = computed(() => {
+  return plans.find((p) => p.key === profile.value?.subscription_plan) || plans[0]
 })
 
 async function loadSettings() {
@@ -180,115 +157,11 @@ async function removeTabooWord(wordId) {
   }
 }
 
-async function loadApiKeys() {
-  apiKeyLoading.value = true
-  apiKeyError.value = ''
-  try {
-    apiKeys.value = await listApiKeys()
-  } catch (err) {
-    apiKeyError.value = err instanceof Error ? err.message : 'API Key 列表加载失败'
-  } finally {
-    apiKeyLoading.value = false
-  }
-}
-
-function resetApiKeyForm() {
-  apiKeyForm.value = {
-    name: '',
-    client_type: 'mcp',
-    scope_template: 'mcp_readonly',
-    scopes: [],
-    expires_at: '',
-  }
-  newKeyResult.value = null
-}
-
-async function submitApiKey() {
-  saving.value = true
-  message.value = ''
-  try {
-    const payload = {
-      name: apiKeyForm.value.name,
-      client_type: apiKeyForm.value.client_type,
-      scope_template: apiKeyForm.value.scope_template,
-    }
-    if (apiKeyForm.value.scope_template === 'custom') {
-      payload.scopes = apiKeyForm.value.scopes
-    }
-    if (apiKeyForm.value.expires_at) {
-      payload.expires_at = apiKeyForm.value.expires_at
-    }
-    const created = await createApiKey(payload)
-    newKeyResult.value = created
-    await loadApiKeys()
-    message.value = 'API Key 已创建'
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'API Key 创建失败'
-  } finally {
-    saving.value = false
-  }
-}
-
-async function toggleRevealKey(keyId) {
-  if (revealedKeys.value[keyId]) {
-    revealedKeys.value = { ...revealedKeys.value, [keyId]: null }
-    return
-  }
-  if (!confirm('显示完整密钥存在泄露风险，确认显示？')) return
-  try {
-    const result = await getApiKeySecret(keyId)
-    revealedKeys.value = { ...revealedKeys.value, [keyId]: result.full_key }
-    const key = apiKeys.value.find((k) => k.id === keyId)
-    if (key) key.last_viewed_at = new Date().toISOString()
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : '获取密钥失败'
-  }
-}
-
-async function copyApiKey(keyId) {
-  const revealed = revealedKeys.value[keyId] || (newKeyResult.value?.id === keyId ? newKeyResult.value.full_key : null)
-  if (!revealed) {
-    if (!confirm('需要获取完整密钥才能复制，确认继续？')) return
-    try {
-      const result = await getApiKeySecret(keyId)
-      revealedKeys.value = { ...revealedKeys.value, [keyId]: result.full_key }
-      await doCopy(result.full_key)
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : '获取密钥失败'
-    }
-    return
-  }
-  await doCopy(revealed)
-}
-
-async function doCopy(text) {
-  try {
-    await navigator.clipboard.writeText(text)
-    message.value = '已复制到剪贴板'
-  } catch {
-    error.value = '复制失败，请手动复制'
-  }
-}
-
-async function handleRevokeKey(keyId) {
-  if (!confirm('确认撤销此 API Key？撤销后不可恢复。')) return
-  try {
-    await revokeApiKey(keyId)
-    apiKeys.value = apiKeys.value.filter((k) => k.id !== keyId)
-    revealedKeys.value = { ...revealedKeys.value, [keyId]: null }
-    message.value = 'API Key 已撤销'
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : '撤销失败'
-  }
+function saveModelPreferences() {
+  message.value = 'AI 模型偏好已保存（本地）'
 }
 
 onMounted(loadSettings)
-
-watch(activeTab, (tab) => {
-  if (tab === 'apikey' && !apiKeys.value.length && !apiKeyLoading.value) {
-    loadApiKeys()
-  }
-})
 </script>
 
 <template>
@@ -317,26 +190,6 @@ watch(activeTab, (tab) => {
       </nav>
 
       <section v-if="!loading && profile && activeTab === 'system'" class="settings-content system-settings">
-        <article class="settings-card circuit-card card-primary">
-          <header>
-            <span class="material-symbols-outlined">account_balance_wallet</span>
-            <h2>令鉴与配额</h2>
-          </header>
-          <div class="quota-grid">
-            <div>
-              <p class="setting-label">当前订阅等级</p>
-              <strong><span class="material-symbols-outlined">workspace_premium</span>{{ profile.subscription_plan }}</strong>
-            </div>
-            <div>
-              <div class="quota-head">
-                <p class="setting-label">本月可用体检额度</p>
-                <span>{{ profile.quota_used }} / {{ profile.monthly_quota }}</span>
-              </div>
-              <div class="quota-track"><i :style="{ width: `${quotaPercent}%` }"></i></div>
-            </div>
-          </div>
-        </article>
-
         <article class="settings-card">
           <header>
             <span class="material-symbols-outlined muted-icon">badge</span>
@@ -395,6 +248,138 @@ watch(activeTab, (tab) => {
         </article>
       </section>
 
+      <section v-else-if="!loading && profile && activeTab === 'billing'" class="settings-content billing-settings">
+        <article class="settings-card circuit-card card-primary">
+          <header>
+            <span class="material-symbols-outlined">account_balance_wallet</span>
+            <h2>当前订阅与配额</h2>
+          </header>
+          <div class="billing-current">
+            <div class="billing-plan-badge">
+              <span class="material-symbols-outlined">workspace_premium</span>
+              <strong>{{ currentPlan.name }}</strong>
+              <em>{{ currentPlan.price }}<small>{{ currentPlan.period }}</small></em>
+            </div>
+            <div class="billing-quota">
+              <div class="quota-head">
+                <p class="setting-label">本月已用 / 总额度</p>
+                <span>{{ profile.quota_used }} / {{ profile.monthly_quota }}</span>
+              </div>
+              <div class="quota-track"><i :style="{ width: `${quotaPercent}%` }"></i></div>
+              <p class="quota-hint">订阅等级决定每月可执行的审查任务上限。</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="settings-card">
+          <header>
+            <span class="material-symbols-outlined">redeem</span>
+            <h2>会员权益</h2>
+          </header>
+          <ul class="benefits-list">
+            <li v-for="feature in currentPlan.features" :key="feature">
+              <span class="material-symbols-outlined">check_circle</span>{{ feature }}
+            </li>
+          </ul>
+        </article>
+
+        <article class="settings-card circuit-card card-primary billing-plans">
+          <header>
+            <span class="material-symbols-outlined">workspace_premium</span>
+            <h2>订阅方案</h2>
+          </header>
+          <div class="plan-grid">
+            <article
+              v-for="plan in plans"
+              :key="plan.key"
+              class="plan-card"
+              :class="{ active: plan.key === profile.subscription_plan }"
+            >
+              <header>
+                <strong>{{ plan.name }}</strong>
+                <em v-if="plan.key === profile.subscription_plan" class="current-tag">当前</em>
+              </header>
+              <div class="plan-price">
+                <span class="price-amount">{{ plan.price }}</span>
+                <span class="price-period">{{ plan.period }}</span>
+              </div>
+              <p class="plan-quota">每月额度：{{ plan.quota }}</p>
+              <ul>
+                <li v-for="feature in plan.features" :key="feature">{{ feature }}</li>
+              </ul>
+              <button
+                type="button"
+                class="plan-action"
+                :class="{ current: plan.key === profile.subscription_plan }"
+                :disabled="plan.key === profile.subscription_plan"
+              >
+                {{ plan.key === profile.subscription_plan ? '已订阅' : '切换到此方案' }}
+              </button>
+            </article>
+          </div>
+        </article>
+      </section>
+
+      <section v-else-if="!loading && profile && activeTab === 'model'" class="settings-content model-settings">
+        <article class="settings-card circuit-card card-primary">
+          <header>
+            <span class="material-symbols-outlined">neurology</span>
+            <h2>AI 模型选择</h2>
+          </header>
+          <p>选择驱动审查引擎的底层模型。不同模型在推理深度与响应速度之间存在权衡。</p>
+          <div class="model-form">
+            <label>
+              <span>模型标识</span>
+              <select v-model="modelForm.model_name">
+                <option value="gpt-4o">GPT-4o（高准确度 · 慢）</option>
+                <option value="gpt-4o-mini">GPT-4o Mini（均衡）</option>
+                <option value="claude-sonnet-4">Claude Sonnet 4（高合规 · 稳）</option>
+                <option value="deepseek-chat">DeepSeek Chat（中文友好）</option>
+              </select>
+            </label>
+            <label>
+              <span>最大输出 Tokens</span>
+              <input v-model.number="modelForm.max_tokens" type="number" min="500" max="8000" step="100" />
+            </label>
+          </div>
+        </article>
+
+        <article class="settings-card">
+          <header>
+            <span class="material-symbols-outlined">tune</span>
+            <h2>推理偏好</h2>
+          </header>
+          <div class="model-form">
+            <label>
+              <span>温度（Temperature）</span>
+              <input v-model.number="modelForm.temperature" type="number" min="0" max="2" step="0.1" />
+              <small>0 = 严格确定性；1 = 默认平衡；&gt;1 = 创造性更强</small>
+            </label>
+            <label>
+              <span>推理强度</span>
+              <select v-model="modelForm.reasoning_effort">
+                <option value="low">低 — 快速</option>
+                <option value="medium">中 — 默认</option>
+                <option value="high">高 — 深度审查</option>
+              </select>
+            </label>
+          </div>
+          <label class="masking-toggle">
+            <input v-model="modelForm.enable_data_masking" type="checkbox" />
+            <span>启用数据脱敏（身份证 / 手机号 / 银行卡 / 金额）</span>
+          </label>
+          <button class="settings-action" type="button" @click="saveModelPreferences">保存偏好</button>
+        </article>
+
+        <article class="settings-card model-note">
+          <header>
+            <span class="material-symbols-outlined muted-icon">info</span>
+            <h2>关于偏好</h2>
+          </header>
+          <p>偏好仅在当前浏览器本地保存，不会同步到服务端。后续会接入云端偏好同步与团队级默认偏好。</p>
+        </article>
+      </section>
+
       <section v-else-if="!loading && activeTab === 'knowledge'" class="settings-content knowledge-settings full-width">
         <article v-for="category in knowledge" :key="category.category_key" class="settings-card private-archive circuit-card card-primary">
           <header><span class="material-symbols-outlined">folder_special</span><h2>{{ category.category_label }}</h2></header>
@@ -412,7 +397,7 @@ watch(activeTab, (tab) => {
         </article>
       </section>
 
-      <section v-else-if="!loading" class="settings-content taboo-settings">
+      <section v-else-if="!loading && activeTab === 'taboo'" class="settings-content taboo-settings">
         <article class="settings-card taboo-card">
           <header><span class="material-symbols-outlined">warning</span><h2>生成与审查规避标准</h2></header>
           <p>设置绝对红线规避标准，引擎在处理文本时将严格隔离以下词条。</p>
@@ -431,83 +416,6 @@ watch(activeTab, (tab) => {
               <button type="button" @click="editTaboo(word)">编辑</button>
               <button type="button" aria-label="移除词条" @click="removeTabooWord(word.id)">×</button>
             </span>
-          </div>
-        </article>
-      </section>
-
-      <section v-else-if="!loading && activeTab === 'apikey'" class="settings-content apikey-settings">
-        <article class="settings-card circuit-card card-primary">
-          <header><span class="material-symbols-outlined">key</span><h2>创建 API Key</h2></header>
-          <form class="apikey-form" @submit.prevent="submitApiKey">
-            <label>
-              <span>名称</span>
-              <input v-model="apiKeyForm.name" placeholder="为密钥命名..." required maxlength="100" />
-            </label>
-            <label>
-              <span>客户端类型</span>
-              <select v-model="apiKeyForm.client_type">
-                <option v-for="(label, value) in clientTypeLabels" :key="value" :value="value">{{ label }}</option>
-              </select>
-            </label>
-            <label>
-              <span>权限模板</span>
-              <select v-model="apiKeyForm.scope_template">
-                <option v-for="(label, value) in scopeTemplateLabels" :key="value" :value="value">{{ label }}</option>
-              </select>
-            </label>
-            <div v-if="apiKeyForm.scope_template === 'custom'" class="apikey-scopes">
-              <span class="setting-label">自定义权限范围</span>
-              <label v-for="scope in availableScopes" :key="scope" class="doc-toggle">
-                <input type="checkbox" :value="scope" v-model="apiKeyForm.scopes" />
-                <span>{{ scope }}</span>
-              </label>
-            </div>
-            <label>
-              <span>过期时间（可选）</span>
-              <input v-model="apiKeyForm.expires_at" type="datetime-local" />
-            </label>
-            <button class="settings-action" type="submit" :disabled="saving">创建密钥</button>
-          </form>
-
-          <div v-if="newKeyResult" class="apikey-new-key">
-            <p class="setting-label">密钥已创建（仅显示一次）</p>
-            <div class="apikey-new-key-row">
-              <code>{{ newKeyResult.full_key }}</code>
-              <button type="button" @click="copyApiKey(newKeyResult.id)">复制</button>
-            </div>
-          </div>
-        </article>
-
-        <article class="settings-card">
-          <header><span class="material-symbols-outlined muted-icon">vpn_key</span><h2>已创建的密钥</h2></header>
-          <div v-if="apiKeyLoading" class="settings-state">正在加载 API Key...</div>
-          <div v-else-if="apiKeyError" class="settings-error">{{ apiKeyError }}</div>
-          <div v-else-if="!apiKeys.length" class="empty-state">暂无 API Key</div>
-          <div v-else class="apikey-list">
-            <div v-for="key in apiKeys" :key="key.id" class="apikey-row">
-              <div class="apikey-row-prefix">
-                <button type="button" class="apikey-icon-btn" :aria-label="revealedKeys[key.id] ? '隐藏密钥' : '显示密钥'" @click="toggleRevealKey(key.id)">
-                  <span class="material-symbols-outlined">{{ revealedKeys[key.id] ? 'visibility_off' : 'visibility' }}</span>
-                </button>
-                <code>{{ revealedKeys[key.id] || key.key_prefix }}</code>
-              </div>
-              <div class="apikey-row-meta">
-                <strong>{{ key.name }}</strong>
-                <span class="apikey-status" :class="'status-' + key.status">{{ key.status }}</span>
-                <span class="apikey-detail">{{ scopeTemplateLabels[key.scope_template] || key.scope_template }}</span>
-                <span class="apikey-detail">{{ clientTypeLabels[key.client_type] || key.client_type }}</span>
-                <span class="apikey-detail">创建: {{ key.created_at ? new Date(key.created_at).toLocaleString('zh-CN') : '-' }}</span>
-                <span class="apikey-detail">最后使用: {{ key.last_used_at ? new Date(key.last_used_at).toLocaleString('zh-CN') : '-' }}</span>
-              </div>
-              <div class="apikey-row-actions">
-                <button type="button" class="apikey-icon-btn" aria-label="复制密钥" @click="copyApiKey(key.id)">
-                  <span class="material-symbols-outlined">content_copy</span>
-                </button>
-                <button type="button" class="apikey-icon-btn apikey-revoke-btn" aria-label="撤销密钥" @click="handleRevokeKey(key.id)">
-                  <span class="material-symbols-outlined">delete</span>
-                </button>
-              </div>
-            </div>
           </div>
         </article>
       </section>
@@ -633,7 +541,8 @@ watch(activeTab, (tab) => {
 .system-settings,
 .knowledge-settings,
 .taboo-settings,
-.apikey-settings {
+.billing-settings,
+.model-settings {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -1176,6 +1085,283 @@ watch(activeTab, (tab) => {
   color: #ffb4ab;
 }
 
+/* ── 账单与订阅管理 ── */
+.billing-settings,
+.model-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.billing-current {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.billing-plan-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.12), rgba(212, 175, 55, 0.02));
+}
+
+.billing-plan-badge .material-symbols-outlined {
+  color: #d4af37;
+  font-size: 28px;
+}
+
+.billing-plan-badge strong {
+  font-family: "Noto Serif", "Noto Serif SC", serif;
+  color: #e5e2e1;
+  font-size: 22px;
+}
+
+.billing-plan-badge em {
+  font-style: normal;
+  color: #f2ca50;
+  font-family: "Syne", sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.billing-plan-badge em small {
+  margin-left: 4px;
+  color: #bdb49f;
+  font-family: "Hanken Grotesk", sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.billing-quota {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quota-hint {
+  margin: 0;
+  color: #99907c;
+  font-size: 12px;
+}
+
+.benefits-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.benefits-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  color: #d0c5af;
+  font-size: 14px;
+}
+
+.benefits-list li .material-symbols-outlined {
+  color: #34d399;
+  font-size: 18px;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.plan-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid #353534;
+  background: rgba(28, 27, 27, 0.6);
+  transition: border-color 200ms ease, background 200ms ease;
+}
+
+.plan-card.active {
+  border-color: rgba(212, 175, 55, 0.6);
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.08), rgba(212, 175, 55, 0.02));
+  box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.3);
+}
+
+.plan-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+}
+
+.plan-card strong {
+  font-family: "Noto Serif", "Noto Serif SC", serif;
+  color: #e5e2e1;
+  font-size: 18px;
+}
+
+.current-tag {
+  font-style: normal;
+  padding: 2px 8px;
+  border: 1px solid #d4af37;
+  color: #d4af37;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.plan-price {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.price-amount {
+  font-family: "Syne", sans-serif;
+  font-weight: 700;
+  color: #f2ca50;
+  font-size: 28px;
+}
+
+.price-period {
+  color: #99907c;
+  font-size: 12px;
+}
+
+.plan-quota {
+  margin: 0;
+  color: #bdb49f;
+  font-size: 12px;
+}
+
+.plan-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.plan-card li {
+  color: #d0c5af;
+  font-size: 12px;
+  padding-left: 12px;
+  position: relative;
+}
+
+.plan-card li::before {
+  content: "·";
+  position: absolute;
+  left: 0;
+  color: #d4af37;
+}
+
+.plan-action {
+  border: 1px solid #d4af37;
+  padding: 8px 12px;
+  background: rgba(212, 175, 55, 0.08);
+  color: #f2ca50;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 200ms ease;
+}
+
+.plan-action:hover:not(:disabled) {
+  background: rgba(212, 175, 55, 0.2);
+}
+
+.plan-action.current {
+  border-color: #4d4635;
+  color: #99907c;
+  background: transparent;
+  cursor: default;
+}
+
+/* ── AI 模型与偏好 ── */
+.model-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.model-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-form label span {
+  color: #99907c;
+  font-family: "Geist", monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+.model-form label small {
+  color: #99907c;
+  font-size: 11px;
+  font-family: "Hanken Grotesk", sans-serif;
+  letter-spacing: 0;
+}
+
+.model-form input,
+.model-form select {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #4d4635;
+  padding: 0 0 10px;
+  background: transparent;
+  color: #d0c5af;
+  font-family: "Geist", monospace;
+  outline: none;
+}
+
+.model-form input:focus,
+.model-form select:focus {
+  border-bottom-color: #d4af37;
+  box-shadow: 0 4px 12px -4px rgba(212, 175, 55, 0.3);
+}
+
+.model-form select option {
+  background: #1c1b1b;
+  color: #d0c5af;
+}
+
+.masking-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid #4d4635;
+  background: #1c1b1b;
+  color: #d0c5af;
+  cursor: pointer;
+}
+
+.masking-toggle input {
+  accent-color: #d4af37;
+  width: 16px;
+  height: 16px;
+}
+
+.model-note p {
+  margin: 0;
+  color: #99907c;
+}
+
 @media (max-width: 900px) {
   .settings-tabs,
   .safety-card,
@@ -1188,7 +1374,11 @@ watch(activeTab, (tab) => {
   .identity-grid,
   .knowledge-settings,
   .knowledge-grid,
-  .apikey-form {
+  .apikey-form,
+  .model-form,
+  .billing-current,
+  .benefits-list,
+  .plan-grid {
     grid-template-columns: 1fr;
   }
 
