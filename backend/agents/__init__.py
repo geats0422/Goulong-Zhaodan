@@ -10,6 +10,8 @@ from pydantic_ai import Agent
 
 from app.prompts.inspection_prompts import (
     COMPLIANCE_INSPECTOR_SYSTEM_PROMPT,
+    CONTRACT_COMPLIANCE_INSPECTOR_SYSTEM_PROMPT,
+    CONTRACT_REGULATION_ANALYST_SYSTEM_PROMPT,
     INSPECTION_COORDINATOR_SYSTEM_PROMPT,
     REGULATION_ANALYST_SYSTEM_PROMPT,
 )
@@ -36,27 +38,39 @@ def _make_model():
 _agents: dict[str, AgentType] = {}
 
 
-def get_regulation_analyst() -> AgentType:
-    if "regulation_analyst" not in _agents:
-        _agents["regulation_analyst"] = Agent(
+def get_regulation_analyst(scenario: str = "bidding") -> AgentType:
+    cache_key = f"regulation_analyst_{scenario}"
+    if cache_key not in _agents:
+        instructions = (
+            CONTRACT_REGULATION_ANALYST_SYSTEM_PROMPT
+            if scenario == "contract"
+            else REGULATION_ANALYST_SYSTEM_PROMPT
+        )
+        _agents[cache_key] = Agent(
             _make_model(),
             deps_type=InspectionDeps,
             output_type=str,
-            instructions=REGULATION_ANALYST_SYSTEM_PROMPT,
+            instructions=instructions,
             model_settings={"temperature": 0.0},
         )
-    return _agents["regulation_analyst"]
+    return _agents[cache_key]
 
 
-def get_compliance_inspector() -> AgentType:
-    if "compliance_inspector" not in _agents:
-        _agents["compliance_inspector"] = Agent(
+def get_compliance_inspector(scenario: str = "bidding") -> AgentType:
+    cache_key = f"compliance_inspector_{scenario}"
+    if cache_key not in _agents:
+        instructions = (
+            CONTRACT_COMPLIANCE_INSPECTOR_SYSTEM_PROMPT
+            if scenario == "contract"
+            else COMPLIANCE_INSPECTOR_SYSTEM_PROMPT
+        )
+        _agents[cache_key] = Agent(
             _make_model(),
             deps_type=InspectionDeps,
             output_type=str,
-            instructions=COMPLIANCE_INSPECTOR_SYSTEM_PROMPT,
+            instructions=instructions,
         )
-    return _agents["compliance_inspector"]
+    return _agents[cache_key]
 
 
 def get_inspection_agent() -> AgentType:
