@@ -17,6 +17,10 @@ from core.api_key_scopes import resolve_scopes
 from models.api_keys import ApiKey
 
 
+def _utcnow() -> datetime.datetime:
+    return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
+
+
 async def create_api_key(
     db: AsyncSession,
     user_id: int,
@@ -74,7 +78,7 @@ async def get_api_key_secret(
     if api_key is None:
         return None
 
-    api_key.last_viewed_at = datetime.datetime.utcnow()
+    api_key.last_viewed_at = _utcnow()
     await db.commit()
     return decrypt_api_key(api_key.encrypted_key)
 
@@ -106,7 +110,7 @@ async def revoke_api_key(
         return None
 
     api_key.status = "revoked"
-    api_key.revoked_at = datetime.datetime.utcnow()
+    api_key.revoked_at = _utcnow()
     await db.commit()
     await db.refresh(api_key)
     return api_key
@@ -136,9 +140,9 @@ async def authenticate_api_key(
     if matched.status == "revoked":
         return None
 
-    if matched.expires_at is not None and matched.expires_at < datetime.datetime.utcnow():
+    if matched.expires_at is not None and matched.expires_at < _utcnow():
         return None
 
-    matched.last_used_at = datetime.datetime.utcnow()
+    matched.last_used_at = _utcnow()
     await db.commit()
     return matched

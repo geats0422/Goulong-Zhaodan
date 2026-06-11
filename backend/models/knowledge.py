@@ -6,6 +6,10 @@ from sqlalchemy import BigInteger, Boolean, ForeignKey, JSON, String, Text, Uniq
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
+def _utcnow() -> datetime.datetime:
+    return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -17,7 +21,7 @@ class EngineeringSubcategory(Base):
     category_key: Mapped[str] = mapped_column(String(50), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow,
+        default=_utcnow,
     )
 
     __table_args__ = (
@@ -43,10 +47,10 @@ class KnowledgeDocument(Base):
     application_scenario: Mapped[str] = mapped_column(String(20), nullable=False, default="bidding")
     source_path: Mapped[str | None] = mapped_column(String(1000), unique=True, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow,
+        default=_utcnow,
     )
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow,
+        default=_utcnow, onupdate=_utcnow,
     )
 
     subcategory: Mapped[EngineeringSubcategory] = relationship(back_populates="documents")
@@ -70,7 +74,7 @@ class DocumentVersion(Base):
     file_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     file_type: Mapped[str] = mapped_column(String(10), nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow,
+        default=_utcnow,
     )
 
     document: Mapped[KnowledgeDocument] = relationship(back_populates="versions", foreign_keys=[document_id])
@@ -93,7 +97,7 @@ class IndexNode(Base):
     position: Mapped[int] = mapped_column(nullable=False)
     page_index_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow,
+        default=_utcnow,
     )
 
     version: Mapped[DocumentVersion] = relationship(back_populates="index_nodes")
@@ -108,9 +112,9 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
+    created_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow,
+        default=_utcnow, onupdate=_utcnow,
     )
 
 
@@ -126,9 +130,9 @@ class UserProfile(Base):
     wechat_bound: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     alipay_bound: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     burn_after_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
+    created_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow,
+        default=_utcnow, onupdate=_utcnow,
     )
 
 
@@ -140,9 +144,9 @@ class TabooWord(Base):
     word: Mapped[str] = mapped_column(String(100), nullable=False)
     replacement: Mapped[str | None] = mapped_column(String(100), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
+    created_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow,
+        default=_utcnow, onupdate=_utcnow,
     )
 
     __table_args__ = (
@@ -158,7 +162,7 @@ class KnowledgeDocumentSetting(Base):
     document_id: Mapped[int] = mapped_column(ForeignKey("knowledge_documents.id"), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow,
+        default=_utcnow, onupdate=_utcnow,
     )
 
     __table_args__ = (
@@ -182,7 +186,7 @@ class InspectionRecord(Base):
     text_preview: Mapped[str] = mapped_column(Text, nullable=False, default="")
     parsed_content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     quota_consumed: Mapped[int] = mapped_column(nullable=False, default=1)
-    created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
+    created_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow)
 
 
 class RefreshToken(Base):
@@ -193,4 +197,4 @@ class RefreshToken(Base):
     token_jti: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     expires_at: Mapped[datetime.datetime] = mapped_column(nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
+    created_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow)

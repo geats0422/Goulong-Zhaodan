@@ -5,7 +5,7 @@ import datetime
 from sqlalchemy import ForeignKey, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from models.knowledge import Base
+from models.knowledge import Base, _utcnow
 
 
 class ApiKey(Base):
@@ -25,10 +25,10 @@ class ApiKey(Base):
     last_used_at: Mapped[datetime.datetime | None] = mapped_column(nullable=True)
     last_viewed_at: Mapped[datetime.datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow,
+        default=_utcnow,
     )
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow,
+        default=_utcnow, onupdate=_utcnow,
     )
     revoked_at: Mapped[datetime.datetime | None] = mapped_column(nullable=True)
 
@@ -48,9 +48,9 @@ class AgentJob(Base):
     result_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow,
+        default=_utcnow,
     )
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow,
+        default=_utcnow, onupdate=_utcnow,
     )
     finished_at: Mapped[datetime.datetime | None] = mapped_column(nullable=True)

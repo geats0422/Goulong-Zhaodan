@@ -9,6 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.api_keys import AgentJob
 
 
+def _utcnow() -> datetime.datetime:
+    return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
+
+
 async def enqueue_job(task_name: str, job_id: str) -> None:
     pass
 
@@ -97,7 +101,7 @@ async def mark_job_succeeded(
     job_id: str,
     result_payload: dict | None = None,
 ) -> AgentJob | None:
-    now = datetime.datetime.utcnow()
+    now = _utcnow()
     job = await update_job_status(
         db,
         job_id,
@@ -117,7 +121,7 @@ async def mark_job_failed(
     job_id: str,
     error_message: str,
 ) -> AgentJob | None:
-    now = datetime.datetime.utcnow()
+    now = _utcnow()
     job = await update_job_status(
         db,
         job_id,

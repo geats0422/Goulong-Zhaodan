@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sys
 import types
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -158,7 +158,7 @@ async def test_revoked_api_key(client, db, user_id):
 
 @pytest.mark.asyncio
 async def test_expired_api_key(client, db, user_id):
-    expired_at = datetime.utcnow() - timedelta(days=1)
+    expired_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)
     result = await create_api_key(
         db=db,
         user_id=user_id,
