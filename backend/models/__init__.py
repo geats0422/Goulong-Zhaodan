@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from models.api_keys import AgentJob, ApiKey
 from models.knowledge import (
     Base,
     DocumentVersion,
@@ -14,6 +15,8 @@ from models.knowledge import (
 )
 
 __all__ = [
+    "AgentJob",
+    "ApiKey",
     "Base",
     "EngineeringSubcategory",
     "KnowledgeDocument",

@@ -44,8 +44,10 @@ async def run_inspection(
 
     流程：法规分析 → 合规检查 → 汇总报告
     """
+    scenario = deps.application_scenario
+
     # 阶段 1: 法规分析
-    regulation_result = await get_regulation_analyst().run(
+    regulation_result = await get_regulation_analyst(scenario).run(
         format_regulation_prompt(document_text, deps.regulation_base),
         deps=deps,
     )
@@ -58,7 +60,7 @@ async def run_inspection(
         taboo_words=deps.taboo_words,
     )
 
-    inspection_result = await get_compliance_inspector().run(
+    inspection_result = await get_compliance_inspector(scenario).run(
         inspection_prompt,
         deps=deps,
     )

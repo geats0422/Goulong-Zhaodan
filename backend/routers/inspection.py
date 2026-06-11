@@ -31,12 +31,13 @@ MAX_INSPECTION_SESSIONS = 100
 MAX_INSPECTION_SESSIONS_PER_USER = 5
 ALLOWED_INSPECTION_EXTENSIONS = {".txt", ".pdf", ".doc", ".docx"}
 DOCUMENT_TYPE_KEYWORDS = {
-    "contract": ["合同", "协议", "甲方", "乙方", "民法典", "违约责任"],
-    "bidding": ["招标", "投标", "招投标", "采购", "评标", "中标", "投标人"],
+    "contract": ["合同", "协议", "甲方", "乙方", "民法典", "违约责任", "签订", "付款", "履约", "违约金", "不可抗力"],
+    "bidding": ["招标", "投标", "招投标", "采购", "评标", "中标", "投标人", "投标保证金"],
 }
 DOCUMENT_TYPE_LABELS = {
     "contract": "合同",
     "bidding": "招投标文件",
+    "unknown": "未知类型",
 }
 DATA_IMAGE_PATTERN = re.compile(r"!\[[^\]]*]\(data:image/[^)]*\)", re.IGNORECASE)
 MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)]\([^)]*\)")
@@ -78,8 +79,8 @@ def _detect_document_type(filename: str, text: str) -> dict[str, str]:
 
     if all(score == 0 for score in scores.values()):
         return {
-            "document_type": "bidding",
-            "document_type_label": DOCUMENT_TYPE_LABELS["bidding"],
+            "document_type": "unknown",
+            "document_type_label": DOCUMENT_TYPE_LABELS["unknown"],
             "confidence": "low",
         }
 
@@ -243,6 +244,7 @@ class InspectionSessionInspectRequest(BaseModel):
 
     project_id: str = "default"
     taboo_words: str = ""
+    application_scenario: str | None = None
 
 
 class InspectionParseFileResponse(BaseModel):
@@ -252,6 +254,7 @@ class InspectionParseFileResponse(BaseModel):
     size: int
     format: str
     document_type: str
+    documentType: str = ""
     document_type_label: str
     text_preview: str
     parsed_content: str
@@ -695,6 +698,7 @@ async def parse_inspection_file(
             size=len(content_bytes),
             format=file_format,
             document_type=session["document_type"],
+            documentType=session["document_type"],
             document_type_label=session["document_type_label"],
             text_preview=session["text_preview"],
             parsed_content=text,
@@ -713,13 +717,18 @@ async def inspect_session(
     user_id = _current_user_id(user)
     session = _get_session_for_user(session_id, user_id)
 
+    detected_type = session["document_type"]
+    effective_scenario = body.application_scenario or detected_type
+    if effective_scenario == "unknown":
+        effective_scenario = "bidding"
+
     return await _execute_inspection(
         db=db,
         user=user,
         document_name=session["filename"],
         text=session["text"],
         project_id=body.project_id,
-        application_scenario=session["document_type"],
+        application_scenario=effective_scenario,
         taboo_words_input=body.taboo_words,
         record_id=session.get("record_id"),
     )

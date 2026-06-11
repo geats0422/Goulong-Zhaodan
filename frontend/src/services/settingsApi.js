@@ -60,3 +60,33 @@ export async function deleteTabooWord(wordId) {
     method: 'DELETE',
   }))
 }
+
+export async function listApiKeys() {
+  return parseResponse(await fetchWithAuth('/settings/api-keys'))
+}
+
+export async function createApiKey(payload) {
+  return parseResponse(await fetchWithAuth('/settings/api-keys', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }))
+}
+
+export async function getApiKeySecret(keyId) {
+  return parseResponse(await fetchWithAuth(`/settings/api-keys/${keyId}/secret`))
+}
+
+export async function updateApiKey(keyId, payload) {
+  return parseResponse(await fetchWithAuth(`/settings/api-keys/${keyId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }))
+}
+
+export async function revokeApiKey(keyId) {
+  return parseResponse(await fetchWithAuth(`/settings/api-keys/${keyId}`, {
+    method: 'DELETE',
+  }))
+}

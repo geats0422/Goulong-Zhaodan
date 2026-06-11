@@ -21,6 +21,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://postgres:your-password@localhost:5432/goulong"
 
+    redis_url: str = "redis://localhost:6379"
+
     pageindex_vendor_path: str = "vendor/pageindex"
 
     # CORS 跨域配置（逗号分隔）
@@ -30,6 +32,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     max_document_length: int = 8000  # 单次体检最大字符数
     inspection_prompt_char_budget: int = 60000  # 体检 Agent 单次提示词字符预算
+
+    api_key_encryption_secret: str = "dev-encryption-secret-change-in-production"
 
     model_config = SettingsConfigDict(
         env_file=".env",         # 本地开发时若存在 .env 则读取（不提交到 git）

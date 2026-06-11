@@ -22,6 +22,7 @@ const parseData = ref(null)
 const reportData = ref(null)
 const inspecting = ref(false)
 const sessionExpired = ref(false)
+const selectedScenario = ref(null)
 
 const previewText = computed(() => parseData.value?.file?.parsed_content || parseData.value?.file?.text_preview || '')
 
@@ -47,15 +48,17 @@ function goToStep(step) {
   currentStep.value = step
 }
 
-async function startInspection() {
+async function startInspection(scenario) {
   if (!parseData.value || inspecting.value) return
   inspecting.value = true
   stepErrors.value[1] = null
   stepErrors.value[2] = null
+  selectedScenario.value = scenario || parseData.value?.file?.document_type || 'bidding'
 
   try {
     reportData.value = await inspectParsedSession(parseData.value.session_id, {
       project_id: 'default',
+      application_scenario: selectedScenario.value,
     })
     currentStep.value = STEP.REPORT
   } catch (e) {

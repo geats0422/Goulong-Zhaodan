@@ -198,14 +198,24 @@ def test_detect_document_type_tie_breaks_to_bidding():
     assert result["confidence"] == "high"
 
 
-def test_detect_document_type_defaults_to_low_confidence_bidding():
+def test_detect_document_type_defaults_to_unknown_when_no_keywords():
     result = inspection_router._detect_document_type("项目资料.txt", "这是普通项目说明文本，没有明确类型线索。")
 
-    assert result == {
-        "document_type": "bidding",
-        "document_type_label": "招投标文件",
-        "confidence": "low",
-    }
+    assert result["document_type"] == "unknown"
+    assert result["document_type_label"] == "未知类型"
+    assert result["confidence"] == "low"
+
+
+@pytest.mark.parametrize("keyword,text_snippet", [
+    ("付款", "本合同约定付款方式为分期付款"),
+    ("履约", "履约保证金应在合同签订后缴纳"),
+    ("违约金", "违约金按日千分之五计算"),
+    ("不可抗力", "因不可抗力导致合同无法履行"),
+    ("签订", "甲方与乙方签订本协议"),
+])
+def test_detect_contract_keywords(keyword, text_snippet):
+    result = inspection_router._detect_document_type("文档.txt", text_snippet)
+    assert result["document_type"] == "contract"
 
 
 def test_create_inspection_session_stores_user_scoped_file_parse_data():
@@ -560,6 +570,133 @@ async def test_session_inspect_uses_document_type_from_parse_session(client: Asy
     assert data["document_type_label"] == "合同"
     assert data["overall_risk"] == "medium"
     assert captured["retrieval"]["application_scenario"] == "contract"
+
+
+@pytest.mark.asyncio
+async def test_session_inspect_unknown_type_falls_back_to_bidding(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+    headers, user_id = await register_and_auth(client, "unknown_fallback_user")
+    file_content = "这是普通项目说明文本，没有明确类型线索。".encode("utf-8")
+
+    parse_response = await client.post(
+        "/inspection/parse",
+        headers=headers,
+        files={"file": ("项目资料.txt", file_content, "text/plain")},
+    )
+    assert parse_response.status_code == 200
+    assert parse_response.json()["file"]["document_type"] == "unknown"
+
+    session_id = parse_response.json()["session_id"]
+    captured = {}
+
+    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
+        captured["application_scenario"] = application_scenario
+        return {"snippets": [{"content": "法规依据"}], "sources": [{"title": "系统法规"}]}
+
+    async def fake_run_inspection(document_text: str, deps):
+        return SimpleNamespace(
+            overall_risk="low",
+            summary="无风险",
+            issues=[],
+            regulation_refs=["系统法规"],
+        )
+
+    monkeypatch.setattr("routers.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
+    monkeypatch.setattr("routers.inspection.run_inspection", fake_run_inspection)
+
+    inspect_response = await client.post(
+        f"/inspection/sessions/{session_id}/inspect",
+        headers=headers,
+        json={"project_id": "proj-unknown"},
+    )
+
+    assert inspect_response.status_code == 200
+    assert captured["application_scenario"] == "bidding"
+
+
+@pytest.mark.asyncio
+async def test_contract_inspect_only_references_contract_sources(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+    headers, _ = await register_and_auth(client, "contract_ref_filter_user")
+    file_content = "甲方与乙方签订工程施工合同，约定付款方式与违约责任。".encode("utf-8")
+
+    parse_response = await client.post(
+        "/inspection/parse",
+        headers=headers,
+        files={"file": ("施工合同.txt", file_content, "text/plain")},
+    )
+    assert parse_response.status_code == 200
+    session_id = parse_response.json()["session_id"]
+
+    contract_sources = [
+        {"title": "《中华人民共和国民法典》第三编合同"},
+        {"title": "最高人民法院关于适用《中华人民共和国民法典》合同通则若干问题的解释"},
+    ]
+
+    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
+        assert application_scenario == "contract"
+        return {"snippets": [{"content": "合同法规"}], "sources": contract_sources}
+
+    async def fake_run_inspection(document_text: str, deps):
+        return SimpleNamespace(
+            overall_risk="medium",
+            summary="合同风险",
+            issues=[],
+            regulation_refs=["《中华人民共和国民法典》第三编合同", "招标投标法"],
+        )
+
+    monkeypatch.setattr("routers.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
+    monkeypatch.setattr("routers.inspection.run_inspection", fake_run_inspection)
+
+    inspect_response = await client.post(
+        f"/inspection/sessions/{session_id}/inspect",
+        headers=headers,
+        json={"project_id": "proj-contract"},
+    )
+
+    assert inspect_response.status_code == 200
+    data = inspect_response.json()
+    assert "招标投标法" not in data["regulation_refs"]
+    assert "《中华人民共和国民法典》第三编合同" in data["regulation_refs"]
+
+
+@pytest.mark.asyncio
+async def test_session_inspect_explicit_scenario_overrides_detected(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+    headers, _ = await register_and_auth(client, "scenario_override_user")
+    file_content = "甲方与乙方签订工程施工合同，约定付款方式与违约责任。".encode("utf-8")
+
+    parse_response = await client.post(
+        "/inspection/parse",
+        headers=headers,
+        files={"file": ("施工合同.txt", file_content, "text/plain")},
+    )
+    assert parse_response.status_code == 200
+    assert parse_response.json()["file"]["document_type"] == "contract"
+    session_id = parse_response.json()["session_id"]
+
+    captured = {}
+
+    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
+        captured["application_scenario"] = application_scenario
+        return {"snippets": [{"content": "法规依据"}], "sources": [{"title": "系统法规"}]}
+
+    async def fake_run_inspection(document_text: str, deps):
+        return SimpleNamespace(
+            overall_risk="low",
+            summary="无风险",
+            issues=[],
+            regulation_refs=["系统法规"],
+        )
+
+    monkeypatch.setattr("routers.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
+    monkeypatch.setattr("routers.inspection.run_inspection", fake_run_inspection)
+
+    inspect_response = await client.post(
+        f"/inspection/sessions/{session_id}/inspect",
+        headers=headers,
+        json={"project_id": "proj-override", "application_scenario": "bidding"},
+    )
+
+    assert inspect_response.status_code == 200
+    assert captured["application_scenario"] == "bidding"
 
 
 @pytest.mark.asyncio
