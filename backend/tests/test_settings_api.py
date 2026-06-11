@@ -113,7 +113,7 @@ async def test_settings_overview_defaults(client: AsyncClient):
     assert data["profile"]["burn_after_read"] is True
     assert data["taboo_words"] == []
     docs = [doc for cat in data["knowledge"] for sub in cat["subcategories"] for doc in sub["documents"]]
-    assert {"id": doc_id, "title": "施工规范", "enabled": True} in docs
+    assert {"id": doc_id, "title": "施工规范", "enabled": True, "owner_type": "user", "application_scenario": "bidding"} in docs
 
 
 @pytest.mark.asyncio
