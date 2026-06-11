@@ -4,10 +4,11 @@
   --bg: #0e0e0e;
   --surface: #171717;
   --surface-2: #202020;
-  --text: #e6e2da;
-  --muted: #c8c0ab;
+  --text: #f1e8d7;
+  --muted: #d4ccb5;
   --line: #4d4635;
-  --gold: #d4af37;
+  --gold: #e9c349;
+  --gold-bright: #ffd964;
   --gold-soft: rgba(212, 175, 55, 0.2);
   --container: 1200px;
 }
@@ -680,10 +681,11 @@
   --bg: #f5f0e8;
   --surface: #ede8de;
   --surface-2: #e4ddd1;
-  --text: #2c2416;
-  --muted: #5e5440;
+  --text: #1a1410;
+  --muted: #3a3220;
   --line: #c9bfad;
-  --gold: #b8922a;
+  --gold: #8a6810;
+  --gold-bright: #5a4400;
   --gold-soft: rgba(184, 146, 42, 0.18);
 }
 
@@ -1148,20 +1150,20 @@ p {
   font-family: "Syne", sans-serif;
   font-size: 1.2rem;
   font-weight: 700;
-  color: #f0dfb7;
+  color: #f5ecd6;
 }
 
 .plan-price {
   font-family: "Syne", sans-serif;
   font-size: clamp(2rem, 4vw, 2.8rem);
   font-weight: 800;
-  color: var(--gold);
+  color: var(--gold-bright);
   line-height: 1;
 }
 
 .plan-price .per {
   font-size: 0.55em;
-  color: var(--muted);
+  color: #d4ccb5;
 }
 
 .plan-original {
@@ -1180,7 +1182,7 @@ p {
 }
 
 .plan-features li {
-  color: var(--muted);
+  color: #d4ccb5;
   font-size: 0.95rem;
   padding-left: 20px;
   position: relative;
@@ -1527,7 +1529,7 @@ p {
 
 .plan-copy {
   min-height: 54px;
-  color: var(--muted);
+  color: #d4ccb5;
 }
 
 .restored-card .plan-price {
@@ -1539,13 +1541,13 @@ p {
 }
 
 .plan-save {
-  color: #e8d9b7;
+  color: #f5ecd6;
   font: 600 13px/1 "JetBrains Mono", monospace;
 }
 
 .plan-save span {
   margin-right: 8px;
-  color: var(--muted);
+  color: #d4ccb5;
   text-decoration: line-through;
 }
 
@@ -1570,7 +1572,7 @@ p {
   justify-content: center;
   gap: 14px;
   margin: 36px auto 0;
-  color: var(--muted);
+  color: #d4ccb5;
   text-align: center;
 }
 
@@ -1778,7 +1780,7 @@ p {
 }
 
 .case-metric strong {
-  color: #f6d76f;
+  color: var(--gold-bright);
   font-family: "Noto Serif SC", serif;
   font-size: clamp(4rem, 7vw, 6.3rem);
   line-height: 0.95;
@@ -1786,13 +1788,13 @@ p {
 }
 
 .case-metric span {
-  color: #f1e8d7;
+  color: #f5ecd6;
   font-weight: 700;
   letter-spacing: 0.06em;
 }
 
 .case-copy {
-  color: var(--muted);
+  color: #d4ccb5;
   font-size: 1rem;
   line-height: 1.85;
 }
@@ -1814,7 +1816,7 @@ p {
 }
 
 .case-footer strong {
-  color: #e8d9b7;
+  color: #f5ecd6;
   font-size: 0.98rem;
 }
 
@@ -1873,12 +1875,12 @@ p {
 }
 
 .case-mini-stat strong {
-  color: var(--gold);
+  color: var(--gold-bright);
   font: 800 clamp(2rem, 3vw, 3rem) / 1 "JetBrains Mono", monospace;
 }
 
 .case-mini-stat span {
-  color: var(--muted);
+  color: #d4ccb5;
 }
 
 .case-cta-section {
@@ -1917,11 +1919,11 @@ p {
 }
 
 .case-cta-panel h2 {
-  max-width: 900px;
-  margin: 12px auto 24px;
+  margin: 14px 0 26px;
+  color: #f5ecd6;
   font-family: "Noto Serif SC", serif;
-  font-size: clamp(2rem, 4vw, 3.8rem);
-  line-height: 1.25;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.3;
 }
 
 .security-page {
@@ -2040,13 +2042,14 @@ p {
 
 .security-feature-card h2 {
   margin-bottom: 14px;
+  color: #f5ecd6;
   font-family: "Noto Serif SC", serif;
   font-size: clamp(1.6rem, 2.6vw, 2.5rem);
   letter-spacing: 0.05em;
 }
 
 .security-feature-card p:not(.security-icon) {
-  color: var(--muted);
+  color: #d4ccb5;
   font-size: 1.03rem;
 }
 
