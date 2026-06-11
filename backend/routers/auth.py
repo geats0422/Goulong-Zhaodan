@@ -69,16 +69,28 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         _REFRESH_COOKIE_NAME,
         token,
         httponly=True,
-        secure=settings.environment == "production",
+        secure=settings.environment != "development",
         max_age=_REFRESH_COOKIE_MAX_AGE,
         samesite="lax",
     )
 
 
+_TRUSTED_PROXIES: set[str] = set()
+
+
+def _extract_client_ip(request: Request) -> str:
+    if _TRUSTED_PROXIES:
+        forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        if forwarded:
+            return forwarded
+    if request.client:
+        return request.client.host
+    return "unknown"
+
+
 @router.post("/register", status_code=201)
 async def register(body: RegisterRequest, response: Response, request: Request, db=Depends(get_db_session)):
-    ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-           or (request.client.host if request.client else "unknown"))
+    ip = _extract_client_ip(request)
     if register_limiter.is_limited(ip):
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
     register_limiter.record(ip)
@@ -97,7 +109,7 @@ async def register(body: RegisterRequest, response: Response, request: Request, 
 
     access_token = create_access_token(user.id)
     refresh_token, jti = create_refresh_token(user.id)
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+    expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
         days=settings.refresh_token_expire_days,
     )
     await store_refresh_token(db, user.id, jti, expires_at)
@@ -107,7 +119,6 @@ async def register(body: RegisterRequest, response: Response, request: Request, 
         "id": user.id,
         "username": user.username,
         "access_token": access_token,
-        "refresh_token": refresh_token,
     }
 
 
@@ -135,7 +146,7 @@ async def login(body: LoginRequest, response: Response, db=Depends(get_db_sessio
 
     access_token = create_access_token(user.id)
     refresh_token, jti = create_refresh_token(user.id)
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+    expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
         days=settings.refresh_token_expire_days,
     )
     await store_refresh_token(db, user.id, jti, expires_at)
@@ -145,7 +156,6 @@ async def login(body: LoginRequest, response: Response, db=Depends(get_db_sessio
         "id": user.id,
         "username": user.username,
         "access_token": access_token,
-        "refresh_token": refresh_token,
     }
 
 

@@ -7,7 +7,9 @@ STORAGE_ROOT = "data/knowledge"
 
 
 def safe_path_segment(value: str, fallback: str = "untitled", max_length: int = 100) -> str:
-    normalized = re.sub(r"[^\w.\-]", "_", value).strip("._-")
+    normalized = re.sub(r"[^\w\-]", "_", value).strip("_-")
+    if ".." in normalized:
+        normalized = normalized.replace("..", "_")
     result = normalized or fallback
     return result[:max_length]
 

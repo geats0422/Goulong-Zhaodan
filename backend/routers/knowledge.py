@@ -338,7 +338,7 @@ async def upload_and_ingest(
         await db.refresh(document)
 
     display_name = _build_display_name(stem, ext, version_number)
-    content = await file.read()
+    content = await file.read(MAX_FILE_SIZE + 1)
     file_size = len(content)
     if file_size == 0:
         raise HTTPException(status_code=400, detail="文件内容为空")

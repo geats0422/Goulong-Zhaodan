@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -151,6 +151,11 @@ class KnowledgeSearchRequest(BaseModel):
     query: str
     application_scenario: str = "bidding"
     limit: int = 10
+
+    @field_validator("limit")
+    @classmethod
+    def validate_limit(cls, v: int) -> int:
+        return max(1, min(v, 50))
 
 
 @router.post("/knowledge/search")

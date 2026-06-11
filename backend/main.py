@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.config import assert_production_security, settings
 from core.database import init_db
@@ -36,6 +37,18 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "0"
+        return response
+
+
+app.add_middleware(_SecurityHeadersMiddleware)
 
 app.include_router(inspection_router)
 app.include_router(knowledge_router, prefix="/api/v1")

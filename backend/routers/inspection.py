@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import tempfile
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -30,6 +30,12 @@ INSPECTION_SESSION_TTL = timedelta(hours=1)
 MAX_INSPECTION_SESSIONS = 100
 MAX_INSPECTION_SESSIONS_PER_USER = 5
 ALLOWED_INSPECTION_EXTENSIONS = {".txt", ".pdf", ".doc", ".docx"}
+ALLOWED_INSPECTION_MIME_TYPES = {
+    "text/plain",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
 DOCUMENT_TYPE_KEYWORDS = {
     "contract": ["合同", "协议", "甲方", "乙方", "民法典", "违约责任", "签订", "付款", "履约", "违约金", "不可抗力"],
     "bidding": ["招标", "投标", "招投标", "采购", "评标", "中标", "投标人", "投标保证金"],
@@ -41,10 +47,6 @@ DOCUMENT_TYPE_LABELS = {
 }
 DATA_IMAGE_PATTERN = re.compile(r"!\[[^\]]*]\(data:image/[^)]*\)", re.IGNORECASE)
 MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)]\([^)]*\)")
-
-
-# ─── 内存中的体检记录（后续可替换为 PostgreSQL） ───
-_inspection_records: list[dict[str, Any]] = []
 
 # ─── 内存中的解析会话（按 user_id 读取隔离，后续可替换为 Redis） ───
 _inspection_sessions: dict[str, dict[str, Any]] = {}
@@ -62,6 +64,14 @@ def _validate_inspection_filename(filename: str) -> None:
     ext = filename[dot_idx:].lower() if dot_idx != -1 else ""
     if ext not in ALLOWED_INSPECTION_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"不支持的文件类型: {ext}")
+
+
+def _validate_inspection_content_type(content_type: str | None) -> None:
+    if not content_type:
+        return
+    normalized = content_type.split(";")[0].strip().lower()
+    if normalized not in ALLOWED_INSPECTION_MIME_TYPES:
+        raise HTTPException(status_code=400, detail=f"不支持的文件 MIME 类型: {content_type}")
 
 
 def _document_type_score(filename: str, text: str, keywords: list[str]) -> int:
@@ -105,7 +115,7 @@ def _create_inspection_session(
     created_at: datetime | None = None,
 ) -> dict[str, Any]:
     """创建并保存用户隔离的文件解析会话。"""
-    session_created_at = created_at or datetime.now()
+    session_created_at = created_at or datetime.now(timezone.utc)
     _cleanup_expired_inspection_sessions(now=session_created_at)
     session_id = uuid4().hex
     session = {
@@ -131,7 +141,7 @@ def _get_session_for_user(session_id: str, user_id: int, now: datetime | None = 
     session = _inspection_sessions.get(session_id)
     if session is None or session.get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="解析会话不存在")
-    if _is_inspection_session_expired(session, now or datetime.now()):
+    if _is_inspection_session_expired(session, now or datetime.now(timezone.utc)):
         del _inspection_sessions[session_id]
         raise HTTPException(status_code=404, detail="解析会话不存在")
     return session
@@ -143,7 +153,7 @@ def _is_inspection_session_expired(session: dict[str, Any], now: datetime) -> bo
 
 def _cleanup_expired_inspection_sessions(now: datetime | None = None) -> int:
     """清理已超过 TTL 的解析会话，返回清理数量。"""
-    current_time = now or datetime.now()
+    current_time = now or datetime.now(timezone.utc)
     expired_session_ids = [
         session_id
         for session_id, session in _inspection_sessions.items()
@@ -191,9 +201,9 @@ def _clean_inspection_markdown(text: str) -> str:
 
 
 async def _read_inspection_upload_text(file: UploadFile) -> tuple[str, bytes, str]:
-    """读取体检上传文件，并返回已消费的原始字节与解码文本。"""
     filename = file.filename or "unknown"
     _validate_inspection_filename(filename)
+    _validate_inspection_content_type(file.content_type)
 
     try:
         content = await file.read(MAX_INSPECTION_FILE_SIZE + 1)
@@ -418,7 +428,6 @@ async def _create_pending_inspection_record(
     db.add(record)
     await db.commit()
     await db.refresh(record)
-    _inspection_records.append(_inspection_record_to_history_dict(record))
     return record
 
 
@@ -588,9 +597,11 @@ async def _execute_inspection(
     try:
         result = await run_inspection(text, deps)
     except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("智能审查引擎异常: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=502,
-            detail=f"智能审查引擎不可用: {exc}",
+            detail="智能审查引擎不可用，请稍后重试",
         ) from exc
     _sanitize_inspection_result_refs(result, _allowed_regulation_refs(regulation_base, taboo_list))
 
@@ -614,8 +625,6 @@ async def _execute_inspection(
     record.quota_consumed = max(1, len(text) // 500)
     await db.commit()
     await db.refresh(record)
-    _inspection_records[:] = [r for r in _inspection_records if r.get("id") != record.id]
-    _inspection_records.append(_inspection_record_to_history_dict(record))
 
     return InspectionReportResponse(
         id=record.id,
@@ -754,7 +763,8 @@ async def list_records(
     if risk_level:
         conditions.append(InspectionRecord.overall_risk == risk_level)
     if keyword and keyword.strip():
-        conditions.append(InspectionRecord.document_name.ilike(f"%{keyword.strip()}%"))
+        escaped = keyword.strip().replace("%", "\\%").replace("_", "\\_")
+        conditions.append(InspectionRecord.document_name.ilike(f"%{escaped}%", escape="\\"))
 
     total = await db.scalar(select(func.count()).select_from(InspectionRecord).where(*conditions)) or 0
     total_pages = max(1, (total + page_size - 1) // page_size)
@@ -881,6 +891,7 @@ async def delete_record(
 async def get_history_stats(
     project_id: str = "default",
     range: str = "7d",
+    db: AsyncSession = Depends(get_db_session),
     user: dict = Depends(get_current_user),
 ) -> HistoryStatsResponse:
     """获取历史统计（MVP: 近7天，按天聚合）。"""
@@ -888,12 +899,19 @@ async def get_history_stats(
         raise HTTPException(status_code=400, detail="当前仅支持 range=7d")
 
     user_id = _current_user_id(user)
-    scoped_records = [
-        record
-        for record in _inspection_records
-        if record.get("project_id") == project_id and record.get("user_id") == user_id
-    ]
-    return _aggregate_history_stats(scoped_records, days=7)
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+    stmt = (
+        select(InspectionRecord)
+        .where(
+            InspectionRecord.user_id == user_id,
+            InspectionRecord.project_id == project_id,
+            InspectionRecord.created_at >= since,
+        )
+        .order_by(InspectionRecord.created_at)
+    )
+    result = await db.execute(stmt)
+    records = [_inspection_record_to_history_dict(r) for r in result.scalars().all()]
+    return _aggregate_history_stats(records, days=7)
 
 
 @router.post("/records/{record_id}/burn")

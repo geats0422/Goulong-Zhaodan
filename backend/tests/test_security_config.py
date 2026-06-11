@@ -21,7 +21,10 @@ def test_production_env_default_jwt_key_raises():
     s = Settings(
         environment="production",
         jwt_secret_key="goulong-jwt-dev-secret-change-in-production",
+        api_key="real-api-key",
         model_api_key="sk-real-key",
+        data_encryption_key="real-data-key",
+        database_url="postgresql+asyncpg://user:pass@localhost/db",
     )
     from core import config
 
@@ -38,7 +41,10 @@ def test_production_env_default_api_key_encryption_raises():
     s = Settings(
         environment="production",
         api_key_encryption_secret="dev-encryption-secret-change-in-production",
+        api_key="real-api-key",
         model_api_key="sk-real-key",
+        data_encryption_key="real-data-key",
+        database_url="postgresql+asyncpg://user:pass@localhost/db",
     )
     from core import config
 
@@ -56,6 +62,9 @@ def test_production_env_no_model_api_key_raises():
         environment="production",
         jwt_secret_key="real-jwt-secret",
         api_key_encryption_secret="real-encryption-secret",
+        api_key="real-api-key",
+        data_encryption_key="real-data-key",
+        database_url="postgresql+asyncpg://user:pass@localhost/db",
         model_api_key="",
     )
     from core import config
@@ -74,6 +83,9 @@ def test_production_env_all_configured_passes():
         environment="production",
         jwt_secret_key="real-jwt-secret",
         api_key_encryption_secret="real-encryption-secret",
+        api_key="real-api-key",
+        data_encryption_key="real-data-key",
+        database_url="postgresql+asyncpg://user:pass@localhost/db",
         model_api_key="sk-real-key",
     )
     from core import config

@@ -9,6 +9,10 @@ from core.database import get_db_session
 from services.api_key_service import lookup_api_key_by_token
 
 
+def _utcnow() -> datetime.datetime:
+    return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
+
+
 async def get_api_key_user(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
@@ -25,10 +29,10 @@ async def get_api_key_user(
     if api_key.status == "revoked":
         raise HTTPException(status_code=401, detail="api_key_revoked")
 
-    if api_key.expires_at is not None and api_key.expires_at < datetime.datetime.utcnow():
+    if api_key.expires_at is not None and api_key.expires_at < _utcnow():
         raise HTTPException(status_code=401, detail="api_key_expired")
 
-    api_key.last_used_at = datetime.datetime.utcnow()
+    api_key.last_used_at = _utcnow()
     await db.commit()
 
     return {

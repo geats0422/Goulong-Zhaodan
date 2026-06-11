@@ -68,9 +68,16 @@ def assert_production_security() -> None:
     defaults = {
         "jwt_secret_key": "goulong-jwt-dev-secret-change-in-production",
         "api_key_encryption_secret": "dev-encryption-secret-change-in-production",
+        "api_key": "goulong-dev-key",
     }
     for attr, default in defaults.items():
         if getattr(settings, attr) == default:
             raise RuntimeError(f"生产环境不允许使用默认 {attr}")
     if not settings.model_api_key:
         raise RuntimeError("生产环境必须配置 MODEL_API_KEY")
+    if "your-password" in settings.database_url:
+        raise RuntimeError("生产环境必须配置安全的 DATABASE_URL")
+    if settings.data_encryption_key == "":
+        raise RuntimeError("生产环境必须配置 DATA_ENCRYPTION_KEY")
+    if "*" in settings.cors_origins.split(","):
+        raise RuntimeError("生产环境 CORS 不允许使用通配符 *")
