@@ -7,18 +7,33 @@ const props = defineProps({
   documentTypeLabel: { type: String, default: '招投标文件' },
 })
 
-const emit = defineEmits(['start-inspection'])
+const emit = defineEmits(['start-inspection', 'update:selectedScenario'])
 
-const DOCUMENT_TYPE_LABELS = { bidding: '招投标文件', contract: '合同' }
+const DOCUMENT_TYPE_LABELS = { bidding: '招投标文件', contract: '合同', unknown: '未知类型' }
+const SCENARIO_OPTIONS = [
+  { value: 'bidding', label: '招投标' },
+  { value: 'contract', label: '合同' },
+]
 
 const loading = ref(false)
 const error = ref(null)
 const systemDocs = ref([])
 const userDocs = ref([])
+const selectedScenario = ref(props.documentType === 'unknown' ? 'bidding' : props.documentType)
+const userOverridden = ref(false)
 
-const availableSystemDocs = computed(() => systemDocs.value.filter(doc => doc.application_scenario === props.documentType))
-const availableUserDocs = computed(() => userDocs.value.filter(doc => doc.application_scenario === props.documentType))
+const effectiveScenario = computed(() => userOverridden.value ? selectedScenario.value : (props.documentType === 'unknown' ? 'bidding' : props.documentType))
+
+const availableSystemDocs = computed(() => systemDocs.value.filter(doc => doc.application_scenario === effectiveScenario.value))
+const availableUserDocs = computed(() => userDocs.value.filter(doc => doc.application_scenario === effectiveScenario.value))
 const hasAvailableDocs = computed(() => availableSystemDocs.value.length > 0 || availableUserDocs.value.length > 0)
+const autoDetectedHint = computed(() => {
+  if (userOverridden.value) return ''
+  if (props.documentType === 'unknown') return '文档类型未明确识别，默认使用招投标知识库'
+  if (props.documentType === 'bidding') return '已自动识别为招投标类，已启用相关知识库'
+  if (props.documentType === 'contract') return '已自动识别为合同类，已启用相关知识库'
+  return ''
+})
 
 function flattenKnowledgeDocuments(knowledge = []) {
   return knowledge.flatMap(category => (category.subcategories || []).flatMap(subcategory => (
@@ -58,6 +73,16 @@ async function toggleDocument(doc) {
     list.value[index].enabled = previous
   }
 }
+
+function switchScenario(scenario) {
+  userOverridden.value = true
+  selectedScenario.value = scenario
+  emit('update:selectedScenario', scenario)
+}
+
+function handleStartInspection() {
+  emit('start-inspection', effectiveScenario.value)
+}
 </script>
 
 <template>
@@ -68,7 +93,19 @@ async function toggleDocument(doc) {
 
     <div class="panel-section">
       <span class="section-label">识别文档类型</span>
-      <span class="type-badge">{{ DOCUMENT_TYPE_LABELS[documentType] || documentTypeLabel }}</span>
+      <span class="type-badge">{{ DOCUMENT_TYPE_LABELS[effectiveScenario] || documentTypeLabel }}</span>
+      <div v-if="autoDetectedHint" class="auto-detect-hint">{{ autoDetectedHint }}</div>
+      <div class="scenario-switch">
+        <span class="section-label">切换场景</span>
+        <div class="scenario-buttons">
+          <button
+            v-for="opt in SCENARIO_OPTIONS"
+            :key="opt.value"
+            :class="['scenario-btn', { active: effectiveScenario === opt.value }]"
+            @click="switchScenario(opt.value)"
+          >{{ opt.label }}</button>
+        </div>
+      </div>
     </div>
 
     <div v-if="loading" class="panel-loading">加载中...</div>
@@ -94,12 +131,12 @@ async function toggleDocument(doc) {
       </div>
 
       <div v-if="!hasAvailableDocs" class="panel-section">
-        <span class="section-label">暂无{{ DOCUMENT_TYPE_LABELS[documentType] || documentTypeLabel }}类知识库文档</span>
+        <span class="section-label">暂无{{ DOCUMENT_TYPE_LABELS[effectiveScenario] || '该类型' }}类知识库文档</span>
       </div>
     </template>
 
     <div class="panel-action">
-      <button class="start-btn" :disabled="loading" @click="emit('start-inspection')">
+      <button class="start-btn" :disabled="loading" @click="handleStartInspection">
         <span class="material-symbols-outlined">play_arrow</span>
         开始审查
       </button>
@@ -152,6 +189,46 @@ async function toggleDocument(doc) {
   color: #d4af37;
   font-family: "Geist", monospace;
   font-size: 12px;
+}
+
+.auto-detect-hint {
+  color: #7a9e7e;
+  font-family: "Geist", monospace;
+  font-size: 11px;
+  padding: 4px 0;
+}
+
+.scenario-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.scenario-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.scenario-btn {
+  padding: 5px 14px;
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  background: transparent;
+  color: #99907c;
+  font-family: "Geist", monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.scenario-btn.active {
+  border-color: rgba(212, 175, 55, 0.5);
+  background: rgba(212, 175, 55, 0.12);
+  color: #d4af37;
+}
+
+.scenario-btn:hover {
+  border-color: rgba(212, 175, 55, 0.35);
 }
 
 .doc-row {

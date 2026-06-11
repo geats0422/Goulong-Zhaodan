@@ -312,7 +312,7 @@ async def update_knowledge_document_setting(
         setting.enabled = body.enabled
 
     await db.commit()
-    return SettingsDocument(id=document.id, title=document.title, enabled=body.enabled)
+    return SettingsDocument(id=document.id, title=document.title, enabled=body.enabled, owner_type=document.owner_type, application_scenario=document.application_scenario)
 
 
 @router.post("/taboo-words", response_model=TabooWordResponse, status_code=201)
