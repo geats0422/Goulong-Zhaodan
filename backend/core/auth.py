@@ -77,7 +77,7 @@ async def revoke_all_refresh_tokens(db, user_id: int) -> None:
     from models.knowledge import RefreshToken
 
     await db.execute(
-        update(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.revoked == False).values(revoked=True)
+        update(RefreshToken).where(RefreshToken.user_id == user_id, ~RefreshToken.revoked).values(revoked=True)
     )
     await db.commit()
 

@@ -1,10 +1,14 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
 import {
+  createApiKey,
   createTabooWord,
   deleteTabooWord,
+  getApiKeySecret,
   getSettingsOverview,
+  listApiKeys,
+  revokeApiKey,
   updateKnowledgeDocument,
   updatePassword,
   updateProfile,
@@ -16,6 +20,7 @@ const tabs = [
   { key: 'system', label: '[系统设置]' },
   { key: 'knowledge', label: '[知识库设置]' },
   { key: 'taboo', label: '[违禁词设置]' },
+  { key: 'apikey', label: '[API Key]' },
 ]
 
 const loading = ref(true)
@@ -29,6 +34,45 @@ const profileForm = ref({ display_name: '', wechat_bound: false, alipay_bound: f
 const passwordForm = ref({ old_password: '', new_password: '' })
 const tabooForm = ref({ word: '', replacement: '', note: '' })
 const editingTabooId = ref(null)
+
+const apiKeys = ref([])
+const apiKeyLoading = ref(false)
+const apiKeyError = ref('')
+const revealedKeys = ref({})
+const newKeyResult = ref(null)
+const apiKeyForm = ref({
+  name: '',
+  client_type: 'mcp',
+  scope_template: 'mcp_readonly',
+  scopes: [],
+  expires_at: '',
+})
+
+const clientTypeLabels = {
+  mcp: 'MCP',
+  cli: 'CLI',
+  skill: 'Skill',
+  agent: 'Agent',
+  other: '其他',
+}
+
+const scopeTemplateLabels = {
+  mcp_readonly: 'MCP 只读',
+  cli_inspection: 'CLI 审查',
+  agent_automation: 'Agent 自动化',
+  custom: '高级自定义',
+}
+
+const availableScopes = [
+  'read:settings',
+  'write:settings',
+  'read:knowledge',
+  'write:knowledge',
+  'read:taboo',
+  'write:taboo',
+  'read:api-keys',
+  'write:api-keys',
+]
 
 const quotaPercent = computed(() => {
   if (!profile.value?.monthly_quota) return 0
@@ -136,7 +180,115 @@ async function removeTabooWord(wordId) {
   }
 }
 
+async function loadApiKeys() {
+  apiKeyLoading.value = true
+  apiKeyError.value = ''
+  try {
+    apiKeys.value = await listApiKeys()
+  } catch (err) {
+    apiKeyError.value = err instanceof Error ? err.message : 'API Key 列表加载失败'
+  } finally {
+    apiKeyLoading.value = false
+  }
+}
+
+function resetApiKeyForm() {
+  apiKeyForm.value = {
+    name: '',
+    client_type: 'mcp',
+    scope_template: 'mcp_readonly',
+    scopes: [],
+    expires_at: '',
+  }
+  newKeyResult.value = null
+}
+
+async function submitApiKey() {
+  saving.value = true
+  message.value = ''
+  try {
+    const payload = {
+      name: apiKeyForm.value.name,
+      client_type: apiKeyForm.value.client_type,
+      scope_template: apiKeyForm.value.scope_template,
+    }
+    if (apiKeyForm.value.scope_template === 'custom') {
+      payload.scopes = apiKeyForm.value.scopes
+    }
+    if (apiKeyForm.value.expires_at) {
+      payload.expires_at = apiKeyForm.value.expires_at
+    }
+    const created = await createApiKey(payload)
+    newKeyResult.value = created
+    await loadApiKeys()
+    message.value = 'API Key 已创建'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'API Key 创建失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function toggleRevealKey(keyId) {
+  if (revealedKeys.value[keyId]) {
+    revealedKeys.value = { ...revealedKeys.value, [keyId]: null }
+    return
+  }
+  if (!confirm('显示完整密钥存在泄露风险，确认显示？')) return
+  try {
+    const result = await getApiKeySecret(keyId)
+    revealedKeys.value = { ...revealedKeys.value, [keyId]: result.full_key }
+    const key = apiKeys.value.find((k) => k.id === keyId)
+    if (key) key.last_viewed_at = new Date().toISOString()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '获取密钥失败'
+  }
+}
+
+async function copyApiKey(keyId) {
+  const revealed = revealedKeys.value[keyId] || (newKeyResult.value?.id === keyId ? newKeyResult.value.full_key : null)
+  if (!revealed) {
+    if (!confirm('需要获取完整密钥才能复制，确认继续？')) return
+    try {
+      const result = await getApiKeySecret(keyId)
+      revealedKeys.value = { ...revealedKeys.value, [keyId]: result.full_key }
+      await doCopy(result.full_key)
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '获取密钥失败'
+    }
+    return
+  }
+  await doCopy(revealed)
+}
+
+async function doCopy(text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    message.value = '已复制到剪贴板'
+  } catch {
+    error.value = '复制失败，请手动复制'
+  }
+}
+
+async function handleRevokeKey(keyId) {
+  if (!confirm('确认撤销此 API Key？撤销后不可恢复。')) return
+  try {
+    await revokeApiKey(keyId)
+    apiKeys.value = apiKeys.value.filter((k) => k.id !== keyId)
+    revealedKeys.value = { ...revealedKeys.value, [keyId]: null }
+    message.value = 'API Key 已撤销'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '撤销失败'
+  }
+}
+
 onMounted(loadSettings)
+
+watch(activeTab, (tab) => {
+  if (tab === 'apikey' && !apiKeys.value.length && !apiKeyLoading.value) {
+    loadApiKeys()
+  }
+})
 </script>
 
 <template>
@@ -282,6 +434,83 @@ onMounted(loadSettings)
           </div>
         </article>
       </section>
+
+      <section v-else-if="!loading && activeTab === 'apikey'" class="settings-content apikey-settings">
+        <article class="settings-card circuit-card card-primary">
+          <header><span class="material-symbols-outlined">key</span><h2>创建 API Key</h2></header>
+          <form class="apikey-form" @submit.prevent="submitApiKey">
+            <label>
+              <span>名称</span>
+              <input v-model="apiKeyForm.name" placeholder="为密钥命名..." required maxlength="100" />
+            </label>
+            <label>
+              <span>客户端类型</span>
+              <select v-model="apiKeyForm.client_type">
+                <option v-for="(label, value) in clientTypeLabels" :key="value" :value="value">{{ label }}</option>
+              </select>
+            </label>
+            <label>
+              <span>权限模板</span>
+              <select v-model="apiKeyForm.scope_template">
+                <option v-for="(label, value) in scopeTemplateLabels" :key="value" :value="value">{{ label }}</option>
+              </select>
+            </label>
+            <div v-if="apiKeyForm.scope_template === 'custom'" class="apikey-scopes">
+              <span class="setting-label">自定义权限范围</span>
+              <label v-for="scope in availableScopes" :key="scope" class="doc-toggle">
+                <input type="checkbox" :value="scope" v-model="apiKeyForm.scopes" />
+                <span>{{ scope }}</span>
+              </label>
+            </div>
+            <label>
+              <span>过期时间（可选）</span>
+              <input v-model="apiKeyForm.expires_at" type="datetime-local" />
+            </label>
+            <button class="settings-action" type="submit" :disabled="saving">创建密钥</button>
+          </form>
+
+          <div v-if="newKeyResult" class="apikey-new-key">
+            <p class="setting-label">密钥已创建（仅显示一次）</p>
+            <div class="apikey-new-key-row">
+              <code>{{ newKeyResult.full_key }}</code>
+              <button type="button" @click="copyApiKey(newKeyResult.id)">复制</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="settings-card">
+          <header><span class="material-symbols-outlined muted-icon">vpn_key</span><h2>已创建的密钥</h2></header>
+          <div v-if="apiKeyLoading" class="settings-state">正在加载 API Key...</div>
+          <div v-else-if="apiKeyError" class="settings-error">{{ apiKeyError }}</div>
+          <div v-else-if="!apiKeys.length" class="empty-state">暂无 API Key</div>
+          <div v-else class="apikey-list">
+            <div v-for="key in apiKeys" :key="key.id" class="apikey-row">
+              <div class="apikey-row-prefix">
+                <button type="button" class="apikey-icon-btn" :aria-label="revealedKeys[key.id] ? '隐藏密钥' : '显示密钥'" @click="toggleRevealKey(key.id)">
+                  <span class="material-symbols-outlined">{{ revealedKeys[key.id] ? 'visibility_off' : 'visibility' }}</span>
+                </button>
+                <code>{{ revealedKeys[key.id] || key.key_prefix }}</code>
+              </div>
+              <div class="apikey-row-meta">
+                <strong>{{ key.name }}</strong>
+                <span class="apikey-status" :class="'status-' + key.status">{{ key.status }}</span>
+                <span class="apikey-detail">{{ scopeTemplateLabels[key.scope_template] || key.scope_template }}</span>
+                <span class="apikey-detail">{{ clientTypeLabels[key.client_type] || key.client_type }}</span>
+                <span class="apikey-detail">创建: {{ key.created_at ? new Date(key.created_at).toLocaleString('zh-CN') : '-' }}</span>
+                <span class="apikey-detail">最后使用: {{ key.last_used_at ? new Date(key.last_used_at).toLocaleString('zh-CN') : '-' }}</span>
+              </div>
+              <div class="apikey-row-actions">
+                <button type="button" class="apikey-icon-btn" aria-label="复制密钥" @click="copyApiKey(key.id)">
+                  <span class="material-symbols-outlined">content_copy</span>
+                </button>
+                <button type="button" class="apikey-icon-btn apikey-revoke-btn" aria-label="撤销密钥" @click="handleRevokeKey(key.id)">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
     </main>
   </div>
 </template>
@@ -403,7 +632,8 @@ onMounted(loadSettings)
 
 .system-settings,
 .knowledge-settings,
-.taboo-settings {
+.taboo-settings,
+.apikey-settings {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -770,6 +1000,182 @@ onMounted(loadSettings)
   color: #ffb4ab;
 }
 
+.apikey-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.apikey-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.apikey-form label span {
+  color: #99907c;
+  font-family: "Geist", monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+.apikey-form input,
+.apikey-form select {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #4d4635;
+  padding: 0 0 10px;
+  background: transparent;
+  color: #d0c5af;
+  font-family: "Geist", monospace;
+  outline: none;
+}
+
+.apikey-form select {
+  cursor: pointer;
+}
+
+.apikey-form select option {
+  background: #1c1b1b;
+  color: #d0c5af;
+}
+
+.apikey-form .settings-action {
+  grid-column: 1 / -1;
+  width: fit-content;
+}
+
+.apikey-scopes {
+  grid-column: 1 / -1;
+  padding: 12px 0;
+  border-top: 1px solid #353534;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.apikey-new-key {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  background: rgba(52, 211, 153, 0.05);
+}
+
+.apikey-new-key-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.apikey-new-key code {
+  flex: 1;
+  padding: 10px 14px;
+  background: #1c1b1b;
+  color: #34d399;
+  font-family: "Geist", monospace;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.apikey-new-key button {
+  border: 1px solid #34d399;
+  padding: 8px 16px;
+  background: rgba(52, 211, 153, 0.1);
+  color: #34d399;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.apikey-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.apikey-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid #4d4635;
+  padding: 14px 16px;
+  background: #1c1b1b;
+}
+
+.apikey-row-prefix {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.apikey-row-prefix code {
+  color: #d0c5af;
+  font-family: "Geist", monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.apikey-row-meta {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-family: "Geist", monospace;
+  font-size: 12px;
+}
+
+.apikey-row-meta strong {
+  color: #e5e2e1;
+}
+
+.apikey-status {
+  padding: 2px 8px;
+  border: 1px solid #4d4635;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.apikey-status.status-active {
+  border-color: rgba(74, 222, 128, 0.35);
+  color: #34d399;
+}
+
+.apikey-status.status-revoked {
+  border-color: rgba(255, 180, 171, 0.55);
+  color: #ffb4ab;
+}
+
+.apikey-detail {
+  color: #99907c;
+}
+
+.apikey-row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.apikey-icon-btn {
+  border: 0;
+  padding: 4px;
+  background: transparent;
+  color: #99907c;
+  cursor: pointer;
+}
+
+.apikey-icon-btn:hover {
+  color: #f2ca50;
+}
+
+.apikey-icon-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.apikey-revoke-btn:hover {
+  color: #ffb4ab;
+}
+
 @media (max-width: 900px) {
   .settings-tabs,
   .safety-card,
@@ -781,8 +1187,18 @@ onMounted(loadSettings)
   .quota-grid,
   .identity-grid,
   .knowledge-settings,
-  .knowledge-grid {
+  .knowledge-grid,
+  .apikey-form {
     grid-template-columns: 1fr;
+  }
+
+  .apikey-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .apikey-row-prefix {
+    min-width: auto;
   }
 }
 </style>

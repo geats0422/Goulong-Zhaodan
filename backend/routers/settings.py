@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy import select
@@ -378,3 +380,159 @@ async def delete_taboo_word(
     await db.delete(item)
     await db.commit()
     return None
+
+
+class CreateApiKeyRequest(BaseModel):
+    name: str
+    client_type: str
+    scope_template: str
+    scopes: list[str] | None = None
+    expires_at: datetime.datetime | None = None
+
+
+class ApiKeyResponse(BaseModel):
+    id: int
+    name: str
+    client_type: str
+    scope_template: str
+    scopes: list[str]
+    key_prefix: str
+    status: str
+    expires_at: datetime.datetime | None
+    last_used_at: datetime.datetime | None
+    last_viewed_at: datetime.datetime | None
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+
+class CreateApiKeyResponse(ApiKeyResponse):
+    full_key: str
+
+
+class ApiKeySecretResponse(BaseModel):
+    full_key: str
+
+
+class UpdateApiKeyRequest(BaseModel):
+    name: str | None = None
+    scopes: list[str] | None = None
+    expires_at: datetime.datetime | None = None
+
+
+def _api_key_response(api_key) -> ApiKeyResponse:
+    return ApiKeyResponse(
+        id=api_key.id,
+        name=api_key.name,
+        client_type=api_key.client_type,
+        scope_template=api_key.scope_template,
+        scopes=api_key.scopes,
+        key_prefix=api_key.key_prefix,
+        status=api_key.status,
+        expires_at=api_key.expires_at,
+        last_used_at=api_key.last_used_at,
+        last_viewed_at=api_key.last_viewed_at,
+        created_at=api_key.created_at,
+        updated_at=api_key.updated_at,
+    )
+
+
+@router.get("/api-keys", response_model=list[ApiKeyResponse])
+async def list_api_keys_route(
+    db: AsyncSession = Depends(get_db_session),
+    user: dict = Depends(get_current_user),
+) -> list[ApiKeyResponse]:
+    from services.api_key_service import list_api_keys
+
+    user_id = _current_user_id(user)
+    keys = await list_api_keys(db, user_id)
+    return [_api_key_response(k) for k in keys]
+
+
+@router.post("/api-keys", response_model=CreateApiKeyResponse, status_code=201)
+async def create_api_key_route(
+    body: CreateApiKeyRequest,
+    db: AsyncSession = Depends(get_db_session),
+    user: dict = Depends(get_current_user),
+) -> CreateApiKeyResponse:
+    from services.api_key_service import create_api_key
+
+    user_id = _current_user_id(user)
+    result = await create_api_key(
+        db=db,
+        user_id=user_id,
+        name=body.name,
+        client_type=body.client_type,
+        scope_template=body.scope_template,
+        user_scopes=body.scopes,
+        expires_at=body.expires_at,
+    )
+    api_key = result["api_key"]
+    return CreateApiKeyResponse(
+        id=api_key.id,
+        name=api_key.name,
+        client_type=api_key.client_type,
+        scope_template=api_key.scope_template,
+        scopes=api_key.scopes,
+        key_prefix=api_key.key_prefix,
+        status=api_key.status,
+        expires_at=api_key.expires_at,
+        last_used_at=api_key.last_used_at,
+        last_viewed_at=api_key.last_viewed_at,
+        created_at=api_key.created_at,
+        updated_at=api_key.updated_at,
+        full_key=result["full_key"],
+    )
+
+
+@router.get("/api-keys/{key_id}/secret", response_model=ApiKeySecretResponse)
+async def get_api_key_secret_route(
+    key_id: int,
+    db: AsyncSession = Depends(get_db_session),
+    user: dict = Depends(get_current_user),
+) -> ApiKeySecretResponse:
+    from services.api_key_service import get_api_key_secret
+
+    user_id = _current_user_id(user)
+    full_key = await get_api_key_secret(db, key_id, user_id)
+    if full_key is None:
+        raise HTTPException(status_code=404, detail="API Key 不存在")
+    return ApiKeySecretResponse(full_key=full_key)
+
+
+@router.patch("/api-keys/{key_id}", response_model=ApiKeyResponse)
+async def update_api_key_route(
+    key_id: int,
+    body: UpdateApiKeyRequest,
+    db: AsyncSession = Depends(get_db_session),
+    user: dict = Depends(get_current_user),
+) -> ApiKeyResponse:
+    from services.api_key_service import update_api_key
+
+    user_id = _current_user_id(user)
+    kwargs = {}
+    if body.name is not None:
+        kwargs["name"] = body.name
+    if body.scopes is not None:
+        kwargs["scopes"] = body.scopes
+    if body.expires_at is not None:
+        kwargs["expires_at"] = body.expires_at
+
+    api_key = await update_api_key(db, key_id, user_id, **kwargs)
+    if api_key is None:
+        raise HTTPException(status_code=404, detail="API Key 不存在")
+    return _api_key_response(api_key)
+
+
+@router.delete("/api-keys/{key_id}")
+async def revoke_api_key_route(
+    key_id: int,
+    db: AsyncSession = Depends(get_db_session),
+    user: dict = Depends(get_current_user),
+) -> dict:
+    from services.api_key_service import revoke_api_key
+
+    user_id = _current_user_id(user)
+    api_key = await revoke_api_key(db, key_id, user_id)
+    if api_key is None:
+        raise HTTPException(status_code=404, detail="API Key 不存在")
+    return {"id": api_key.id, "status": api_key.status}

@@ -129,6 +129,7 @@ Goulong-Zhaodan/
 │   ├── scripts/              # 运维脚本（import_default_knowledge.py）
 │   ├── tests/                # pytest 测试套件
 │   ├── vendor/pageindex/     # PageIndex 子模块
+│   ├── workers/              # Arq Worker 异步任务配置
 │   ├── main.py               # FastAPI 入口
 │   ├── pyproject.toml
 │   └── env.example
@@ -172,6 +173,15 @@ uv run uvicorn main:app --reload --port 8000
 
 后端默认监听 `http://localhost:8000`，Swagger UI 在 `/docs`。
 
+如需异步审查任务（Agent API），需额外启动 Worker：
+
+```powershell
+cd backend
+uv run arq workers.config.WorkerSettings
+```
+
+前提：Redis 服务已启动，且 `.env` 中 `REDIS_URL` 和 `API_KEY_ENCRYPTION_SECRET` 已配置。
+
 ### 2. 启动前端
 
 ```powershell
@@ -203,6 +213,8 @@ npm run dev
 | `PAGEINDEX_VENDOR_PATH` | — | `vendor/pageindex` | PageIndex 子模块路径 |
 | `CORS_ORIGINS` | — | `http://localhost:5174,http://localhost:5173` | 允许跨域来源 |
 | `LOG_LEVEL` | — | `INFO` | 日志级别 |
+| `API_KEY_ENCRYPTION_SECRET` | ✅ | — | API Key 加密密钥（**生产务必修改为随机强密码**） |
+| `REDIS_URL` | — | `redis://localhost:6379` | Redis 连接地址（Worker 异步任务队列） |
 
 ### 常见 LLM 提供商
 
@@ -239,6 +251,8 @@ MODEL_NAME=glm-4
 | 体检台 | `/inspection/stats/history?range=7d` | 统计 |
 | 知识库 | `/api/v1/knowledge/overview` `/api/v1/knowledge/upload` `/api/v1/knowledge/documents/{id}` `/api/v1/knowledge/retrieval` | 概览 / 上传 / 启停 / 检索 |
 | 设置 | `/settings/overview` `/settings/profile` `/settings/password` `/settings/taboo-words` | 概览 / 资料 / 密码 / 违禁词 |
+| Agent API | `/api/v1/agent/keys` `/api/v1/agent/keys/{id}` | API Key 管理（创建 / 吊销 / 列表） |
+| Agent API | `/api/v1/agent/me` `/api/v1/agent/jobs/inspect` `/api/v1/agent/jobs/{job_id}` | 身份查询 / 创建审查任务 / 查询任务状态 |
 
 ## 开发与验证
 
@@ -260,8 +274,9 @@ npm run test:routes                     # 路由表自检
 
 ## 路线图
 
-- [ ] Redis 缓存层：长任务进度推送 + 大文件解析缓冲
-- [ ] 异步队列（Celery / Arq）替代同步审查
+- [x] Redis 缓存层：长任务进度推送 + 大文件解析缓冲
+- [x] 异步队列（Arq）替代同步审查
+- [x] API Key 认证：支持第三方程序通过 Agent API 集成
 - [ ] PydanticAI → LangGraph 迁移（复杂状态流）
 - [ ] 阿里云 OSS 存储适配（私有化部署）
 - [ ] 阿里云短信 / 邮件验证（替换 `send-code` mock）
