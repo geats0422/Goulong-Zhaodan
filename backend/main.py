@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from core.config import settings
+from core.config import assert_production_security, settings
 from core.database import init_db
 from routers.inspection import router as inspection_router
 from routers.knowledge import router as knowledge_router
@@ -18,6 +18,7 @@ from routers.settings import router as settings_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    assert_production_security()
     yield
 
 
@@ -32,8 +33,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(inspection_router)

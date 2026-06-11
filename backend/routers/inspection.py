@@ -894,3 +894,24 @@ async def get_history_stats(
         if record.get("project_id") == project_id and record.get("user_id") == user_id
     ]
     return _aggregate_history_stats(scoped_records, days=7)
+
+
+@router.post("/records/{record_id}/burn")
+async def burn_record_content(
+    record_id: int,
+    db: AsyncSession = Depends(get_db_session),
+    user: dict = Depends(get_current_user),
+):
+    user_id = _current_user_id(user)
+    result = await db.execute(
+        select(InspectionRecord).where(
+            InspectionRecord.id == record_id,
+            InspectionRecord.user_id == user_id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if record is None:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    record.parsed_content = ""
+    await db.commit()
+    return {"id": record.id, "burned": True}

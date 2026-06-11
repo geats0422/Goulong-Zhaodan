@@ -21,6 +21,7 @@ from core.config import settings
 from core.database import get_db_session
 from core.login_throttle import login_throttle
 from core.password_rules import validate_password
+from core.rate_limit import register_limiter
 from models.knowledge import User
 
 router = APIRouter(prefix="/auth", tags=["认证"])
@@ -68,16 +69,23 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         _REFRESH_COOKIE_NAME,
         token,
         httponly=True,
+        secure=settings.environment == "production",
         max_age=_REFRESH_COOKIE_MAX_AGE,
         samesite="lax",
     )
 
 
 @router.post("/register", status_code=201)
-async def register(body: RegisterRequest, response: Response, db=Depends(get_db_session)):
+async def register(body: RegisterRequest, response: Response, request: Request, db=Depends(get_db_session)):
+    ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+           or (request.client.host if request.client else "unknown"))
+    if register_limiter.is_limited(ip):
+        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
+    register_limiter.record(ip)
+
     result = await db.execute(select(User).where(User.username == body.username))
     if result.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=409, detail="用户名已被注册")
+        raise HTTPException(status_code=400, detail="注册失败")
 
     user = User(
         username=body.username,
