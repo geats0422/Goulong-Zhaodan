@@ -90,7 +90,6 @@ async def test_register_success(client: AsyncClient):
     assert data["nickname"] == "testuser1"
     assert data["email"] == "testuser1@example.com"
     assert "access_token" in data
-    assert "refresh_token" in data
     assert "refresh_token" in resp.cookies
 
 
@@ -256,7 +255,7 @@ async def test_refresh_success(client: AsyncClient):
         "nickname": "refreshuser",
         "password": VALID_PASSWORD,
     })
-    refresh_token = reg.json()["refresh_token"]
+    refresh_token = reg.cookies.get("refresh_token")
     client.cookies.set("refresh_token", refresh_token)
 
     resp = await client.post("/auth/refresh")

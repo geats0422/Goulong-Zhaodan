@@ -127,7 +127,6 @@ async def register(body: RegisterRequest, response: Response, request: Request, 
         "email": user.email,
         "phone": user.phone,
         "access_token": access_token,
-        "refresh_token": refresh_token,
     }
 
 
@@ -172,7 +171,6 @@ async def login(body: LoginRequest, response: Response, db=Depends(get_db_sessio
         "email": user.email,
         "phone": user.phone,
         "access_token": access_token,
-        "refresh_token": refresh_token,
     }
 
 

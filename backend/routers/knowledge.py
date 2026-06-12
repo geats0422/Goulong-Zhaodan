@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select, func, or_
@@ -28,18 +30,18 @@ MAX_FILE_SIZE = 50 * 1024 * 1024
 router = APIRouter(prefix="/knowledge", tags=["知识库"])
 
 
-def _current_user_id(user: dict) -> int:
+def _current_user_id(user: dict) -> uuid.UUID:
     try:
-        return int(user["user_id"])
+        return uuid.UUID(user["user_id"])
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=401, detail="Invalid user") from exc
 
 
-def _is_document_visible(doc: KnowledgeDocument, user_id: int) -> bool:
+def _is_document_visible(doc: KnowledgeDocument, user_id: uuid.UUID) -> bool:
     return doc.owner_type == "system" or doc.owner_user_id == user_id
 
 
-def _visible_document_filter(user_id: int):
+def _visible_document_filter(user_id: uuid.UUID):
     return or_(
         KnowledgeDocument.owner_type == "system",
         KnowledgeDocument.owner_user_id == user_id,

@@ -176,7 +176,7 @@ async def test_password_change_revokes_refresh_tokens(client: AsyncClient):
         "password": "OldPass123",
     })
     access_token = reg.json()["access_token"]
-    refresh_token = reg.json()["refresh_token"]
+    refresh_token = reg.cookies.get("refresh_token")
     headers = {"Authorization": f"Bearer {access_token}"}
 
     client.cookies.set("refresh_token", refresh_token)

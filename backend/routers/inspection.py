@@ -755,7 +755,8 @@ async def list_records(
     if risk_level:
         conditions.append(InspectionRecord.overall_risk == risk_level)
     if keyword and keyword.strip():
-        conditions.append(InspectionRecord.document_name.ilike(f"%{keyword.strip()}%"))
+        safe = keyword.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        conditions.append(InspectionRecord.document_name.ilike(f"%{safe}%", escape="\\"))
 
     total = await db.scalar(select(func.count()).select_from(InspectionRecord).where(*conditions)) or 0
     total_pages = max(1, (total + page_size - 1) // page_size)
