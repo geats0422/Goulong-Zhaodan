@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.auth import get_current_user, hash_password, revoke_all_refresh_tokens, verify_password
+from core.config import settings
 from core.constants import ENGINEERING_CATEGORIES
 from core.database import get_db_session
 from core.password_rules import validate_password
@@ -23,16 +25,65 @@ from models.knowledge import (
 
 router = APIRouter(prefix="/settings", tags=["设置"])
 
+PLAN_CATALOG = {
+    "free":       {"label": "免费体验",   "period": "永久",  "price": "¥0",    "monthly_quota": 50,    "features": ["基础智能审查", "单文件上传", "Markdown 报告"]},
+    "personal":   {"label": "个人版",     "period": "/月",   "price": "¥39",   "monthly_quota": 500,   "features": ["多文件材料包", "私域红线标准", "本地脱敏", "阅后即焚"]},
+    "team":       {"label": "团队版",     "period": "/月",   "price": "¥299",  "monthly_quota": 3000,  "features": ["团队协作", "审计留痕", "自定义红线", "优先支持"]},
+    "enterprise": {"label": "企业定制",   "period": "按合同", "price": "议价",  "monthly_quota": None,  "features": ["私有化部署", "SSO 单点登录", "SLA 保障", "专属客户成功"]},
+}
+
+MODEL_CATALOG = [
+    {"model_name": "deepseek-ai/deepseek-v4-pro",   "label": "DeepSeek V4 Pro",   "tier": "高准确度 · 慢", "context": "128K"},
+    {"model_name": "deepseek-ai/deepseek-v4-flash", "label": "DeepSeek V4 Flash", "tier": "快速响应",      "context": "64K"},
+]
+
+SCOPE_TEMPLATES = [
+    {
+        "key": "mcp_readonly",
+        "label": "MCP 只读",
+        "description": "只读查询，适用于 Agent 上下文获取",
+        "scopes": ["profile:read", "inspection:read", "knowledge:read"],
+    },
+    {
+        "key": "cli_review",
+        "label": "CLI 审查",
+        "description": "查询 + AI 生成，适用于 CLI 工具",
+        "scopes": ["profile:read", "inspection:run", "inspection:read", "knowledge:read"],
+    },
+    {
+        "key": "agent_automation",
+        "label": "Agent 自动化",
+        "description": "完整业务自动化，含读写和 AI 生成",
+        "scopes": ["profile:read", "inspection:run", "inspection:read", "knowledge:read", "knowledge:write"],
+    },
+    {
+        "key": "advanced_custom",
+        "label": "高级自定义",
+        "description": "手动选择具权限范围",
+        "scopes": [],
+    },
+]
+
 
 class ProfileResponse(BaseModel):
     username: str
     display_name: str
     subscription_plan: str
+    subscription_label: str
+    subscription_period: str
+    subscription_price: str
     monthly_quota: int
     quota_used: int
     wechat_bound: bool
     alipay_bound: bool
     burn_after_read: bool
+    model_name: str
+    model_base_url: str
+    model_api_key_preview: str
+    model_catalog: list[dict]
+    phone: str | None
+    email: str | None
+    scope_templates: list[dict]
 
 
 class SettingsDocument(BaseModel):
@@ -73,6 +124,11 @@ class ProfileUpdateRequest(BaseModel):
     wechat_bound: bool | None = None
     alipay_bound: bool | None = None
     burn_after_read: bool | None = None
+    username: str | None = None
+    subscription_plan: str | None = None
+    model_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
 
     @field_validator("display_name")
     @classmethod
@@ -82,6 +138,55 @@ class ProfileUpdateRequest(BaseModel):
         value = value.strip()
         if not value or len(value) > 100:
             raise ValueError("显示名称长度须为 1-100 字符")
+        return value
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        if not 3 <= len(value) <= 50 or not re.match(r"^[A-Za-z0-9_.\-]+$", value):
+            raise ValueError("用户名须 3-50 字符，仅含字母/数字/_.-")
+        return value
+
+    @field_validator("subscription_plan")
+    @classmethod
+    def validate_subscription_plan(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if value not in PLAN_CATALOG:
+            raise ValueError("subscription_plan 必须在 PLAN_CATALOG 中")
+        return value
+
+    @field_validator("model_name")
+    @classmethod
+    def validate_model_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        allowed = {m["model_name"] for m in MODEL_CATALOG}
+        if value not in allowed:
+            raise ValueError("model_name 必须在 MODEL_CATALOG 中")
+        return value
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        value = value.strip()
+        if not re.match(r"^\+?\d{6,20}$", value):
+            raise ValueError("手机号格式不正确（6-20 位数字，可带 + 前缀）")
+        return value
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        value = value.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", value):
+            raise ValueError("邮箱格式不正确")
         return value
 
 
@@ -160,12 +265,14 @@ async def _get_or_create_profile(db: AsyncSession, db_user: User) -> UserProfile
     profile = UserProfile(
         user_id=db_user.id,
         display_name=db_user.username,
-        subscription_plan="personal",
-        monthly_quota=500,
+        subscription_plan="free",
+        monthly_quota=50,
         quota_used=0,
         wechat_bound=False,
         alipay_bound=False,
         burn_after_read=True,
+        phone=None,
+        email=None,
     )
     db.add(profile)
     await db.commit()
@@ -174,15 +281,29 @@ async def _get_or_create_profile(db: AsyncSession, db_user: User) -> UserProfile
 
 
 def _profile_response(db_user: User, profile: UserProfile) -> ProfileResponse:
+    key = settings.model_api_key
+    preview = f"****-****-{key[-4:]}" if len(key) >= 4 else "****"
+    plan = PLAN_CATALOG.get(profile.subscription_plan, PLAN_CATALOG["free"])
+    effective_model = profile.model_name or settings.model_name
     return ProfileResponse(
         username=db_user.username,
         display_name=profile.display_name,
         subscription_plan=profile.subscription_plan,
-        monthly_quota=profile.monthly_quota,
+        subscription_label=plan["label"],
+        subscription_period=plan["period"],
+        subscription_price=plan["price"],
+        monthly_quota=profile.monthly_quota or plan["monthly_quota"] or 0,
         quota_used=profile.quota_used,
         wechat_bound=profile.wechat_bound,
         alipay_bound=profile.alipay_bound,
         burn_after_read=profile.burn_after_read,
+        model_name=effective_model,
+        model_base_url=settings.model_base_url,
+        model_api_key_preview=preview,
+        model_catalog=MODEL_CATALOG,
+        scope_templates=SCOPE_TEMPLATES,
+        phone=profile.phone,
+        email=profile.email,
     )
 
 
@@ -259,6 +380,43 @@ async def update_profile(
     user_id = _current_user_id(user)
     db_user = await _get_user(db, user_id)
     profile = await _get_or_create_profile(db, db_user)
+
+    if body.username is not None and body.username != db_user.username:
+        existing = await db.execute(
+            select(User).where(User.username == body.username, User.id != db_user.id)
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise HTTPException(status_code=409, detail="用户名已被占用")
+        db_user.username = body.username
+        if body.display_name is None:
+            profile.display_name = body.username
+        await db.flush()
+
+    if body.subscription_plan is not None and body.subscription_plan != profile.subscription_plan:
+        plan_cfg = PLAN_CATALOG[body.subscription_plan]
+        profile.subscription_plan = body.subscription_plan
+        profile.monthly_quota = plan_cfg["monthly_quota"] or 0
+
+    if body.model_name is not None:
+        profile.model_name = body.model_name
+
+    if body.phone is not None:
+        if body.phone:
+            dup = await db.execute(
+                select(UserProfile).where(UserProfile.phone == body.phone, UserProfile.user_id != db_user.id)
+            )
+            if dup.scalar_one_or_none() is not None:
+                raise HTTPException(status_code=409, detail="手机号已被使用")
+        profile.phone = body.phone
+
+    if body.email is not None:
+        if body.email:
+            dup = await db.execute(
+                select(UserProfile).where(UserProfile.email == body.email, UserProfile.user_id != db_user.id)
+            )
+            if dup.scalar_one_or_none() is not None:
+                raise HTTPException(status_code=409, detail="邮箱已被使用")
+        profile.email = body.email
 
     for field in ("display_name", "wechat_bound", "alipay_bound", "burn_after_read"):
         value = getattr(body, field)

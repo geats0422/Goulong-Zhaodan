@@ -126,6 +126,9 @@ class UserProfile(Base):
     wechat_bound: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     alipay_bound: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     burn_after_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    model_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
     created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(
         default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow,

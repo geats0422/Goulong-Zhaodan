@@ -57,9 +57,17 @@ async def client():
             await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS owner_user_id INTEGER"))
             await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS application_scenario VARCHAR(20) DEFAULT 'bidding' NOT NULL"))
             await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS source_path VARCHAR(1000)"))
+            await conn.execute(text("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS model_name VARCHAR(120)"))
+            await conn.execute(text("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS phone VARCHAR(32)"))
+            await conn.execute(text("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS email VARCHAR(255)"))
+            await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_user_profile_phone ON user_profiles (phone) WHERE phone IS NOT NULL"))
+            await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_user_profile_email ON user_profiles (email) WHERE email IS NOT NULL"))
     async with async_session() as session:
         for table in [
             "refresh_tokens",
+            "api_keys",
+            "agent_jobs",
+            "inspection_records",
             "knowledge_document_settings",
             "taboo_words",
             "user_profiles",
@@ -107,8 +115,8 @@ async def test_settings_overview_defaults(client: AsyncClient):
     data = response.json()
     assert data["profile"]["username"] == "settings_user"
     assert data["profile"]["display_name"] == "settings_user"
-    assert data["profile"]["subscription_plan"] == "personal"
-    assert data["profile"]["monthly_quota"] == 500
+    assert data["profile"]["subscription_plan"] == "free"
+    assert data["profile"]["monthly_quota"] == 50
     assert data["profile"]["quota_used"] == 0
     assert data["profile"]["wechat_bound"] is False
     assert data["profile"]["alipay_bound"] is False
@@ -285,3 +293,159 @@ async def test_inspection_upload_merges_saved_and_temporary_taboo_words(client: 
 
     assert response.status_code == 200
     assert captured["taboo_words"] == ["保存词", "临时词"]
+
+
+@pytest.mark.asyncio
+async def test_overview_includes_model_env(client: AsyncClient):
+    headers = await register_and_auth(client, "modelenv_user")
+
+    response = await client.get("/settings/overview", headers=headers)
+
+    assert response.status_code == 200
+    profile = response.json()["profile"]
+    for field in [
+        "model_name",
+        "model_base_url",
+        "model_api_key_preview",
+        "model_catalog",
+        "subscription_label",
+        "subscription_period",
+        "subscription_price",
+    ]:
+        assert field in profile
+    assert isinstance(profile["model_catalog"], list)
+    assert len(profile["model_catalog"]) >= 2
+
+
+@pytest.mark.asyncio
+async def test_update_profile_username(client: AsyncClient):
+    headers = await register_and_auth(client, "username_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"username": "newname1"})
+    assert resp.status_code == 200
+    assert resp.json()["username"] == "newname1"
+
+    overview = await client.get("/settings/overview", headers=headers)
+    assert overview.json()["profile"]["username"] == "newname1"
+
+
+@pytest.mark.asyncio
+async def test_update_profile_username_unique_conflict(client: AsyncClient):
+    headers_a = await register_and_auth(client, "unique_user_a")
+    await register_and_auth(client, "unique_user_b")
+
+    resp = await client.patch("/settings/profile", headers=headers_a, json={"username": "unique_user_b"})
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_update_profile_invalid_username(client: AsyncClient):
+    headers = await register_and_auth(client, "invaliduser_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"username": "invalid user!"})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_profile_subscription_plan(client: AsyncClient):
+    headers = await register_and_auth(client, "subplan_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"subscription_plan": "team"})
+    assert resp.status_code == 200
+    assert resp.json()["subscription_plan"] == "team"
+
+    overview = await client.get("/settings/overview", headers=headers)
+    profile = overview.json()["profile"]
+    assert profile["monthly_quota"] == 3000
+    assert profile["subscription_label"] == "团队版"
+
+
+@pytest.mark.asyncio
+async def test_update_profile_model_name(client: AsyncClient):
+    headers = await register_and_auth(client, "modelname_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"model_name": "deepseek-ai/deepseek-v4-pro"})
+    assert resp.status_code == 200
+
+    overview = await client.get("/settings/overview", headers=headers)
+    assert overview.json()["profile"]["model_name"] == "deepseek-ai/deepseek-v4-pro"
+
+
+@pytest.mark.asyncio
+async def test_update_profile_model_name_invalid(client: AsyncClient):
+    headers = await register_and_auth(client, "modelinvalid_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"model_name": "gpt-4o"})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_profile_phone(client: AsyncClient):
+    headers = await register_and_auth(client, "phone_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"phone": "13800138000"})
+    assert resp.status_code == 200
+    assert resp.json()["phone"] == "13800138000"
+
+    overview = await client.get("/settings/overview", headers=headers)
+    assert overview.json()["profile"]["phone"] == "13800138000"
+
+
+@pytest.mark.asyncio
+async def test_update_profile_phone_unique_conflict(client: AsyncClient):
+    headers_a = await register_and_auth(client, "phone_a")
+    headers_b = await register_and_auth(client, "phone_b")
+
+    first = await client.patch("/settings/profile", headers=headers_a, json={"phone": "13800138000"})
+    assert first.status_code == 200
+
+    conflict = await client.patch("/settings/profile", headers=headers_b, json={"phone": "13800138000"})
+    assert conflict.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_update_profile_email(client: AsyncClient):
+    headers = await register_and_auth(client, "email_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"email": "test@example.com"})
+    assert resp.status_code == 200
+    assert resp.json()["email"] == "test@example.com"
+
+
+@pytest.mark.asyncio
+async def test_overview_includes_scope_templates(client: AsyncClient):
+    headers = await register_and_auth(client, "scope_user")
+
+    resp = await client.get("/settings/overview", headers=headers)
+    assert resp.status_code == 200
+    scope_templates = resp.json()["profile"]["scope_templates"]
+    assert isinstance(scope_templates, list)
+    assert len(scope_templates) == 4
+    for template in scope_templates:
+        assert "key" in template
+        assert "label" in template
+        assert "description" in template
+        assert "scopes" in template
+
+
+@pytest.mark.asyncio
+async def test_get_api_key_secret_updates_last_viewed_at(client: AsyncClient):
+    headers = await register_and_auth(client, "apikey_view_user")
+
+    create_resp = await client.post(
+        "/settings/api-keys",
+        headers=headers,
+        json={"name": "test-key", "client_type": "agent", "scope_template": "mcp_readonly"},
+    )
+    assert create_resp.status_code == 201
+    key_id = create_resp.json()["id"]
+
+    secret_resp = await client.get(f"/settings/api-keys/{key_id}/secret", headers=headers)
+    assert secret_resp.status_code == 200
+    assert "full_key" in secret_resp.json()
+
+    list_resp = await client.get("/settings/api-keys", headers=headers)
+    assert list_resp.status_code == 200
+    matched = [k for k in list_resp.json() if k["id"] == key_id]
+    assert len(matched) == 1
+    assert matched[0]["last_viewed_at"] is not None
