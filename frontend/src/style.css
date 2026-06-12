@@ -3059,3 +3059,247 @@ p {
   border-color: #9b7416;
   color: #735c00;
 }
+
+/* === Login & Register pages — 浅色主题覆盖 === */
+body[data-theme="light"] .login-page,
+body[data-theme="light"] .register-page {
+  background: #f7f1e3;
+}
+
+body[data-theme="light"] .login-page .login-canvas,
+body[data-theme="light"] .register-page .register-canvas {
+  background: #fffaf0;
+  border-color: rgba(155, 116, 22, 0.32);
+  box-shadow: 0 20px 60px rgba(88, 65, 15, 0.12);
+}
+
+body[data-theme="light"] .login-page .brand-panel,
+body[data-theme="light"] .register-page .brand-panel {
+  border-right-color: rgba(155, 116, 22, 0.32);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(155, 116, 22, 0.12), transparent 50%),
+    linear-gradient(180deg, #eadbb9 0%, #f7f1e3 60%, #efe2c6 100%);
+}
+
+body[data-theme="light"] .login-page .brand-mark,
+body[data-theme="light"] .register-page .brand-mark {
+  color: #735c00;
+  text-shadow: none;
+}
+
+body[data-theme="light"] .login-page .brand-name,
+body[data-theme="light"] .register-page .brand-name {
+  color: #735c00;
+}
+
+body[data-theme="light"] .login-page .brand-sub,
+body[data-theme="light"] .register-page .brand-sub {
+  color: #66563a;
+}
+
+body[data-theme="light"] .login-page .brand-quote,
+body[data-theme="light"] .register-page .brand-quote {
+  border-left-color: #9b7416;
+}
+
+body[data-theme="light"] .login-page .brand-quote p,
+body[data-theme="light"] .register-page .brand-quote p {
+  color: #1f1a12;
+}
+
+body[data-theme="light"] .login-page .brand-footer,
+body[data-theme="light"] .register-page .brand-footer {
+  color: #66563a;
+}
+
+body[data-theme="light"] .login-page .form-ref,
+body[data-theme="light"] .register-page .form-ref {
+  color: #9b7416;
+}
+
+body[data-theme="light"] .login-page .form-header h1,
+body[data-theme="light"] .register-page .form-header h1 {
+  color: #1f1a12;
+}
+
+body[data-theme="light"] .login-page .form-sub,
+body[data-theme="light"] .register-page .form-sub {
+  color: #66563a;
+}
+
+body[data-theme="light"] .login-page .form-hint,
+body[data-theme="light"] .register-page .form-hint {
+  color: #66563a;
+}
+
+body[data-theme="light"] .login-page .tab-bar,
+body[data-theme="light"] .register-page .tab-bar {
+  border-bottom-color: rgba(155, 116, 22, 0.32);
+}
+
+body[data-theme="light"] .login-page .tab-bar button,
+body[data-theme="light"] .register-page .tab-bar button {
+  color: #66563a;
+}
+
+body[data-theme="light"] .login-page .tab-bar button.active,
+body[data-theme="light"] .register-page .tab-bar button.active {
+  color: #9b7416;
+}
+
+body[data-theme="light"] .login-page .tab-bar button.active::after,
+body[data-theme="light"] .register-page .tab-bar button.active::after {
+  background: linear-gradient(90deg, transparent, #9b7416, transparent);
+  box-shadow: none;
+}
+
+body[data-theme="light"] .login-page .field > span,
+body[data-theme="light"] .register-page .field > span {
+  color: #66563a;
+}
+
+body[data-theme="light"] .login-page .field input,
+body[data-theme="light"] .register-page .field input {
+  border-bottom-color: rgba(155, 116, 22, 0.4);
+  color: #1f1a12;
+  background: transparent;
+}
+
+body[data-theme="light"] .login-page .field input::placeholder,
+body[data-theme="light"] .register-page .field input::placeholder {
+  color: #66563a;
+  opacity: 0.7;
+}
+
+body[data-theme="light"] .login-page .field input:focus,
+body[data-theme="light"] .register-page .field input:focus {
+  border-bottom-color: #9b7416;
+  box-shadow: 0 4px 0 -2px rgba(155, 116, 22, 0.3);
+}
+
+body[data-theme="light"] .login-page .phone-input,
+body[data-theme="light"] .login-page .sms-input,
+body[data-theme="light"] .login-page .password-input-wrap,
+body[data-theme="light"] .register-page .phone-input,
+body[data-theme="light"] .register-page .sms-input,
+body[data-theme="light"] .register-page .password-input-wrap {
+  border-bottom-color: rgba(155, 116, 22, 0.4);
+  background: transparent;
+}
+
+body[data-theme="light"] .login-page .phone-input input,
+body[data-theme="light"] .login-page .sms-input input,
+body[data-theme="light"] .login-page .password-input-wrap input,
+body[data-theme="light"] .register-page .phone-input input,
+body[data-theme="light"] .register-page .sms-input input,
+body[data-theme="light"] .register-page .password-input-wrap input {
+  color: #1f1a12;
+}
+
+body[data-theme="light"] .login-page .phone-prefix,
+body[data-theme="light"] .register-page .phone-prefix {
+  border-right-color: rgba(155, 116, 22, 0.4);
+  color: #9b7416;
+}
+
+body[data-theme="light"] .login-page .sms-btn,
+body[data-theme="light"] .login-page .password-toggle,
+body[data-theme="light"] .register-page .sms-btn,
+body[data-theme="light"] .register-page .password-toggle {
+  color: #9b7416;
+}
+
+body[data-theme="light"] .login-page .sms-btn:hover:not(:disabled),
+body[data-theme="light"] .login-page .password-toggle:hover,
+body[data-theme="light"] .register-page .sms-btn:hover:not(:disabled),
+body[data-theme="light"] .register-page .password-toggle:hover {
+  background: rgba(155, 116, 22, 0.1);
+  color: #735c00;
+}
+
+body[data-theme="light"] .login-page .sms-btn:disabled,
+body[data-theme="light"] .register-page .sms-btn:disabled {
+  color: #99907c;
+}
+
+body[data-theme="light"] .login-page .primary-btn,
+body[data-theme="light"] .register-page .primary-btn {
+  border-color: #9b7416;
+  background: rgba(155, 116, 22, 0.12);
+  color: #735c00;
+}
+
+body[data-theme="light"] .login-page .primary-btn:hover:not(:disabled),
+body[data-theme="light"] .register-page .primary-btn:hover:not(:disabled) {
+  background: rgba(155, 116, 22, 0.22);
+  box-shadow: 0 0 18px rgba(155, 116, 22, 0.25);
+}
+
+body[data-theme="light"] .login-page .theme-toggle,
+body[data-theme="light"] .register-page .theme-toggle {
+  border-color: rgba(155, 116, 22, 0.4);
+  color: #9b7416;
+  background: #fffaf0;
+}
+
+body[data-theme="light"] .login-page .theme-toggle:hover,
+body[data-theme="light"] .register-page .theme-toggle:hover {
+  background: rgba(155, 116, 22, 0.12);
+  border-color: rgba(155, 116, 22, 0.7);
+  color: #735c00;
+}
+
+body[data-theme="light"] .login-page .terms-row,
+body[data-theme="light"] .register-page .terms-row {
+  color: #66563a;
+}
+
+body[data-theme="light"] .login-page .terms-row a,
+body[data-theme="light"] .register-page .terms-row a {
+  color: #9b7416;
+}
+
+body[data-theme="light"] .login-page .oauth-divider,
+body[data-theme="light"] .register-page .oauth-divider {
+  color: #66563a;
+}
+
+body[data-theme="light"] .login-page .oauth-divider::before,
+body[data-theme="light"] .login-page .oauth-divider::after,
+body[data-theme="light"] .register-page .oauth-divider::before,
+body[data-theme="light"] .register-page .oauth-divider::after {
+  background: linear-gradient(90deg, transparent, rgba(155, 116, 22, 0.4), transparent);
+}
+
+body[data-theme="light"] .login-page .oauth-btn,
+body[data-theme="light"] .register-page .oauth-btn {
+  border-color: rgba(155, 116, 22, 0.4);
+  color: #66563a;
+  background: #fffaf0;
+}
+
+body[data-theme="light"] .login-page .form-footer,
+body[data-theme="light"] .register-page .form-footer {
+  color: #66563a;
+}
+
+body[data-theme="light"] .login-page .link-btn,
+body[data-theme="light"] .register-page .link-btn {
+  color: #9b7416;
+}
+
+body[data-theme="light"] .login-page .link-btn:hover,
+body[data-theme="light"] .register-page .link-btn:hover {
+  color: #735c00;
+}
+
+body[data-theme="light"] .login-page .password-rules,
+body[data-theme="light"] .register-page .password-rules {
+  border-color: rgba(155, 116, 22, 0.3);
+  background: rgba(255, 250, 240, 0.7);
+}
+
+body[data-theme="light"] .login-page .rule-item.fail,
+body[data-theme="light"] .register-page .rule-item.fail {
+  color: #66563a;
+}
