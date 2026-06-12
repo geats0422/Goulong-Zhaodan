@@ -22,7 +22,8 @@ from app.core.database import get_db_session
 from app.core.login_throttle import login_throttle
 from app.core.password_rules import validate_password
 from app.core.rate_limit import register_limiter
-from app.models.knowledge import User, UserProfile
+from goulong_auth.models import Membership, User
+from app.models.knowledge import ZhaodanUserProfile
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
@@ -102,15 +103,23 @@ async def register(body: RegisterRequest, response: Response, request: Request, 
     await db.commit()
     await db.refresh(user)
 
-    # 创建默认 UserProfile
-    profile = UserProfile(
+    # 创建默认 ZhaodanUserProfile
+    profile = ZhaodanUserProfile(
         user_id=user.id,
-        subscription_plan="free",
-        monthly_quota=50,
-        quota_used=0,
         burn_after_read=True,
     )
     db.add(profile)
+
+    # 创建默认 Membership（zhaodan 产品）
+    membership = Membership(
+        user_id=user.id,
+        product="zhaodan",
+        plan="free",
+        status="active",
+        token_quota=50,
+        token_used=0,
+    )
+    db.add(membership)
     await db.commit()
 
     access_token = create_access_token(user.id)
@@ -187,7 +196,7 @@ async def refresh(request: Request, db=Depends(get_db_session)):
     if jti and await is_refresh_token_revoked(db, jti):
         raise HTTPException(status_code=401, detail="Refresh token has been revoked")
 
-    access_token = create_access_token(uuid.UUID(payload["sub"]))
+    access_token = create_access_token(uuid.UUID(payload["user_id"]))
     return {"access_token": access_token}
 
 

@@ -11,6 +11,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.models import Base
+from goulong_auth.base import AuthBase
 
 import os
 

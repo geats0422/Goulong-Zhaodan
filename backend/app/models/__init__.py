@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from goulong_auth.models import Membership, RefreshToken, User
+
 from app.models.api_keys import AgentJob, ApiKey
 from app.models.knowledge import (
     Base,
@@ -10,8 +12,7 @@ from app.models.knowledge import (
     KnowledgeDocumentSetting,
     KnowledgeDocument,
     TabooWord,
-    User,
-    UserProfile,
+    ZhaodanUserProfile,
 )
 
 __all__ = [
@@ -23,8 +24,10 @@ __all__ = [
     "DocumentVersion",
     "IndexNode",
     "InspectionRecord",
+    "Membership",
+    "RefreshToken",
     "User",
-    "UserProfile",
+    "ZhaodanUserProfile",
     "TabooWord",
     "KnowledgeDocumentSetting",
 ]
