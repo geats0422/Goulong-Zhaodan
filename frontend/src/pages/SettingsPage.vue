@@ -63,6 +63,14 @@ const confirmMessage = ref('')
 const showApiKeyForm = ref(false)
 const newKeyForm = ref({ name: '', scope_template: 'mcp_readonly', expires_in_days: 90, custom_scopes: [] })
 const newlyCreatedKey = ref(null)
+const showExpiryDropdown = ref(false)
+const expiryOptions = [
+  { value: 30, label: '30 天' },
+  { value: 90, label: '90 天', recommended: true },
+  { value: 180, label: '180 天' },
+  { value: 365, label: '365 天' },
+  { value: 0, label: '永不过期' },
+]
 
 const tabooForm = ref({ word: '', replacement: '', note: '' })
 const editingTabooId = ref(null)
@@ -573,10 +581,19 @@ onMounted(() => {
           <div class="billing-tier-head">
             <div>
               <span class="card-ref">REF.SUB-001</span>
-              <h2>{{ profile.subscription_label }}<span v-if="profile.subscription_plan === 'free'" class="tier-tag tier-tag-free">未订阅</span></h2>
-              <p class="billing-tier-hint">您当前为 {{ profile.subscription_label }} 等级，{{ profile.subscription_plan === 'free' ? '未购买任何付费方案。下方可选购算力补充包获得更多配额。' : '可通过下方算力包扩展配额。' }}</p>
+              <h2>{{ profile.subscription_label }}<span class="tier-tag" :class="profile.subscription_plan === 'free' ? 'tier-tag-free' : 'tier-tag-paid'">{{ profile.subscription_plan === 'free' ? '未订阅' : profile.subscription_period }}</span></h2>
+              <p class="billing-tier-hint">{{ profile.subscription_plan === 'free' ? '当前为免费体验等级，未购买任何付费方案。' : `当前为${profile.subscription_label}（${profile.subscription_price}${profile.subscription_period}），可通过下方算力包扩展配额。` }}</p>
             </div>
-            <button class="primary-btn" type="button" @click="openUpgradeDialog">立即升级</button>
+            <button v-if="profile.subscription_plan === 'free'" class="primary-btn" type="button" @click="openUpgradeDialog">立即升级</button>
+          </div>
+          <div class="billing-quota-bar">
+            <div class="quota-bar-header">
+              <span class="quota-bar-label">已用额度</span>
+              <span class="quota-bar-value">{{ profile.quota_used }} / {{ profile.monthly_quota }}</span>
+            </div>
+            <div class="quota-bar-track">
+              <div class="quota-bar-fill" :style="{ width: Math.min(100, (profile.quota_used / Math.max(1, profile.monthly_quota)) * 100) + '%' }"></div>
+            </div>
           </div>
         </article>
 
@@ -688,16 +705,21 @@ onMounted(() => {
                 </label>
               </div>
             </div>
-            <label class="form-row">
+            <div class="form-row">
               <span>有效期</span>
-              <select v-model.number="newKeyForm.expires_in_days" class="form-input">
-                <option :value="30">30 天</option>
-                <option :value="90">90 天（推荐）</option>
-                <option :value="180">180 天</option>
-                <option :value="365">365 天</option>
-                <option :value="0">永不过期</option>
-              </select>
-            </label>
+              <div class="custom-select" :class="{ open: showExpiryDropdown }" tabindex="0" @focusout="showExpiryDropdown = false">
+                <button type="button" class="custom-select-trigger" @click="showExpiryDropdown = !showExpiryDropdown">
+                  <span>{{ expiryOptions.find(o => o.value === newKeyForm.expires_in_days)?.label || '选择有效期' }}</span>
+                  <span class="material-symbols-outlined custom-select-arrow">expand_more</span>
+                </button>
+                <ul v-if="showExpiryDropdown" class="custom-select-options">
+                  <li v-for="opt in expiryOptions" :key="opt.value" :class="{ active: newKeyForm.expires_in_days === opt.value }" @click="newKeyForm.expires_in_days = opt.value; showExpiryDropdown = false">
+                    {{ opt.label }}
+                    <span v-if="opt.recommended" class="option-badge">推荐</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
             <div class="form-actions">
               <button class="primary-btn" type="submit" :disabled="saving">创建</button>
               <button class="ghost-btn" type="button" @click="cancelCreateApiKey">取消</button>
@@ -905,6 +927,18 @@ onMounted(() => {
 .form-input { width: 100%; border: 1px solid #4d4635; padding: 10px 14px; background: #0A0A0A; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; outline: none; border-radius: 0.25rem; }
 .form-input:focus { border-color: #d4af37; box-shadow: 0 0 12px rgba(212, 175, 55, 0.3); }
 .form-hint { color: #99907c; font-size: 11px; margin-top: 2px; }
+
+.custom-select { position: relative; }
+.custom-select-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border: 0; border-bottom: 2px solid #4d4635; background: transparent; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; cursor: pointer; transition: border-color 0.2s; }
+.custom-select-trigger:hover { border-bottom-color: #a67c00; }
+.custom-select.open .custom-select-trigger { border-bottom-color: #d4af37; box-shadow: 0 4px 0 -2px rgba(212, 175, 55, 0.3); }
+.custom-select-arrow { font-size: 18px; color: #99907c; transition: transform 0.2s; }
+.custom-select.open .custom-select-arrow { transform: rotate(180deg); color: #d4af37; }
+.custom-select-options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; margin: 0; padding: 4px 0; list-style: none; border: 1px solid rgba(212, 175, 55, 0.3); background: #141414; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 12px rgba(212, 175, 55, 0.08); }
+.custom-select-options li { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.custom-select-options li:hover { background: rgba(212, 175, 55, 0.08); color: #f2ca50; }
+.custom-select-options li.active { color: #d4af37; background: rgba(212, 175, 55, 0.06); }
+.option-badge { padding: 1px 8px; border: 1px solid rgba(212, 175, 55, 0.4); color: #d4af37; font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.06em; }
 .form-error { color: #ffb4ab; font-size: 13px; margin: 8px 0 0; padding: 8px 12px; border: 1px solid rgba(255, 180, 171, 0.3); background: rgba(255, 180, 171, 0.05); }
 .form-actions { display: flex; gap: 12px; margin-top: 12px; }
 
@@ -919,7 +953,15 @@ onMounted(() => {
 .billing-tier-head h2 { margin: 4px 0; color: #e5e2e1; font-family: "Syne", sans-serif; font-size: 28px; }
 .tier-tag { display: inline-block; margin-left: 8px; padding: 2px 10px; border: 1px solid #d4af37; color: #d4af37; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.08em; vertical-align: middle; }
 .tier-tag-free { border-color: #99907c; color: #99907c; }
+.tier-tag-paid { border-color: #d4af37; color: #d4af37; }
 .billing-tier-hint { color: #99907c; font-size: 13px; margin: 8px 0 0; max-width: 480px; }
+
+.billing-quota-bar { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(212, 175, 55, 0.12); }
+.quota-bar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.quota-bar-label { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.06em; }
+.quota-bar-value { color: #f2ca50; font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 600; }
+.quota-bar-track { width: 100%; height: 6px; background: rgba(212, 175, 55, 0.1); overflow: hidden; }
+.quota-bar-fill { height: 100%; background: linear-gradient(90deg, #d4af37, #f2ca50); box-shadow: 0 0 8px rgba(212, 175, 55, 0.4); transition: width 0.6s ease; }
 
 .section-title { display: flex; align-items: center; gap: 8px; margin: 24px 0 16px; color: #f2ca50; font-family: "Syne", sans-serif; font-size: 20px; font-weight: 700; }
 .section-title .material-symbols-outlined { color: #d4af37; }

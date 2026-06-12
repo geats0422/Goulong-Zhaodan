@@ -3018,3 +3018,44 @@ p {
   border-color: rgba(74, 222, 128, 0.35);
   background: rgba(52, 211, 153, 0.05);
 }
+
+[data-theme="light"] .billing-quota-bar {
+  border-top-color: rgba(155, 116, 22, 0.18);
+}
+[data-theme="light"] .quota-bar-track {
+  background: rgba(155, 116, 22, 0.1);
+}
+[data-theme="light"] .quota-bar-fill {
+  background: linear-gradient(90deg, #9b7416, #c99b23);
+}
+[data-theme="light"] .custom-select-trigger {
+  border-bottom-color: rgba(155, 116, 22, 0.3);
+  color: #1f1a12;
+}
+[data-theme="light"] .custom-select.open .custom-select-trigger {
+  border-bottom-color: #9b7416;
+}
+[data-theme="light"] .custom-select-options {
+  border-color: rgba(155, 116, 22, 0.3);
+  background: #fffaf0;
+  box-shadow: 0 8px 24px rgba(88, 65, 15, 0.18);
+}
+[data-theme="light"] .custom-select-options li {
+  color: #1f1a12;
+}
+[data-theme="light"] .custom-select-options li:hover {
+  background: rgba(155, 116, 22, 0.08);
+  color: #735c00;
+}
+[data-theme="light"] .custom-select-options li.active {
+  color: #735c00;
+  background: rgba(155, 116, 22, 0.06);
+}
+[data-theme="light"] .option-badge {
+  border-color: rgba(155, 116, 22, 0.4);
+  color: #735c00;
+}
+[data-theme="light"] .tier-tag-paid {
+  border-color: #9b7416;
+  color: #735c00;
+}
