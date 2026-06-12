@@ -15,13 +15,13 @@ from app.core.config import settings
 from app.core.constants import ENGINEERING_CATEGORIES
 from app.core.database import get_db_session
 from app.core.password_rules import validate_password
+from goulong_auth.models import Membership, User
 from app.models.knowledge import (
     EngineeringSubcategory,
     KnowledgeDocument,
     KnowledgeDocumentSetting,
     TabooWord,
-    User,
-    UserProfile,
+    ZhaodanUserProfile,
 )
 
 router = APIRouter(prefix="/settings", tags=["设置"])
@@ -245,17 +245,14 @@ async def _get_user(db: AsyncSession, user_id: uuid.UUID) -> User:
     return db_user
 
 
-async def _get_or_create_profile(db: AsyncSession, db_user: User) -> UserProfile:
-    result = await db.execute(select(UserProfile).where(UserProfile.user_id == db_user.id))
+async def _get_or_create_profile(db: AsyncSession, db_user: User) -> ZhaodanUserProfile:
+    result = await db.execute(select(ZhaodanUserProfile).where(ZhaodanUserProfile.user_id == db_user.id))
     profile = result.scalar_one_or_none()
     if profile is not None:
         return profile
 
-    profile = UserProfile(
+    profile = ZhaodanUserProfile(
         user_id=db_user.id,
-        subscription_plan="free",
-        monthly_quota=50,
-        quota_used=0,
         burn_after_read=True,
     )
     db.add(profile)
@@ -264,10 +261,32 @@ async def _get_or_create_profile(db: AsyncSession, db_user: User) -> UserProfile
     return profile
 
 
-def _profile_response(db_user: User, profile: UserProfile) -> ProfileResponse:
+async def _get_or_create_membership(db: AsyncSession, user_id: uuid.UUID) -> Membership:
+    result = await db.execute(
+        select(Membership).where(Membership.user_id == user_id, Membership.product == "zhaodan")
+    )
+    membership = result.scalar_one_or_none()
+    if membership is not None:
+        return membership
+
+    membership = Membership(
+        user_id=user_id,
+        product="zhaodan",
+        plan="free",
+        status="active",
+        token_quota=50,
+        token_used=0,
+    )
+    db.add(membership)
+    await db.commit()
+    await db.refresh(membership)
+    return membership
+
+
+def _profile_response(db_user: User, profile: ZhaodanUserProfile, membership: Membership) -> ProfileResponse:
     key = settings.model_api_key
     preview = f"****-****-{key[-4:]}" if len(key) >= 4 else "****"
-    plan = PLAN_CATALOG.get(profile.subscription_plan, PLAN_CATALOG["free"])
+    plan = PLAN_CATALOG.get(membership.plan, PLAN_CATALOG["free"])
     effective_model = profile.model_name or settings.model_name
     return ProfileResponse(
         nickname=db_user.nickname,
@@ -276,12 +295,12 @@ def _profile_response(db_user: User, profile: UserProfile) -> ProfileResponse:
         avatar_url=db_user.avatar_url,
         has_wechat=db_user.wechat_openid is not None,
         has_alipay=db_user.alipay_user_id is not None,
-        subscription_plan=profile.subscription_plan,
+        subscription_plan=membership.plan,
         subscription_label=plan["label"],
         subscription_period=plan["period"],
         subscription_price=plan["price"],
-        monthly_quota=profile.monthly_quota or plan["monthly_quota"] or 0,
-        quota_used=profile.quota_used,
+        monthly_quota=membership.token_quota or plan["monthly_quota"] or 0,
+        quota_used=membership.token_used,
         burn_after_read=profile.burn_after_read,
         model_name=effective_model,
         model_base_url=settings.model_base_url,
@@ -344,12 +363,13 @@ async def get_settings_overview(
     user_id = _current_user_id(user)
     db_user = await _get_user(db, user_id)
     profile = await _get_or_create_profile(db, db_user)
+    membership = await _get_or_create_membership(db, user_id)
 
     taboo_result = await db.execute(select(TabooWord).where(TabooWord.user_id == user_id).order_by(TabooWord.id))
     taboo_words = [_taboo_response(item) for item in taboo_result.scalars().all()]
 
     return SettingsOverviewResponse(
-        profile=_profile_response(db_user, profile),
+        profile=_profile_response(db_user, profile, membership),
         knowledge=await _build_knowledge(db, user_id),
         taboo_words=taboo_words,
     )
@@ -364,6 +384,7 @@ async def update_profile(
     user_id = _current_user_id(user)
     db_user = await _get_user(db, user_id)
     profile = await _get_or_create_profile(db, db_user)
+    membership = await _get_or_create_membership(db, user_id)
 
     if body.nickname is not None:
         db_user.nickname = body.nickname
@@ -371,10 +392,10 @@ async def update_profile(
     if body.avatar_url is not None:
         db_user.avatar_url = body.avatar_url
 
-    if body.subscription_plan is not None and body.subscription_plan != profile.subscription_plan:
+    if body.subscription_plan is not None and body.subscription_plan != membership.plan:
         plan_cfg = PLAN_CATALOG[body.subscription_plan]
-        profile.subscription_plan = body.subscription_plan
-        profile.monthly_quota = plan_cfg["monthly_quota"] or 0
+        membership.plan = body.subscription_plan
+        membership.token_quota = plan_cfg["monthly_quota"] or 0
 
     if body.model_name is not None:
         profile.model_name = body.model_name
@@ -402,7 +423,8 @@ async def update_profile(
 
     await db.commit()
     await db.refresh(profile)
-    return _profile_response(db_user, profile)
+    await db.refresh(membership)
+    return _profile_response(db_user, profile, membership)
 
 
 @router.post("/password")

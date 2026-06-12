@@ -22,6 +22,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     from app.models import Base
+    from goulong_auth.base import AuthBase
 
     if settings.database_url.startswith("sqlite"):
         db_path = settings.database_url.rsplit("///", 1)[-1]
@@ -29,4 +30,5 @@ async def init_db() -> None:
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     async with engine.begin() as conn:
+        await conn.run_sync(AuthBase.metadata.create_all)
         await conn.run_sync(Base.metadata.create_all)
