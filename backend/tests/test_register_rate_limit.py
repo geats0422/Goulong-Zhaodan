@@ -22,7 +22,7 @@ if "markitdown" not in sys.modules or not hasattr(sys.modules.get("markitdown"),
     _fake_md.MarkItDown = MagicMock()
     sys.modules["markitdown"] = _fake_md
 
-fake_inspector_module = types.ModuleType("agents.inspector")
+fake_inspector_module = types.ModuleType("app.agents.inspector")
 
 
 async def _fake_run_inspection(*args, **kwargs):
@@ -30,11 +30,11 @@ async def _fake_run_inspection(*args, **kwargs):
 
 
 fake_inspector_module.run_inspection = _fake_run_inspection
-sys.modules["agents.inspector"] = fake_inspector_module
+sys.modules["app.agents.inspector"] = fake_inspector_module
 
 import pytest
 
-from core.rate_limit import IPRateLimiter
+from app.core.rate_limit import IPRateLimiter
 
 
 def test_register_within_limit():
@@ -68,8 +68,8 @@ def test_register_duplicate_email_unified_message():
 
     from fastapi import HTTPException
 
-    from core.rate_limit import IPRateLimiter
-    from routers.auth import register
+    from app.core.rate_limit import IPRateLimiter
+    from app.api.v1.auth import register
 
     limiter = IPRateLimiter(max_requests=5, window_seconds=3600)
 
@@ -91,7 +91,7 @@ def test_register_duplicate_email_unified_message():
 
     mock_response = MagicMock()
 
-    with patch("routers.auth.register_limiter", limiter):
+    with patch("app.api.v1.auth.register_limiter", limiter):
         with pytest.raises(HTTPException) as exc_info:
             import asyncio
             asyncio.run(register(body, mock_response, mock_request, mock_db))

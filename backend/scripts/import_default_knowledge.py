@@ -12,14 +12,14 @@ from sqlalchemy import select
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.constants import ALLOWED_FILE_EXTENSIONS
-from models.knowledge import (
+from app.core.constants import ALLOWED_FILE_EXTENSIONS
+from app.models.knowledge import (
     DocumentVersion,
     EngineeringSubcategory,
     KnowledgeDocument,
 )
-from services.file_storage import build_storage_path, save_upload_file, safe_path_segment
-from services.knowledge_ingestion import ingest_document_content
+from app.services.file_storage import build_storage_path, save_upload_file, safe_path_segment
+from app.services.knowledge_ingestion import ingest_document_content
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +166,7 @@ async def run_import(reference_dir: Path | None = None) -> dict:
         print(f"错误：参考目录不存在: {reference_dir}", file=sys.stderr)
         raise SystemExit(1)
 
-    from core.database import async_session
+    from app.core.database import async_session
 
     files = scan_reference_dir(reference_dir)
     if not files:

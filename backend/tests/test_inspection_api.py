@@ -31,10 +31,10 @@ if "markitdown" not in sys.modules or not hasattr(sys.modules.get("markitdown"),
     _fake_md.MarkItDown = MagicMock()
     sys.modules["markitdown"] = _fake_md
 
-from core.database import async_session, engine, init_db  # noqa: E402
+from app.core.database import async_session, engine, init_db  # noqa: E402
 from main import app  # noqa: E402
-from models.knowledge import TabooWord  # noqa: E402
-from routers import inspection as inspection_router  # noqa: E402
+from app.models.knowledge import TabooWord  # noqa: E402
+from app.api.v1 import inspection as inspection_router  # noqa: E402
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
 
 
@@ -499,8 +499,8 @@ async def test_upload_passes_application_scenario_regulation_base_and_merged_tab
         captured["deps"] = deps
         return SimpleNamespace(overall_risk="low", summary="ok", issues=[], regulation_refs=["系统法规"])
 
-    monkeypatch.setattr("routers.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
-    monkeypatch.setattr("routers.inspection.run_inspection", fake_run_inspection)
+    monkeypatch.setattr("app.api.v1.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
+    monkeypatch.setattr("app.api.v1.inspection.run_inspection", fake_run_inspection)
 
     response = await client.post(
         "/inspection/upload",
@@ -565,8 +565,8 @@ async def test_session_inspect_uses_document_type_from_parse_session(client: Asy
             regulation_refs=["民法典"],
         )
 
-    monkeypatch.setattr("routers.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
-    monkeypatch.setattr("routers.inspection.run_inspection", fake_run_inspection)
+    monkeypatch.setattr("app.api.v1.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
+    monkeypatch.setattr("app.api.v1.inspection.run_inspection", fake_run_inspection)
 
     inspect_response = await client.post(
         f"/inspection/sessions/{session_id}/inspect",
@@ -610,8 +610,8 @@ async def test_session_inspect_unknown_type_falls_back_to_bidding(client: AsyncC
             regulation_refs=["系统法规"],
         )
 
-    monkeypatch.setattr("routers.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
-    monkeypatch.setattr("routers.inspection.run_inspection", fake_run_inspection)
+    monkeypatch.setattr("app.api.v1.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
+    monkeypatch.setattr("app.api.v1.inspection.run_inspection", fake_run_inspection)
 
     inspect_response = await client.post(
         f"/inspection/sessions/{session_id}/inspect",
@@ -653,8 +653,8 @@ async def test_contract_inspect_only_references_contract_sources(client: AsyncCl
             regulation_refs=["《中华人民共和国民法典》第三编合同", "招标投标法"],
         )
 
-    monkeypatch.setattr("routers.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
-    monkeypatch.setattr("routers.inspection.run_inspection", fake_run_inspection)
+    monkeypatch.setattr("app.api.v1.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
+    monkeypatch.setattr("app.api.v1.inspection.run_inspection", fake_run_inspection)
 
     inspect_response = await client.post(
         f"/inspection/sessions/{session_id}/inspect",
@@ -696,8 +696,8 @@ async def test_session_inspect_explicit_scenario_overrides_detected(client: Asyn
             regulation_refs=["系统法规"],
         )
 
-    monkeypatch.setattr("routers.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
-    monkeypatch.setattr("routers.inspection.run_inspection", fake_run_inspection)
+    monkeypatch.setattr("app.api.v1.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
+    monkeypatch.setattr("app.api.v1.inspection.run_inspection", fake_run_inspection)
 
     inspect_response = await client.post(
         f"/inspection/sessions/{session_id}/inspect",
@@ -712,7 +712,7 @@ async def test_session_inspect_explicit_scenario_overrides_detected(client: Asyn
 @pytest.mark.asyncio
 async def test_session_inspect_persists_record_for_paginated_desk_list(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
     headers, _ = await register_and_auth(client, "session_records_user")
-    monkeypatch.setattr("routers.inspection.convert_to_markdown", lambda path: "甲方与乙方签署合同，约定服务范围与违约责任。")
+    monkeypatch.setattr("app.api.v1.inspection.convert_to_markdown", lambda path: "甲方与乙方签署合同，约定服务范围与违约责任。")
     parse_response = await client.post(
         "/inspection/parse",
         headers=headers,
@@ -731,8 +731,8 @@ async def test_session_inspect_persists_record_for_paginated_desk_list(client: A
             regulation_refs=["民法典合同编"],
         )
 
-    monkeypatch.setattr("routers.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
-    monkeypatch.setattr("routers.inspection.run_inspection", fake_run_inspection)
+    monkeypatch.setattr("app.api.v1.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
+    monkeypatch.setattr("app.api.v1.inspection.run_inspection", fake_run_inspection)
 
     inspect_response = await client.post(
         f"/inspection/sessions/{parse_response.json()['session_id']}/inspect",
@@ -777,7 +777,7 @@ async def test_session_inspect_persists_record_for_paginated_desk_list(client: A
 async def test_pending_record_can_be_inspected_from_history(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
     headers, _ = await register_and_auth(client, "history_inspect_user")
     parsed_text = "甲方与乙方签署合同，约定服务范围与违约责任。"
-    monkeypatch.setattr("routers.inspection.convert_to_markdown", lambda path: parsed_text)
+    monkeypatch.setattr("app.api.v1.inspection.convert_to_markdown", lambda path: parsed_text)
     parse_response = await client.post(
         "/inspection/parse",
         headers=headers,
@@ -804,8 +804,8 @@ async def test_pending_record_can_be_inspected_from_history(client: AsyncClient,
             regulation_refs=["民法典合同编"],
         )
 
-    monkeypatch.setattr("routers.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
-    monkeypatch.setattr("routers.inspection.run_inspection", fake_run_inspection)
+    monkeypatch.setattr("app.api.v1.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
+    monkeypatch.setattr("app.api.v1.inspection.run_inspection", fake_run_inspection)
 
     inspect_response = await client.post(
         f"/inspection/records/{record_id}/inspect",
@@ -824,7 +824,7 @@ async def test_pending_record_can_be_inspected_from_history(client: AsyncClient,
 @pytest.mark.asyncio
 async def test_record_report_pdf_uses_contract_name_filename(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
     headers, _ = await register_and_auth(client, "session_pdf_user")
-    monkeypatch.setattr("routers.inspection.convert_to_markdown", lambda path: "甲方与乙方签署合同，约定服务范围与违约责任。")
+    monkeypatch.setattr("app.api.v1.inspection.convert_to_markdown", lambda path: "甲方与乙方签署合同，约定服务范围与违约责任。")
     parse_response = await client.post(
         "/inspection/parse",
         headers=headers,
@@ -843,8 +843,8 @@ async def test_record_report_pdf_uses_contract_name_filename(client: AsyncClient
             regulation_refs=["民法典合同编"],
         )
 
-    monkeypatch.setattr("routers.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
-    monkeypatch.setattr("routers.inspection.run_inspection", fake_run_inspection)
+    monkeypatch.setattr("app.api.v1.inspection.retrieve_regulation_base", fake_retrieve_regulation_base)
+    monkeypatch.setattr("app.api.v1.inspection.run_inspection", fake_run_inspection)
 
     inspect_response = await client.post(
         f"/inspection/sessions/{parse_response.json()['session_id']}/inspect",

@@ -27,10 +27,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from models import Base
-from models.api_keys import ApiKey
-from models.knowledge import User
-from services.api_key_service import (
+from app.models import Base
+from app.models.api_keys import ApiKey
+from app.models.knowledge import User
+from app.services.api_key_service import (
     authenticate_api_key,
     create_api_key,
     get_api_key_secret,

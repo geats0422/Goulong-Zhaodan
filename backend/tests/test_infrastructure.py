@@ -18,14 +18,14 @@ for mod_name in [
     if mod_name not in sys.modules:
         sys.modules[mod_name] = types.ModuleType(mod_name)
 
-from core.constants import (  # noqa: E402
+from app.core.constants import (  # noqa: E402
     APPLICATION_SCENARIOS,
     validate_application_scenario,
     validate_category,
     validate_file_type,
 )
-from models import Base, DocumentVersion, EngineeringSubcategory, IndexNode, KnowledgeDocument  # noqa: E402
-from services.file_storage import build_storage_path, ensure_storage_dir, save_upload_file  # noqa: E402
+from app.models import Base, DocumentVersion, EngineeringSubcategory, IndexNode, KnowledgeDocument  # noqa: E402
+from app.services.file_storage import build_storage_path, ensure_storage_dir, save_upload_file  # noqa: E402
 
 
 def test_validate_category_valid() -> None:

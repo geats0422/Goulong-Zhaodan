@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-fake_inspector_module = types.ModuleType("agents.inspector")
+fake_inspector_module = types.ModuleType("app.agents.inspector")
 fake_inspector_module.InspectionResult = dict
 
 
@@ -20,11 +20,11 @@ async def _fake_run_inspection(*args, **kwargs):  # noqa: ANN002, ANN003
 
 
 fake_inspector_module.run_inspection = _fake_run_inspection
-sys.modules["agents.inspector"] = fake_inspector_module
+sys.modules["app.agents.inspector"] = fake_inspector_module
 
 from main import app  # noqa: E402
-from core.auth import get_current_user  # noqa: E402
-from routers import inspection as inspection_router  # noqa: E402
+from app.core.auth import get_current_user  # noqa: E402
+from app.api.v1 import inspection as inspection_router  # noqa: E402
 
 
 async def _override_user():

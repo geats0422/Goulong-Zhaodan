@@ -10,8 +10,8 @@ from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from core.database import async_session, engine, init_db  # noqa: E402
-from models.knowledge import (  # noqa: E402
+from app.core.database import async_session, engine, init_db  # noqa: E402
+from app.models.knowledge import (  # noqa: E402
     DocumentVersion,
     EngineeringSubcategory,
     IndexNode,
@@ -19,7 +19,7 @@ from models.knowledge import (  # noqa: E402
     KnowledgeDocumentSetting,
     User,
 )
-from services.knowledge_retrieval import retrieve_regulation_base  # noqa: E402
+from app.services.knowledge_retrieval import retrieve_regulation_base  # noqa: E402
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
 
 

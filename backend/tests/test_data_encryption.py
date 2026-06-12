@@ -5,7 +5,7 @@ import os
 os.environ["DATA_ENCRYPTION_KEY"] = "test-encryption-key-for-unit-tests"
 os.environ["ENVIRONMENT"] = "development"
 
-from core.data_encryption import decrypt_text, encrypt_text, safe_decrypt_text
+from app.core.data_encryption import decrypt_text, encrypt_text, safe_decrypt_text
 
 
 def test_encrypt_decrypt_roundtrip() -> None:
@@ -45,7 +45,7 @@ def test_safe_decrypt_encrypted_success() -> None:
 
 
 def test_dev_env_no_key_ok() -> None:
-    from core.config import Settings
+    from app.core.config import Settings
 
     original = os.environ.pop("DATA_ENCRYPTION_KEY", None)
     try:

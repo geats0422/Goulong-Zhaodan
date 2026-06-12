@@ -6,13 +6,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from core.config import assert_production_security, settings
-from core.database import init_db
-from routers.inspection import router as inspection_router
-from routers.knowledge import router as knowledge_router
-from routers.auth import router as auth_router
-from routers.agent import router as agent_router
-from routers.settings import router as settings_router
+from app.core.config import assert_production_security, settings
+from app.core.database import init_db
+from app.api.v1.inspection import router as inspection_router
+from app.api.v1.knowledge import router as knowledge_router
+from app.api.v1.auth import router as auth_router
+from app.api.v1.agent import router as agent_router
+from app.api.v1.settings import router as settings_router
 
 
 @asynccontextmanager

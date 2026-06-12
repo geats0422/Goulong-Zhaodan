@@ -7,8 +7,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from core.config import settings
-from core.data_masking import mask_sensitive_data
+from app.core.config import settings
+from app.core.data_masking import mask_sensitive_data
 
 DEFAULT_PROMPT_CHAR_BUDGET = 60000
 MIN_DOCUMENT_CHARS = 2000

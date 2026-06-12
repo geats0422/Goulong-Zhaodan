@@ -24,9 +24,9 @@ import datetime  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
-from models import Base  # noqa: E402
-from models.knowledge import User  # noqa: E402
-from models.api_keys import AgentJob, ApiKey  # noqa: E402
+from app.models import Base  # noqa: E402
+from app.models.knowledge import User  # noqa: E402
+from app.models.api_keys import AgentJob, ApiKey  # noqa: E402
 
 
 @pytest_asyncio.fixture

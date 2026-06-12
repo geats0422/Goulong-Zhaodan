@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from core.config import Settings, assert_production_security
+from app.core.config import Settings, assert_production_security
 
 
 def test_development_env_skips_check():
     s = Settings(environment="development")
-    from core import config
+    from app.core import config
 
     original = config.settings
     config.settings = s
@@ -23,7 +23,7 @@ def test_production_env_default_jwt_key_raises():
         jwt_secret_key="goulong-jwt-dev-secret-change-in-production",
         model_api_key="sk-real-key",
     )
-    from core import config
+    from app.core import config
 
     original = config.settings
     config.settings = s
@@ -40,7 +40,7 @@ def test_production_env_default_api_key_encryption_raises():
         api_key_encryption_secret="dev-encryption-secret-change-in-production",
         model_api_key="sk-real-key",
     )
-    from core import config
+    from app.core import config
 
     original = config.settings
     config.settings = s
@@ -58,7 +58,7 @@ def test_production_env_no_model_api_key_raises():
         api_key_encryption_secret="real-encryption-secret",
         model_api_key="",
     )
-    from core import config
+    from app.core import config
 
     original = config.settings
     config.settings = s
@@ -76,7 +76,7 @@ def test_production_env_all_configured_passes():
         api_key_encryption_secret="real-encryption-secret",
         model_api_key="sk-real-key",
     )
-    from core import config
+    from app.core import config
 
     original = config.settings
     config.settings = s

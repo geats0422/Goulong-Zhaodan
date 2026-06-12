@@ -19,7 +19,7 @@ for mod_name in [
     if mod_name not in sys.modules:
         sys.modules[mod_name] = types.ModuleType(mod_name)
 
-from workers.tasks import (
+from app.workers.tasks import (
     inspect_document_task,
     knowledge_upload_task,
     parse_document_task,
@@ -39,10 +39,10 @@ async def test_inspect_task_success():
     mock_session, mock_ctx = _make_mock_session_ctx()
 
     with (
-        patch("workers.tasks.async_session", return_value=mock_ctx),
-        patch("workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
-        patch("workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
-        patch("workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        patch("app.workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
+        patch("app.workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
+        patch("app.workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
     ):
         await inspect_document_task({}, "job_abc123")
 
@@ -58,12 +58,12 @@ async def test_inspect_task_failure():
     mock_session, mock_ctx = _make_mock_session_ctx()
 
     with (
-        patch("workers.tasks.async_session", return_value=mock_ctx),
-        patch("workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
-        patch("workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
-        patch("workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        patch("app.workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
+        patch("app.workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
+        patch("app.workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
         patch(
-            "workers.tasks._run_inspect",
+            "app.workers.tasks._run_inspect",
             new_callable=AsyncMock,
             side_effect=RuntimeError("审查服务不可用"),
         ),
@@ -83,10 +83,10 @@ async def test_parse_task_success():
     mock_session, mock_ctx = _make_mock_session_ctx()
 
     with (
-        patch("workers.tasks.async_session", return_value=mock_ctx),
-        patch("workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
-        patch("workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
-        patch("workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        patch("app.workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
+        patch("app.workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
+        patch("app.workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
     ):
         await parse_document_task({}, "job_parse_ok")
 
@@ -102,12 +102,12 @@ async def test_parse_task_failure():
     mock_session, mock_ctx = _make_mock_session_ctx()
 
     with (
-        patch("workers.tasks.async_session", return_value=mock_ctx),
-        patch("workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
-        patch("workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
-        patch("workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        patch("app.workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
+        patch("app.workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
+        patch("app.workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
         patch(
-            "workers.tasks._run_parse",
+            "app.workers.tasks._run_parse",
             new_callable=AsyncMock,
             side_effect=RuntimeError("文档格式不支持"),
         ),
@@ -127,10 +127,10 @@ async def test_knowledge_upload_task_success():
     mock_session, mock_ctx = _make_mock_session_ctx()
 
     with (
-        patch("workers.tasks.async_session", return_value=mock_ctx),
-        patch("workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
-        patch("workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
-        patch("workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        patch("app.workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
+        patch("app.workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
+        patch("app.workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
     ):
         await knowledge_upload_task({}, "job_ku_ok")
 
@@ -146,12 +146,12 @@ async def test_knowledge_upload_task_failure():
     mock_session, mock_ctx = _make_mock_session_ctx()
 
     with (
-        patch("workers.tasks.async_session", return_value=mock_ctx),
-        patch("workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
-        patch("workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
-        patch("workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        patch("app.workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
+        patch("app.workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
+        patch("app.workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
         patch(
-            "workers.tasks._run_knowledge_upload",
+            "app.workers.tasks._run_knowledge_upload",
             new_callable=AsyncMock,
             side_effect=RuntimeError("知识库写入失败"),
         ),

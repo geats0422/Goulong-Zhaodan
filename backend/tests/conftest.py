@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 import pytest
 
-from core.config import settings
+from app.core.config import settings
 
 
 def assert_safe_database_for_cleanup() -> None:

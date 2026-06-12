@@ -23,11 +23,11 @@ for mod_name in [
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from models import Base
-from models.api_keys import ApiKey
-from models.knowledge import User
+from app.models import Base
+from app.models.api_keys import ApiKey
+from app.models.knowledge import User
 
-from services.agent_job_service import (
+from app.services.agent_job_service import (
     create_job,
     get_job,
     mark_job_failed,
@@ -97,7 +97,7 @@ async def api_key_id(session: AsyncSession, user_id: int) -> int:
 async def test_create_inspect_job(
     session: AsyncSession, user_id: int, api_key_id: int
 ):
-    with patch("services.agent_job_service.enqueue_job", new_callable=AsyncMock):
+    with patch("app.services.agent_job_service.enqueue_job", new_callable=AsyncMock):
         job = await create_job(session, user_id, api_key_id, "inspect")
 
     assert job is not None
@@ -113,7 +113,7 @@ async def test_create_inspect_job(
 async def test_create_parse_job(
     session: AsyncSession, user_id: int, api_key_id: int
 ):
-    with patch("services.agent_job_service.enqueue_job", new_callable=AsyncMock):
+    with patch("app.services.agent_job_service.enqueue_job", new_callable=AsyncMock):
         job = await create_job(session, user_id, api_key_id, "parse")
 
     assert job.job_type == "parse"
@@ -124,7 +124,7 @@ async def test_create_parse_job(
 async def test_create_knowledge_upload_job(
     session: AsyncSession, user_id: int, api_key_id: int
 ):
-    with patch("services.agent_job_service.enqueue_job", new_callable=AsyncMock):
+    with patch("app.services.agent_job_service.enqueue_job", new_callable=AsyncMock):
         job = await create_job(
             session, user_id, api_key_id, "knowledge_upload"
         )
@@ -138,7 +138,7 @@ async def test_create_job_with_payload(
     session: AsyncSession, user_id: int, api_key_id: int
 ):
     payload = {"document_id": 42, "options": {"deep_scan": True}}
-    with patch("services.agent_job_service.enqueue_job", new_callable=AsyncMock):
+    with patch("app.services.agent_job_service.enqueue_job", new_callable=AsyncMock):
         job = await create_job(
             session, user_id, api_key_id, "inspect", input_payload=payload
         )
@@ -150,7 +150,7 @@ async def test_create_job_with_payload(
 async def test_get_job_by_job_id(
     session: AsyncSession, user_id: int, api_key_id: int
 ):
-    with patch("services.agent_job_service.enqueue_job", new_callable=AsyncMock):
+    with patch("app.services.agent_job_service.enqueue_job", new_callable=AsyncMock):
         created = await create_job(session, user_id, api_key_id, "inspect")
 
     found = await get_job(session, created.job_id, user_id)
@@ -167,7 +167,7 @@ async def test_get_job_user_isolation(
     other_user_id: int,
     api_key_id: int,
 ):
-    with patch("services.agent_job_service.enqueue_job", new_callable=AsyncMock):
+    with patch("app.services.agent_job_service.enqueue_job", new_callable=AsyncMock):
         created = await create_job(session, user_id, api_key_id, "inspect")
 
     found = await get_job(session, created.job_id, other_user_id)
@@ -179,7 +179,7 @@ async def test_get_job_user_isolation(
 async def test_update_job_status(
     session: AsyncSession, user_id: int, api_key_id: int
 ):
-    with patch("services.agent_job_service.enqueue_job", new_callable=AsyncMock):
+    with patch("app.services.agent_job_service.enqueue_job", new_callable=AsyncMock):
         created = await create_job(session, user_id, api_key_id, "inspect")
 
     updated = await update_job_status(
@@ -200,7 +200,7 @@ async def test_update_job_status(
 async def test_mark_job_running(
     session: AsyncSession, user_id: int, api_key_id: int
 ):
-    with patch("services.agent_job_service.enqueue_job", new_callable=AsyncMock):
+    with patch("app.services.agent_job_service.enqueue_job", new_callable=AsyncMock):
         created = await create_job(session, user_id, api_key_id, "inspect")
 
     updated = await mark_job_running(session, created.job_id)
@@ -213,7 +213,7 @@ async def test_mark_job_running(
 async def test_mark_job_succeeded(
     session: AsyncSession, user_id: int, api_key_id: int
 ):
-    with patch("services.agent_job_service.enqueue_job", new_callable=AsyncMock):
+    with patch("app.services.agent_job_service.enqueue_job", new_callable=AsyncMock):
         created = await create_job(session, user_id, api_key_id, "inspect")
 
     result = {"risk_level": "low", "issues": []}
@@ -229,7 +229,7 @@ async def test_mark_job_succeeded(
 async def test_mark_job_failed(
     session: AsyncSession, user_id: int, api_key_id: int
 ):
-    with patch("services.agent_job_service.enqueue_job", new_callable=AsyncMock):
+    with patch("app.services.agent_job_service.enqueue_job", new_callable=AsyncMock):
         created = await create_job(session, user_id, api_key_id, "inspect")
 
     updated = await mark_job_failed(
@@ -247,7 +247,7 @@ async def test_create_job_enqueue_failure(
     session: AsyncSession, user_id: int, api_key_id: int
 ):
     with patch(
-        "services.agent_job_service.enqueue_job",
+        "app.services.agent_job_service.enqueue_job",
         new_callable=AsyncMock,
         side_effect=Exception("Redis connection refused"),
     ):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core.data_masking import MaskingResult, mask_sensitive_data
+from app.core.data_masking import MaskingResult, mask_sensitive_data
 
 
 def test_mask_amount() -> None:

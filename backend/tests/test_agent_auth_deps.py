@@ -30,12 +30,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from core.agent_auth import get_api_key_user, require_api_scope
-from core.database import get_db_session
-from models import Base
-from models.api_keys import ApiKey
-from services.api_key_service import create_api_key
-from models.knowledge import User
+from app.core.agent_auth import get_api_key_user, require_api_scope
+from app.core.database import get_db_session
+from app.models import Base
+from app.models.api_keys import ApiKey
+from app.services.api_key_service import create_api_key
+from app.models.knowledge import User
 
 
 @pytest_asyncio.fixture
@@ -146,7 +146,7 @@ async def test_revoked_api_key(client, db, user_id):
     )
     full_key = result["full_key"]
 
-    from services.api_key_service import revoke_api_key
+    from app.services.api_key_service import revoke_api_key
 
     await revoke_api_key(db, result["api_key"].id, user_id)
 

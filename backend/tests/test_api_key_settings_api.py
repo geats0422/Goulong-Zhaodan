@@ -21,7 +21,7 @@ if "markitdown" not in sys.modules or not hasattr(sys.modules.get("markitdown"),
     _fake_md.MarkItDown = MagicMock()
     sys.modules["markitdown"] = _fake_md
 
-fake_inspector_module = types.ModuleType("agents.inspector")
+fake_inspector_module = types.ModuleType("app.agents.inspector")
 
 
 async def _fake_run_inspection(*args, **kwargs):
@@ -30,7 +30,7 @@ async def _fake_run_inspection(*args, **kwargs):
 
 
 fake_inspector_module.run_inspection = _fake_run_inspection
-sys.modules["agents.inspector"] = fake_inspector_module
+sys.modules["app.agents.inspector"] = fake_inspector_module
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
@@ -43,9 +43,9 @@ SQLITE_URL = "sqlite+aiosqlite:///:memory:"
 
 @pytest_asyncio.fixture
 async def client():
-    import core.database as db_mod
-    from core.rate_limit import register_limiter
-    from models import Base
+    import app.core.database as db_mod
+    from app.core.rate_limit import register_limiter
+    from app.models import Base
 
     register_limiter.reset()
 

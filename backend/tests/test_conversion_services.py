@@ -19,9 +19,9 @@ if "markitdown" not in sys.modules:
     _fake_md.MarkItDown = MagicMock()
     sys.modules["markitdown"] = _fake_md
 
-from services import markdown_converter  # noqa: E402
-from services.markdown_converter import ConversionError, convert_to_markdown  # noqa: E402
-from services.page_indexer import IndexNodeCreate, build_index_nodes  # noqa: E402
+from app.services import markdown_converter  # noqa: E402
+from app.services.markdown_converter import ConversionError, convert_to_markdown  # noqa: E402
+from app.services.page_indexer import IndexNodeCreate, build_index_nodes  # noqa: E402
 
 
 class TestConvertToMarkdown:
@@ -35,7 +35,7 @@ class TestConvertToMarkdown:
         fake_md = sys.modules["markitdown"]
         fake_md.MarkItDown = MagicMock(return_value=MagicMock(convert=MagicMock(return_value=mock_result)))
 
-        with patch("services.markdown_converter.MarkItDown", return_value=fake_md.MarkItDown.return_value):
+        with patch("app.services.markdown_converter.MarkItDown", return_value=fake_md.MarkItDown.return_value):
             result = convert_to_markdown(test_file)
         assert result == "hello world"
 
@@ -50,7 +50,7 @@ class TestConvertToMarkdown:
         mock_result = MagicMock()
         mock_result.text_content = ""
 
-        with patch("services.markdown_converter.MarkItDown") as MockMD:
+        with patch("app.services.markdown_converter.MarkItDown") as MockMD:
             MockMD.return_value.convert.return_value = mock_result
             with pytest.raises(ConversionError, match="empty content"):
                 convert_to_markdown(test_file)
@@ -59,7 +59,7 @@ class TestConvertToMarkdown:
         test_file = tmp_path / "bad.docx"
         test_file.write_bytes(b"garbage")
 
-        with patch("services.markdown_converter.MarkItDown") as MockMD:
+        with patch("app.services.markdown_converter.MarkItDown") as MockMD:
             MockMD.return_value.convert.side_effect = RuntimeError("conversion failed")
             with pytest.raises(ConversionError, match="conversion failed"):
                 convert_to_markdown(test_file)
@@ -71,7 +71,7 @@ class TestConvertToMarkdown:
         mock_result = MagicMock()
         mock_result.text_content = "   \n  \t  "
 
-        with patch("services.markdown_converter.MarkItDown") as MockMD:
+        with patch("app.services.markdown_converter.MarkItDown") as MockMD:
             MockMD.return_value.convert.return_value = mock_result
             with pytest.raises(ConversionError, match="empty content"):
                 convert_to_markdown(test_file)
@@ -88,7 +88,7 @@ class TestConvertToMarkdown:
         with zipfile.ZipFile(test_file, "w") as archive:
             archive.writestr("word/document.xml", document_xml)
 
-        with patch("services.markdown_converter.MarkItDown") as MockMD:
+        with patch("app.services.markdown_converter.MarkItDown") as MockMD:
             MockMD.return_value.convert.side_effect = RuntimeError("No converter attempted a conversion")
             result = convert_to_markdown(test_file)
 
@@ -189,7 +189,7 @@ class TestBuildIndexNodes:
 
 class TestConvertTreeToNodes:
     def test_single_node_tree(self) -> None:
-        from services.page_indexer import _convert_tree_to_nodes
+        from app.services.page_indexer import _convert_tree_to_nodes
 
         tree = {"title": "根节点", "node_id": "1", "text": "根节点正文", "nodes": []}
         nodes = _convert_tree_to_nodes(tree)
@@ -200,7 +200,7 @@ class TestConvertTreeToNodes:
         assert nodes[0].parent_index is None
 
     def test_nested_tree_depth_mapping(self) -> None:
-        from services.page_indexer import _convert_tree_to_nodes
+        from app.services.page_indexer import _convert_tree_to_nodes
 
         tree = {
             "title": "章",
@@ -226,7 +226,7 @@ class TestConvertTreeToNodes:
         assert nodes[2].parent_index == 1
 
     def test_deep_nesting_caps_at_sentence(self) -> None:
-        from services.page_indexer import _convert_tree_to_nodes
+        from app.services.page_indexer import _convert_tree_to_nodes
 
         tree = {
             "title": "A",
@@ -267,7 +267,7 @@ class TestConvertTreeToNodes:
         assert types == ["chapter", "section", "paragraph", "sentence", "sentence"]
 
     def test_path_label_builds_hierarchy(self) -> None:
-        from services.page_indexer import _convert_tree_to_nodes
+        from app.services.page_indexer import _convert_tree_to_nodes
 
         tree = {
             "title": "第一章",

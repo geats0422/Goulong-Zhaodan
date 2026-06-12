@@ -25,7 +25,7 @@ if "markitdown" not in sys.modules or not hasattr(sys.modules.get("markitdown"),
     _fake_md.MarkItDown = MagicMock()
     sys.modules["markitdown"] = _fake_md
 
-fake_inspector_module = types.ModuleType("agents.inspector")
+fake_inspector_module = types.ModuleType("app.agents.inspector")
 
 
 async def _fake_run_inspection(*args, **kwargs):
@@ -33,10 +33,10 @@ async def _fake_run_inspection(*args, **kwargs):
 
 
 fake_inspector_module.run_inspection = _fake_run_inspection
-sys.modules["agents.inspector"] = fake_inspector_module
+sys.modules["app.agents.inspector"] = fake_inspector_module
 
-from core.auth import get_current_user  # noqa: E402
-from core.database import get_db_session  # noqa: E402
+from app.core.auth import get_current_user  # noqa: E402
+from app.core.database import get_db_session  # noqa: E402
 from main import app  # noqa: E402
 
 
@@ -265,8 +265,8 @@ class TestUploadAndIngest:
         assert response.status_code == 400
 
     def test_upload_accepts_application_scenario(self, client, mock_db, monkeypatch, tmp_path):
-        import routers.knowledge as knowledge_router
-        import services.knowledge_ingestion as ingestion_mod
+        import app.api.v1.knowledge as knowledge_router
+        import app.services.knowledge_ingestion as ingestion_mod
 
         sub = _make_subcategory(id=7, category_key="traditional", name="房建")
         mock_db.execute.side_effect = [

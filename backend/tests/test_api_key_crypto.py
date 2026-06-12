@@ -1,7 +1,7 @@
 """API Key 加密/hash 工具测试"""
 import pytest
 
-from core.api_key_crypto import (
+from app.core.api_key_crypto import (
     decrypt_api_key,
     encrypt_api_key,
     generate_api_key,
@@ -67,7 +67,7 @@ class TestGetKeyPrefix:
 class TestMissingEncryptionSecret:
     def test_encrypt_raises_without_secret(self, monkeypatch):
         monkeypatch.setattr(
-            "core.api_key_crypto._get_encryption_secret",
+            "app.core.api_key_crypto._get_encryption_secret",
             lambda: "",
         )
         with pytest.raises((ValueError, RuntimeError)):

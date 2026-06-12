@@ -22,7 +22,7 @@ if "markitdown" not in sys.modules or not hasattr(sys.modules.get("markitdown"),
     _fake_md.MarkItDown = MagicMock()
     sys.modules["markitdown"] = _fake_md
 
-fake_inspector_module = types.ModuleType("agents.inspector")
+fake_inspector_module = types.ModuleType("app.agents.inspector")
 
 
 async def _fake_run_inspection(*args, **kwargs):
@@ -30,16 +30,16 @@ async def _fake_run_inspection(*args, **kwargs):
 
 
 fake_inspector_module.run_inspection = _fake_run_inspection
-sys.modules["agents.inspector"] = fake_inspector_module
+sys.modules["app.agents.inspector"] = fake_inspector_module
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
-from core.database import async_session, engine, init_db  # noqa: E402
+from app.core.database import async_session, engine, init_db  # noqa: E402
 from main import app  # noqa: E402
-from models.knowledge import EngineeringSubcategory, KnowledgeDocument  # noqa: E402
+from app.models.knowledge import EngineeringSubcategory, KnowledgeDocument  # noqa: E402
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
 
 VALID_PASSWORD = "TestPass123"
@@ -49,7 +49,7 @@ VALID_PASSWORD = "TestPass123"
 async def client():
     await engine.dispose()
     await init_db()
-    from core.rate_limit import register_limiter
+    from app.core.rate_limit import register_limiter
     register_limiter.reset()
     assert_safe_database_for_cleanup()
     async with async_session() as session:
@@ -274,7 +274,7 @@ async def test_inspection_upload_merges_saved_and_temporary_taboo_words(client: 
         captured["taboo_words"] = deps.taboo_words
         return SimpleNamespace(overall_risk="low", summary="", issues=[], regulation_refs=[])
 
-    import routers.inspection as inspection_router
+    import app.api.v1.inspection as inspection_router
 
     monkeypatch.setattr(inspection_router, "run_inspection", fake_run_inspection)
     response = await client.post(

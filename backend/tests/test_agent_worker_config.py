@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from core.config import Settings
-from workers.config import WorkerSettings
+from app.core.config import Settings
+from app.workers.config import WorkerSettings
 
 
 TASK_FUNCTION_NAMES = [
