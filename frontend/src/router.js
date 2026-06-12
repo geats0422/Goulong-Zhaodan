@@ -10,9 +10,10 @@ import HistoryPage from './pages/HistoryPage.vue'
 import StatisticsPage from './pages/StatisticsPage.vue'
 import SettingsPage from './pages/SettingsPage.vue'
 import LoginPage from './pages/LoginPage.vue'
+import RegisterPage from './pages/RegisterPage.vue'
 import { useAuth } from './composables/useAuth.js'
 
-const publicPaths = ['/', '/login', '/solution', '/security', '/cases', '/pricing']
+const publicPaths = ['/', '/login', '/register', '/solution', '/security', '/cases', '/pricing']
 
 const router = createRouter({
   history: createWebHistory(),
@@ -23,6 +24,7 @@ const router = createRouter({
     { path: '/cases', component: CasesPage },
     { path: '/pricing', component: PricingPage },
     { path: '/login', component: LoginPage },
+    { path: '/register', component: RegisterPage },
     { path: '/dashboard', component: DashboardPage },
     { path: '/knowledge-base', component: KnowledgeBasePage },
     { path: '/history', component: HistoryPage },
