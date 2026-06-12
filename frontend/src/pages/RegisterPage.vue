@@ -102,7 +102,7 @@ function gotoLogin() {
 
     <div class="register-canvas">
       <aside class="brand-panel">
-        <div class="brand-mark">句<br />龙<br />·<br />照<br />胆</div>
+        <div class="brand-mark">句龙照胆</div>
         <div class="brand-meta">
           <span class="brand-name">句龙·照胆</span>
           <span class="brand-sub">国家合规审查 · AI 代理服务器</span>
@@ -339,9 +339,9 @@ function gotoLogin() {
 .brand-mark {
   font-family: "Noto Serif SC", "Songti SC", serif;
   color: #d4af37;
-  font-size: 14px;
-  line-height: 1.3;
-  letter-spacing: 0.3em;
+  font-size: 18px;
+  line-height: 1.4;
+  letter-spacing: 0.2em;
   writing-mode: vertical-rl;
   text-orientation: upright;
   margin-bottom: 24px;

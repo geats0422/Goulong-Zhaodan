@@ -98,7 +98,7 @@ function gotoRegister() {
 
     <div class="login-canvas">
       <aside class="brand-panel">
-        <div class="brand-mark">句<br />龙<br />·<br />照<br />胆</div>
+        <div class="brand-mark">句龙照胆</div>
         <div class="brand-meta">
           <span class="brand-name">句龙·照胆</span>
           <span class="brand-sub">国家合规审查 · AI 代理服务器</span>
@@ -255,10 +255,14 @@ function gotoRegister() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg, #0A0A0A);
+  background: #0A0A0A;
   padding: 24px;
   position: relative;
   overflow: hidden;
+}
+
+.login-page[data-theme="light"] {
+  background: #f7f1e3;
 }
 
 .login-page::before {
@@ -341,16 +345,16 @@ function gotoRegister() {
 .login-page[data-theme="light"] .brand-panel {
   border-right-color: rgba(155, 116, 22, 0.28);
   background:
-    radial-gradient(circle at 30% 20%, rgba(155, 116, 22, 0.08), transparent 50%),
-    linear-gradient(180deg, rgba(255, 250, 240, 0.6), rgba(247, 241, 227, 0.8));
+    radial-gradient(circle at 30% 20%, rgba(155, 116, 22, 0.1), transparent 50%),
+    linear-gradient(180deg, #eadbb9 0%, #f7f1e3 60%, #efe2c6 100%);
 }
 
 .brand-mark {
   font-family: "Noto Serif SC", "Songti SC", serif;
   color: #d4af37;
-  font-size: 14px;
-  line-height: 1.3;
-  letter-spacing: 0.3em;
+  font-size: 18px;
+  line-height: 1.4;
+  letter-spacing: 0.2em;
   writing-mode: vertical-rl;
   text-orientation: upright;
   margin-bottom: 24px;
@@ -407,7 +411,7 @@ function gotoRegister() {
 }
 
 .login-page[data-theme="light"] .brand-quote p {
-  color: #1f1a12;
+  color: #1f1a12 !important;
 }
 
 .brand-footer {
