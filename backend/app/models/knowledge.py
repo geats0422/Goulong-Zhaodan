@@ -12,6 +12,17 @@ class Base(DeclarativeBase):
     pass
 
 
+from goulong_auth.base import AuthBase  # noqa: E402
+
+
+def _register_auth_tables():
+    for _tbl in AuthBase.metadata.tables.values():
+        Base.metadata._add_table(_tbl.name, _tbl.schema, _tbl)
+
+
+_register_auth_tables()
+
+
 class EngineeringSubcategory(Base):
     __tablename__ = "engineering_subcategories"
 

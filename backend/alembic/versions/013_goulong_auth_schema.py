@@ -115,6 +115,14 @@ def upgrade() -> None:
             FOREIGN KEY (user_id) REFERENCES goulong_auth.users(id) ON DELETE CASCADE
     """)
 
+    # agent_jobs.api_key_id → api_keys.id (users 表移动后 FK 可能被错误指向)
+    op.execute("""
+        ALTER TABLE agent_jobs
+        DROP CONSTRAINT IF EXISTS agent_jobs_api_key_id_fkey,
+        ADD CONSTRAINT agent_jobs_api_key_id_fkey
+            FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
+    """)
+
     # knowledge_documents (owner_user_id, nullable)
     op.execute("""
         ALTER TABLE knowledge_documents
