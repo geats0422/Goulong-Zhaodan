@@ -47,19 +47,18 @@ VALID_PASSWORD = "TestPass123"
 
 @pytest_asyncio.fixture
 async def client():
+    await engine.dispose()
     await init_db()
     from core.rate_limit import register_limiter
     register_limiter.reset()
     assert_safe_database_for_cleanup()
-    if engine.dialect.name == "postgresql":
-        async with engine.begin() as conn:
-            await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS owner_type VARCHAR(20) DEFAULT 'user' NOT NULL"))
-            await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS owner_user_id INTEGER"))
-            await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS application_scenario VARCHAR(20) DEFAULT 'bidding' NOT NULL"))
-            await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS source_path VARCHAR(1000)"))
     async with async_session() as session:
+        await session.execute(text("UPDATE knowledge_documents SET current_version_id = NULL"))
         for table in [
             "refresh_tokens",
+            "api_keys",
+            "agent_jobs",
+            "inspection_records",
             "knowledge_document_settings",
             "taboo_words",
             "user_profiles",
@@ -79,7 +78,11 @@ async def client():
 
 
 async def register_and_auth(client: AsyncClient, username: str = "settings_user", password: str = VALID_PASSWORD):
-    response = await client.post("/auth/register", json={"username": username, "password": password})
+    response = await client.post("/auth/register", json={
+        "email": f"{username}@test.com",
+        "nickname": username,
+        "password": password,
+    })
     assert response.status_code == 201
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
@@ -105,13 +108,10 @@ async def test_settings_overview_defaults(client: AsyncClient):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["profile"]["username"] == "settings_user"
-    assert data["profile"]["display_name"] == "settings_user"
-    assert data["profile"]["subscription_plan"] == "personal"
-    assert data["profile"]["monthly_quota"] == 500
+    assert data["profile"]["nickname"] == "settings_user"
+    assert data["profile"]["subscription_plan"] == "free"
+    assert data["profile"]["monthly_quota"] == 50
     assert data["profile"]["quota_used"] == 0
-    assert data["profile"]["wechat_bound"] is False
-    assert data["profile"]["alipay_bound"] is False
     assert data["profile"]["burn_after_read"] is True
     assert data["taboo_words"] == []
     docs = [doc for cat in data["knowledge"] for sub in cat["subcategories"] for doc in sub["documents"]]
@@ -126,15 +126,15 @@ async def test_update_profile_is_user_scoped(client: AsyncClient):
     response = await client.patch(
         "/settings/profile",
         headers=user_a,
-        json={"display_name": "张三", "wechat_bound": True, "alipay_bound": True, "burn_after_read": False},
+        json={"nickname": "张三", "burn_after_read": False},
     )
     assert response.status_code == 200
-    assert response.json()["display_name"] == "张三"
+    assert response.json()["nickname"] == "张三"
 
     overview_a = await client.get("/settings/overview", headers=user_a)
     overview_b = await client.get("/settings/overview", headers=user_b)
-    assert overview_a.json()["profile"]["wechat_bound"] is True
-    assert overview_b.json()["profile"]["wechat_bound"] is False
+    assert overview_a.json()["profile"]["burn_after_read"] is False
+    assert overview_b.json()["profile"]["burn_after_read"] is True
 
 
 @pytest.mark.asyncio
@@ -162,8 +162,8 @@ async def test_update_password(client: AsyncClient):
     )
     assert ok.status_code == 200
 
-    old_login = await client.post("/auth/login", json={"username": "password_user", "password": "OldPass123"})
-    new_login = await client.post("/auth/login", json={"username": "password_user", "password": "NewPass456"})
+    old_login = await client.post("/auth/login", json={"email": "password_user@test.com", "password": "OldPass123"})
+    new_login = await client.post("/auth/login", json={"email": "password_user@test.com", "password": "NewPass456"})
     assert old_login.status_code == 401
     assert new_login.status_code == 200
 
@@ -171,7 +171,8 @@ async def test_update_password(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_password_change_revokes_refresh_tokens(client: AsyncClient):
     reg = await client.post("/auth/register", json={
-        "username": "revoke_user",
+        "email": "revoke_user@test.com",
+        "nickname": "revoke_user",
         "password": "OldPass123",
     })
     access_token = reg.json()["access_token"]
@@ -285,3 +286,142 @@ async def test_inspection_upload_merges_saved_and_temporary_taboo_words(client: 
 
     assert response.status_code == 200
     assert captured["taboo_words"] == ["保存词", "临时词"]
+
+
+@pytest.mark.asyncio
+async def test_overview_includes_model_env(client: AsyncClient):
+    headers = await register_and_auth(client, "modelenv_user")
+
+    response = await client.get("/settings/overview", headers=headers)
+
+    assert response.status_code == 200
+    profile = response.json()["profile"]
+    for field in [
+        "model_name",
+        "model_base_url",
+        "model_api_key_preview",
+        "model_catalog",
+        "subscription_label",
+        "subscription_period",
+        "subscription_price",
+    ]:
+        assert field in profile
+    assert isinstance(profile["model_catalog"], list)
+    assert len(profile["model_catalog"]) >= 2
+
+
+@pytest.mark.asyncio
+async def test_update_profile_nickname(client: AsyncClient):
+    headers = await register_and_auth(client, "username_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"nickname": "newname1"})
+    assert resp.status_code == 200
+    assert resp.json()["nickname"] == "newname1"
+
+    overview = await client.get("/settings/overview", headers=headers)
+    assert overview.json()["profile"]["nickname"] == "newname1"
+
+
+@pytest.mark.asyncio
+async def test_update_profile_subscription_plan(client: AsyncClient):
+    headers = await register_and_auth(client, "subplan_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"subscription_plan": "team"})
+    assert resp.status_code == 200
+    assert resp.json()["subscription_plan"] == "team"
+
+    overview = await client.get("/settings/overview", headers=headers)
+    profile = overview.json()["profile"]
+    assert profile["monthly_quota"] == 3000
+    assert profile["subscription_label"] == "团队版"
+
+
+@pytest.mark.asyncio
+async def test_update_profile_model_name(client: AsyncClient):
+    headers = await register_and_auth(client, "modelname_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"model_name": "deepseek-ai/deepseek-v4-pro"})
+    assert resp.status_code == 200
+
+    overview = await client.get("/settings/overview", headers=headers)
+    assert overview.json()["profile"]["model_name"] == "deepseek-ai/deepseek-v4-pro"
+
+
+@pytest.mark.asyncio
+async def test_update_profile_model_name_invalid(client: AsyncClient):
+    headers = await register_and_auth(client, "modelinvalid_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"model_name": "gpt-4o"})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_profile_phone(client: AsyncClient):
+    headers = await register_and_auth(client, "phone_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"phone": "13800138000"})
+    assert resp.status_code == 200
+    assert resp.json()["phone"] == "13800138000"
+
+    overview = await client.get("/settings/overview", headers=headers)
+    assert overview.json()["profile"]["phone"] == "13800138000"
+
+
+@pytest.mark.asyncio
+async def test_update_profile_phone_unique_conflict(client: AsyncClient):
+    headers_a = await register_and_auth(client, "phone_a")
+    headers_b = await register_and_auth(client, "phone_b")
+
+    first = await client.patch("/settings/profile", headers=headers_a, json={"phone": "13800138000"})
+    assert first.status_code == 200
+
+    conflict = await client.patch("/settings/profile", headers=headers_b, json={"phone": "13800138000"})
+    assert conflict.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_update_profile_email(client: AsyncClient):
+    headers = await register_and_auth(client, "email_user")
+
+    resp = await client.patch("/settings/profile", headers=headers, json={"email": "test@example.com"})
+    assert resp.status_code == 200
+    assert resp.json()["email"] == "test@example.com"
+
+
+@pytest.mark.asyncio
+async def test_overview_includes_scope_templates(client: AsyncClient):
+    headers = await register_and_auth(client, "scope_user")
+
+    resp = await client.get("/settings/overview", headers=headers)
+    assert resp.status_code == 200
+    scope_templates = resp.json()["profile"]["scope_templates"]
+    assert isinstance(scope_templates, list)
+    assert len(scope_templates) == 4
+    for template in scope_templates:
+        assert "key" in template
+        assert "label" in template
+        assert "description" in template
+        assert "scopes" in template
+
+
+@pytest.mark.asyncio
+async def test_get_api_key_secret_updates_last_viewed_at(client: AsyncClient):
+    headers = await register_and_auth(client, "apikey_view_user")
+
+    create_resp = await client.post(
+        "/settings/api-keys",
+        headers=headers,
+        json={"name": "test-key", "client_type": "agent", "scope_template": "mcp_readonly"},
+    )
+    assert create_resp.status_code == 201
+    key_id = create_resp.json()["id"]
+
+    secret_resp = await client.get(f"/settings/api-keys/{key_id}/secret", headers=headers)
+    assert secret_resp.status_code == 200
+    assert "full_key" in secret_resp.json()
+
+    list_resp = await client.get("/settings/api-keys", headers=headers)
+    assert list_resp.status_code == 200
+    matched = [k for k in list_resp.json() if k["id"] == key_id]
+    assert len(matched) == 1
+    assert matched[0]["last_viewed_at"] is not None

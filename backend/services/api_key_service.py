@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +20,7 @@ from models.api_keys import ApiKey
 
 async def create_api_key(
     db: AsyncSession,
-    user_id: int,
+    user_id: uuid.UUID,
     name: str,
     client_type: str,
     scope_template: str,
@@ -49,7 +50,7 @@ async def create_api_key(
     return {"api_key": api_key, "full_key": full_key}
 
 
-async def list_api_keys(db: AsyncSession, user_id: int) -> list[ApiKey]:
+async def list_api_keys(db: AsyncSession, user_id: uuid.UUID) -> list[ApiKey]:
     stmt = (
         select(ApiKey)
         .where(ApiKey.user_id == user_id)
@@ -66,7 +67,7 @@ async def list_api_keys(db: AsyncSession, user_id: int) -> list[ApiKey]:
 
 
 async def get_api_key_secret(
-    db: AsyncSession, key_id: int, user_id: int
+    db: AsyncSession, key_id: uuid.UUID, user_id: uuid.UUID
 ) -> str | None:
     stmt = select(ApiKey).where(ApiKey.id == key_id, ApiKey.user_id == user_id)
     result = await db.execute(stmt)
@@ -80,7 +81,7 @@ async def get_api_key_secret(
 
 
 async def update_api_key(
-    db: AsyncSession, key_id: int, user_id: int, **kwargs
+    db: AsyncSession, key_id: uuid.UUID, user_id: uuid.UUID, **kwargs
 ) -> ApiKey | None:
     stmt = select(ApiKey).where(ApiKey.id == key_id, ApiKey.user_id == user_id)
     result = await db.execute(stmt)
@@ -97,7 +98,7 @@ async def update_api_key(
 
 
 async def revoke_api_key(
-    db: AsyncSession, key_id: int, user_id: int
+    db: AsyncSession, key_id: uuid.UUID, user_id: uuid.UUID
 ) -> ApiKey | None:
     stmt = select(ApiKey).where(ApiKey.id == key_id, ApiKey.user_id == user_id)
     result = await db.execute(stmt)

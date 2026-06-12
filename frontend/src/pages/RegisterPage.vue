@@ -4,71 +4,93 @@ import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 import { useTheme } from '../composables/useTheme.js'
 
-const { login } = useAuth()
+const { register } = useAuth()
 const router = useRouter()
 const { theme, toggleTheme } = useTheme()
 
-const activeTab = ref('password')
-const error = ref('')
-const loading = ref(false)
-
-const account = ref('')
-const password = ref('')
+const nickname = ref('')
 const phone = ref('')
 const smsCode = ref('')
+const email = ref('')
+const password = ref('')
+const confirmPassword = ref('')
+const error = ref('')
+const loading = ref(false)
+const agreedToTerms = ref(false)
+
+const showPassword = ref(false)
+const showConfirm = ref(false)
 const smsCountdown = ref(0)
 const smsSending = ref(false)
 
-const showPassword = ref(false)
-const agreedToTerms = ref(false)
+const WEAK_PASSWORDS = new Set([
+  'password', 'password1', 'password12', 'password123', 'password1234',
+  '123456', '12345678', '1234567890', 'qwerty', 'abc123', 'admin', 'admin123',
+  'root', 'test', 'guest', 'welcome', 'sunshine', 'letmein',
+])
 
-const identityValid = computed(() => {
-  if (!account.value) return false
-  // 接受 email 或手机号
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account.value) || /^1[3-9]\d{9}$/.test(account.value)
+const ALLOWED_RE = /^[a-zA-Z0-9!@#$%^&*()_\-=\[\]{}|:;<>,.?\/~]*$/
+
+const nicknameValid = computed(() => {
+  const n = nickname.value.trim()
+  return n.length >= 2 && n.length <= 30
 })
-const passwordValid = computed(() => password.value.length >= 8)
 const phoneValid = computed(() => /^1[3-9]\d{9}$/.test(phone.value))
+const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value))
 
-const canSubmitPassword = computed(() =>
-  identityValid.value && passwordValid.value
+const passwordRules = computed(() => {
+  const p = password.value
+  return [
+    { label: '至少 8 个字符', pass: p.length >= 8 },
+    { label: '至少一个大写字母', pass: /[A-Z]/.test(p) },
+    { label: '至少一个小写字母', pass: /[a-z]/.test(p) },
+    { label: '至少一个数字', pass: /[0-9]/.test(p) },
+    { label: '不包含空格', pass: p.length === 0 || !/\s/.test(p) },
+    { label: '只允许常见特殊字符', pass: ALLOWED_RE.test(p) },
+    { label: '非常见弱密码', pass: p.length === 0 || !WEAK_PASSWORDS.has(p.toLowerCase()) },
+  ]
+})
+
+const passwordStrength = computed(() => passwordRules.value.filter(r => r.pass).length)
+const showRules = computed(() => password.value.length > 0)
+
+const passwordValid = computed(() => passwordStrength.value === passwordRules.value.length)
+const confirmValid = computed(() => confirmPassword.value.length > 0 && confirmPassword.value === password.value)
+
+const canRegister = computed(() =>
+  nicknameValid.value &&
+  (emailValid.value || phoneValid.value) &&
+  passwordValid.value && confirmValid.value && agreedToTerms.value
 )
-const canSubmitSms = computed(() => phoneValid.value && smsCode.value.length === 6)
 
 async function startSmsCountdown() {
   if (!phoneValid.value || smsSending.value) return
   smsSending.value = true
   error.value = ''
-  try {
-    await new Promise((resolve, reject) => {
-      setTimeout(() => {
-        error.value = '短信验证服务暂未上线，请使用账号密码登录'
-        reject(new Error('sms_not_available'))
-      }, 600)
-    })
-  } catch {
-  } finally {
+  setTimeout(() => {
+    error.value = '短信验证服务暂未上线，请使用账号密码登录'
     smsSending.value = false
-  }
+  }, 600)
 }
 
-async function handleSmsLogin() {
-  error.value = '短信验证服务暂未上线，请使用账号密码登录'
-}
-
-async function handlePasswordLogin() {
+async function handleRegister() {
   error.value = ''
-  if (!canSubmitPassword.value) {
-    error.value = '请输入有效的邮箱/手机号和密码（密码至少 8 位）'
-    return
-  }
-  if (!agreedToTerms.value) {
-    error.value = '请先勾选同意《服务条款》与《隐私政策》'
+  if (!canRegister.value) {
+    if (!nicknameValid.value) error.value = '请输入有效的昵称（2-30 位）'
+    else if (!emailValid.value && !phoneValid.value) error.value = '邮箱和手机号至少填写一项'
+    else if (!passwordValid.value) error.value = '密码不符合要求'
+    else if (!confirmValid.value) error.value = '两次输入的密码不一致'
+    else error.value = '请检查所有字段并勾选同意条款'
     return
   }
   loading.value = true
   try {
-    await login(account.value, password.value)
+    await register({
+      email: emailValid.value ? email.value : undefined,
+      phone: phoneValid.value ? phone.value : undefined,
+      nickname: nickname.value,
+      password: password.value,
+    })
     await router.push('/dashboard')
   } catch (e) {
     error.value = e.message
@@ -77,31 +99,26 @@ async function handlePasswordLogin() {
   }
 }
 
-function switchTab(tab) {
-  activeTab.value = tab
-  error.value = ''
-}
-
-function gotoRegister() {
-  router.push('/register')
+function gotoLogin() {
+  router.push('/login')
 }
 </script>
 
 <template>
-  <div class="login-page" :data-theme="theme">
+  <div class="register-page" :data-theme="theme">
     <button class="theme-toggle" type="button" @click="toggleTheme" :aria-label="theme === 'dark' ? '切换到浅色' : '切换到深色'">
       <span class="material-symbols-outlined">{{ theme === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
     </button>
 
-    <div class="login-canvas">
+    <div class="register-canvas">
       <aside class="brand-panel">
         <div class="brand-meta">
           <span class="brand-name">句龙·照胆</span>
           <span class="brand-sub">国家合规审查 · AI 代理服务器</span>
         </div>
         <div class="brand-quote">
-          <p>欢迎执笔，</p>
-          <p>今日宜定分止争。</p>
+          <p>执笔文墨，</p>
+          <p>字斟句酌。</p>
         </div>
         <div class="brand-footer">
           <p>以数据驱动合规决策，坚持确定性逻辑分析</p>
@@ -111,35 +128,24 @@ function gotoRegister() {
 
       <section class="form-panel">
         <header class="form-header">
-          <span class="form-ref">REF.AUTH-001</span>
-          <h1>登录</h1>
+          <span class="form-ref">REF.AUTH-002</span>
+          <h1>创建账户</h1>
+          <p class="form-sub">完成以下 4 项，开启智能合规之旅</p>
         </header>
-
-        <nav class="tab-bar" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            :aria-selected="activeTab === 'sms'"
-            :class="{ active: activeTab === 'sms' }"
-            @click="switchTab('sms')"
-          >
-            手机号快捷登录
-          </button>
-          <button
-            type="button"
-            role="tab"
-            :aria-selected="activeTab === 'password'"
-            :class="{ active: activeTab === 'password' }"
-            @click="switchTab('password')"
-          >
-            账号密码登录
-          </button>
-        </nav>
 
         <div v-if="error" class="alert alert-error">{{ error }}</div>
 
-        <form v-if="activeTab === 'sms'" class="form-body" @submit.prevent="handleSmsLogin">
-          <p class="form-hint">未注册的手机号验证后请前往注册</p>
+        <form class="form-body" @submit.prevent="handleRegister">
+          <label class="field">
+            <span>昵称</span>
+            <input
+              v-model="nickname"
+              type="text"
+              maxlength="30"
+              placeholder="请输入您希望被称呼的名字"
+              :class="{ invalid: nickname && !nicknameValid }"
+            />
+          </label>
 
           <label class="field">
             <span>手机号码</span>
@@ -177,21 +183,13 @@ function gotoRegister() {
             </div>
           </label>
 
-          <button type="submit" class="primary-btn primary-btn-block" :disabled="!canSubmitSms">
-            立即登录
-          </button>
-        </form>
-
-        <form v-else class="form-body" @submit.prevent="handlePasswordLogin">
-          <p class="form-hint">使用注册时填写的邮箱或手机号登录</p>
-
           <label class="field">
-            <span>邮箱 / 手机号</span>
+            <span>邮箱</span>
             <input
-              v-model="account"
-              type="text"
-              autocomplete="username"
-              placeholder="请输入邮箱或手机号"
+              v-model="email"
+              type="email"
+              placeholder="用于登录与接收重要通知"
+              :class="{ invalid: email && !emailValid }"
             />
           </label>
 
@@ -201,44 +199,50 @@ function gotoRegister() {
               <input
                 v-model="password"
                 :type="showPassword ? 'text' : 'password'"
-                autocomplete="current-password"
-                placeholder="请输入密码"
+                autocomplete="new-password"
+                placeholder="8 位以上，含大小写字母和数字"
+                :class="{ invalid: password && !passwordValid }"
               />
               <button type="button" class="password-toggle" :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword">
                 <span class="material-symbols-outlined">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
               </button>
             </div>
+            <div v-if="showRules" class="password-rules">
+              <div v-for="rule in passwordRules" :key="rule.label" class="rule-item" :class="{ pass: rule.pass, fail: !rule.pass }">
+                <span class="material-symbols-outlined rule-icon">{{ rule.pass ? 'check_circle' : 'cancel' }}</span>
+                {{ rule.label }}
+              </div>
+            </div>
           </label>
 
-          <button type="submit" class="primary-btn primary-btn-block" :disabled="loading">
-            {{ loading ? '处理中…' : '立即登录' }}
+          <label class="field">
+            <span>确认密码</span>
+            <div class="password-input-wrap">
+              <input
+                v-model="confirmPassword"
+                :type="showConfirm ? 'text' : 'password'"
+                autocomplete="new-password"
+                placeholder="再次输入密码"
+                :class="{ invalid: confirmPassword && !confirmValid }"
+              />
+              <button type="button" class="password-toggle" :aria-label="showConfirm ? '隐藏密码' : '显示密码'" @click="showConfirm = !showConfirm">
+                <span class="material-symbols-outlined">{{ showConfirm ? 'visibility_off' : 'visibility' }}</span>
+              </button>
+            </div>
+          </label>
+
+          <button type="submit" class="primary-btn primary-btn-block" :disabled="!canRegister || loading">
+            {{ loading ? '处理中…' : '立即注册' }}
           </button>
         </form>
 
         <label class="terms-row">
           <input v-model="agreedToTerms" type="checkbox" />
-          <span>登录即代表同意 <a href="#">《服务条款》</a> 与 <a href="#">《隐私政策》</a></span>
+          <span>注册即代表同意 <a href="#">《服务条款》</a> 与 <a href="#">《隐私政策》</a></span>
         </label>
 
-        <div class="oauth-divider"><span>使用以下方式快捷登录</span></div>
-
-        <div class="oauth-row" aria-hidden="true">
-          <button type="button" class="oauth-btn" disabled title="微信登录暂未上线">
-            <span class="material-symbols-outlined">chat</span>
-          </button>
-          <button type="button" class="oauth-btn" disabled title="QQ 登录暂未上线">
-            <span class="material-symbols-outlined">visibility</span>
-          </button>
-          <button type="button" class="oauth-btn" disabled title="GitHub 登录暂未上线">
-            <span class="material-symbols-outlined">code</span>
-          </button>
-          <button type="button" class="oauth-btn" disabled title="企业 SSO 暂未上线">
-            <span class="material-symbols-outlined">shield</span>
-          </button>
-        </div>
-
         <footer class="form-footer">
-          还没有账号？<button type="button" class="link-btn" @click="gotoRegister">立即注册</button>
+          已有账号？<button type="button" class="link-btn" @click="gotoLogin">返回登录</button>
         </footer>
       </section>
     </div>
@@ -246,22 +250,18 @@ function gotoRegister() {
 </template>
 
 <style scoped>
-.login-page {
+.register-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0A0A0A;
+  background: var(--bg, #0A0A0A);
   padding: 24px;
   position: relative;
   overflow: hidden;
 }
 
-.login-page[data-theme="light"] {
-  background: #f7f1e3;
-}
-
-.login-page::before {
+.register-page::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -272,7 +272,7 @@ function gotoRegister() {
   pointer-events: none;
 }
 
-.login-page[data-theme="light"]::before {
+.register-page[data-theme="light"]::before {
   background-image:
     linear-gradient(rgba(155, 116, 22, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(155, 116, 22, 0.05) 1px, transparent 1px);
@@ -295,7 +295,7 @@ function gotoRegister() {
   transition: background 0.2s, border-color 0.2s;
 }
 
-.login-page[data-theme="light"] .theme-toggle {
+.register-page[data-theme="light"] .theme-toggle {
   border-color: rgba(155, 116, 22, 0.4);
   color: #9b7416;
 }
@@ -309,7 +309,7 @@ function gotoRegister() {
   font-size: 20px;
 }
 
-.login-canvas {
+.register-canvas {
   position: relative;
   z-index: 1;
   display: grid;
@@ -321,7 +321,7 @@ function gotoRegister() {
   box-shadow: 0 0 60px rgba(212, 175, 55, 0.06);
 }
 
-.login-page[data-theme="light"] .login-canvas {
+.register-page[data-theme="light"] .register-canvas {
   border-color: rgba(155, 116, 22, 0.28);
   background: var(--surface, #fffaf0);
   box-shadow: 0 20px 60px rgba(88, 65, 15, 0.12);
@@ -338,11 +338,11 @@ function gotoRegister() {
     linear-gradient(180deg, rgba(18, 18, 18, 0.4), rgba(10, 10, 10, 0.6));
 }
 
-.login-page[data-theme="light"] .brand-panel {
+.register-page[data-theme="light"] .brand-panel {
   border-right-color: rgba(155, 116, 22, 0.28);
   background:
-    radial-gradient(circle at 30% 20%, rgba(155, 116, 22, 0.1), transparent 50%),
-    linear-gradient(180deg, #eadbb9 0%, #f7f1e3 60%, #efe2c6 100%);
+    radial-gradient(circle at 30% 20%, rgba(155, 116, 22, 0.08), transparent 50%),
+    linear-gradient(180deg, rgba(255, 250, 240, 0.6), rgba(247, 241, 227, 0.8));
 }
 
 .brand-meta {
@@ -359,7 +359,7 @@ function gotoRegister() {
   letter-spacing: 0.08em;
 }
 
-.login-page[data-theme="light"] .brand-name {
+.register-page[data-theme="light"] .brand-name {
   color: #735c00;
 }
 
@@ -376,7 +376,7 @@ function gotoRegister() {
   border-left: 2px solid #d4af37;
 }
 
-.login-page[data-theme="light"] .brand-quote {
+.register-page[data-theme="light"] .brand-quote {
   border-left-color: #9b7416;
 }
 
@@ -389,8 +389,8 @@ function gotoRegister() {
   line-height: 1.4;
 }
 
-.login-page[data-theme="light"] .brand-quote p {
-  color: #1f1a12 !important;
+.register-page[data-theme="light"] .brand-quote p {
+  color: #1f1a12;
 }
 
 .brand-footer {
@@ -409,11 +409,13 @@ function gotoRegister() {
 .form-panel {
   display: flex;
   flex-direction: column;
-  padding: 56px 48px;
+  padding: 48px 40px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .form-header {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .form-ref {
@@ -424,74 +426,24 @@ function gotoRegister() {
   letter-spacing: 0.18em;
 }
 
-.login-page[data-theme="light"] .form-ref {
+.register-page[data-theme="light"] .form-ref {
   color: #9b7416;
 }
 
 .form-header h1 {
-  margin: 0;
+  margin: 0 0 6px;
   font-family: "Noto Serif SC", serif;
-  font-size: 32px;
+  font-size: 28px;
   color: #fff8e7;
   letter-spacing: 0.06em;
 }
 
-.login-page[data-theme="light"] .form-header h1 {
+.register-page[data-theme="light"] .form-header h1 {
   color: #1f1a12;
 }
 
-.tab-bar {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid rgba(212, 175, 55, 0.18);
-  margin-bottom: 24px;
-}
-
-.login-page[data-theme="light"] .tab-bar {
-  border-bottom-color: rgba(155, 116, 22, 0.28);
-}
-
-.tab-bar button {
-  flex: 1;
-  padding: 12px 0;
-  border: 0;
-  background: transparent;
-  color: #99907c;
-  font-family: "Hanken Grotesk", "Noto Sans SC", sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  position: relative;
-  transition: color 0.2s;
-}
-
-.tab-bar button.active {
-  color: #d4af37;
-  font-weight: 600;
-}
-
-.login-page[data-theme="light"] .tab-bar button.active {
-  color: #9b7416;
-}
-
-.tab-bar button.active::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #d4af37, transparent);
-  box-shadow: 0 0 8px rgba(212, 175, 55, 0.5);
-}
-
-.login-page[data-theme="light"] .tab-bar button.active::after {
-  background: linear-gradient(90deg, transparent, #9b7416, transparent);
-  box-shadow: none;
-}
-
-.form-hint {
-  margin: 0 0 16px;
+.form-sub {
+  margin: 0;
   font-size: 13px;
   color: #99907c;
 }
@@ -512,14 +464,13 @@ function gotoRegister() {
 .form-body {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  flex-grow: 1;
+  gap: 14px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .field > span {
@@ -532,17 +483,17 @@ function gotoRegister() {
   width: 100%;
   border: 0;
   border-bottom: 2px solid #4d4635;
-  padding: 10px 0;
+  padding: 8px 0;
   background: transparent;
   color: #e5e2e1;
   font-family: "Hanken Grotesk", "Noto Sans SC", sans-serif;
-  font-size: 15px;
+  font-size: 14px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
   border-radius: 0;
 }
 
-.login-page[data-theme="light"] .field input {
+.register-page[data-theme="light"] .field input {
   border-bottom-color: rgba(155, 116, 22, 0.3);
   color: #1f1a12;
 }
@@ -557,7 +508,7 @@ function gotoRegister() {
   box-shadow: 0 4px 0 -2px rgba(212, 175, 55, 0.3);
 }
 
-.login-page[data-theme="light"] .field input:focus {
+.register-page[data-theme="light"] .field input:focus {
   border-bottom-color: #9b7416;
   box-shadow: 0 4px 0 -2px rgba(155, 116, 22, 0.2);
 }
@@ -576,9 +527,9 @@ function gotoRegister() {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.login-page[data-theme="light"] .phone-input,
-.login-page[data-theme="light"] .sms-input,
-.login-page[data-theme="light"] .password-input-wrap {
+.register-page[data-theme="light"] .phone-input,
+.register-page[data-theme="light"] .sms-input,
+.register-page[data-theme="light"] .password-input-wrap {
   border-bottom-color: rgba(155, 116, 22, 0.3);
 }
 
@@ -589,9 +540,9 @@ function gotoRegister() {
   box-shadow: 0 4px 0 -2px rgba(212, 175, 55, 0.3);
 }
 
-.login-page[data-theme="light"] .phone-input:focus-within,
-.login-page[data-theme="light"] .sms-input:focus-within,
-.login-page[data-theme="light"] .password-input-wrap:focus-within {
+.register-page[data-theme="light"] .phone-input:focus-within,
+.register-page[data-theme="light"] .sms-input:focus-within,
+.register-page[data-theme="light"] .password-input-wrap:focus-within {
   border-bottom-color: #9b7416;
   box-shadow: 0 4px 0 -2px rgba(155, 116, 22, 0.2);
 }
@@ -603,7 +554,7 @@ function gotoRegister() {
   border: 0;
   border-bottom: 0;
   box-shadow: none;
-  padding: 10px 0;
+  padding: 8px 0;
 }
 
 .phone-input input:focus,
@@ -614,15 +565,15 @@ function gotoRegister() {
 }
 
 .phone-prefix {
-  padding-right: 12px;
-  margin-right: 12px;
+  padding-right: 10px;
+  margin-right: 10px;
   border-right: 1px solid rgba(212, 175, 55, 0.18);
   color: #d4af37;
   font-family: "JetBrains Mono", monospace;
-  font-size: 14px;
+  font-size: 13px;
 }
 
-.login-page[data-theme="light"] .phone-prefix {
+.register-page[data-theme="light"] .phone-prefix {
   border-right-color: rgba(155, 116, 22, 0.3);
   color: #9b7416;
 }
@@ -634,15 +585,15 @@ function gotoRegister() {
   color: #d4af37;
   font: 500 13px/1 "Hanken Grotesk", sans-serif;
   cursor: pointer;
-  padding: 8px 12px;
-  margin-left: 8px;
+  padding: 6px 10px;
+  margin-left: 6px;
   white-space: nowrap;
   border-radius: 0.25rem;
   transition: color 0.2s, background 0.2s;
 }
 
-.login-page[data-theme="light"] .sms-btn,
-.login-page[data-theme="light"] .password-toggle {
+.register-page[data-theme="light"] .sms-btn,
+.register-page[data-theme="light"] .password-toggle {
   color: #9b7416;
 }
 
@@ -652,8 +603,8 @@ function gotoRegister() {
   color: #f2ca50;
 }
 
-.login-page[data-theme="light"] .sms-btn:hover:not(:disabled),
-.login-page[data-theme="light"] .password-toggle:hover {
+.register-page[data-theme="light"] .sms-btn:hover:not(:disabled),
+.register-page[data-theme="light"] .password-toggle:hover {
   background: rgba(155, 116, 22, 0.1);
   color: #735c00;
 }
@@ -671,11 +622,51 @@ function gotoRegister() {
   font-size: 18px;
 }
 
+.password-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  padding: 8px 12px;
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  background: rgba(18, 18, 18, 0.5);
+  font-size: 12px;
+}
+
+.register-page[data-theme="light"] .password-rules {
+  border-color: rgba(155, 116, 22, 0.2);
+  background: rgba(255, 250, 240, 0.5);
+}
+
+.rule-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rule-item.pass {
+  color: #66bb6a;
+}
+
+.rule-item.fail {
+  color: #99907c;
+}
+
+.register-page[data-theme="light"] .rule-item.fail {
+  color: #66563a;
+}
+
+.rule-icon {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+}
+
 .primary-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 13px 24px;
+  padding: 12px 24px;
   border: 1px solid #d4af37;
   background: rgba(212, 175, 55, 0.1);
   color: #f2ca50;
@@ -700,14 +691,14 @@ function gotoRegister() {
 
 .primary-btn-block {
   width: 100%;
-  margin-top: auto;
+  margin-top: 8px;
 }
 
 .terms-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 12px;
   font-size: 12px;
   color: #99907c;
 }
@@ -725,65 +716,13 @@ function gotoRegister() {
   text-decoration: underline;
 }
 
-.login-page[data-theme="light"] .terms-row a {
+.register-page[data-theme="light"] .terms-row a {
   color: #9b7416;
-}
-
-.oauth-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 24px 0 12px;
-  color: #66563a;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-}
-
-.oauth-divider::before,
-.oauth-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.3), transparent);
-}
-
-.login-page[data-theme="light"] .oauth-divider::before,
-.login-page[data-theme="light"] .oauth-divider::after {
-  background: linear-gradient(90deg, transparent, rgba(155, 116, 22, 0.3), transparent);
-}
-
-.oauth-row {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-}
-
-.oauth-btn {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(212, 175, 55, 0.2);
-  background: transparent;
-  color: #99907c;
-  cursor: not-allowed;
-  border-radius: 0.25rem;
-  opacity: 0.5;
-  transition: opacity 0.2s, color 0.2s, border-color 0.2s;
-}
-
-.login-page[data-theme="light"] .oauth-btn {
-  border-color: rgba(155, 116, 22, 0.28);
-  color: #66563a;
-}
-
-.oauth-btn .material-symbols-outlined {
-  font-size: 20px;
 }
 
 .form-footer {
   text-align: center;
-  margin-top: 24px;
+  margin-top: 20px;
   font-size: 13px;
   color: #99907c;
 }
@@ -803,12 +742,12 @@ function gotoRegister() {
   text-decoration: underline;
 }
 
-.login-page[data-theme="light"] .link-btn {
+.register-page[data-theme="light"] .link-btn {
   color: #9b7416;
 }
 
 @media (max-width: 720px) {
-  .login-canvas {
+  .register-canvas {
     grid-template-columns: 1fr;
   }
   .brand-panel {
@@ -816,6 +755,7 @@ function gotoRegister() {
   }
   .form-panel {
     padding: 32px 24px;
+    max-height: none;
   }
   .theme-toggle {
     top: 12px;

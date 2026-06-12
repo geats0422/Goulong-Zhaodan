@@ -52,7 +52,7 @@ async def session(async_session_factory):
 @pytest_asyncio.fixture
 async def user_id(session: AsyncSession) -> int:
     user = User(
-        username="apikey_tester",
+        nickname="apikey_tester",
         hashed_password="fakehash",
     )
     session.add(user)

@@ -6,6 +6,8 @@ import types
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import uuid
+
 import pytest
 import pytest_asyncio
 
@@ -57,8 +59,8 @@ async def db(session_factory):
 
 
 @pytest_asyncio.fixture
-async def user_id(db: AsyncSession) -> int:
-    user = User(username="auth_tester", hashed_password="fakehash")
+async def user_id(db: AsyncSession):
+    user = User(nickname="auth_tester", hashed_password="fakehash")
     db.add(user)
     await db.commit()
     await db.refresh(user)
@@ -194,8 +196,8 @@ async def test_valid_api_key(client, db, user_id):
         )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["user_id"] == user_id
-    assert body["api_key_id"] == result["api_key"].id
+    assert uuid.UUID(body["user_id"]) == user_id
+    assert uuid.UUID(body["api_key_id"]) == result["api_key"].id
     assert "inspection:run" in body["scopes"]
 
 

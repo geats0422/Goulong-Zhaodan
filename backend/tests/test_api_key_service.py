@@ -62,7 +62,7 @@ async def db(session_factory):
 
 @pytest_asyncio.fixture
 async def user_id(db: AsyncSession) -> int:
-    user = User(username="service_tester", hashed_password="fakehash")
+    user = User(nickname="service_tester", hashed_password="fakehash")
     db.add(user)
     await db.commit()
     await db.refresh(user)
@@ -71,7 +71,7 @@ async def user_id(db: AsyncSession) -> int:
 
 @pytest_asyncio.fixture
 async def other_user_id(db: AsyncSession) -> int:
-    user = User(username="other_tester", hashed_password="fakehash")
+    user = User(nickname="other_tester", hashed_password="fakehash")
     db.add(user)
     await db.commit()
     await db.refresh(user)

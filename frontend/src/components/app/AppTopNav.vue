@@ -69,7 +69,7 @@ const goToSettings = () => {
 }
 
 const activeThemeOption = computed(() => themeOptions.find((item) => item.value === themeMode.value) ?? themeOptions[2])
-const username = computed(() => currentUser.value?.username || '用户')
+const username = computed(() => currentUser.value?.nickname || '用户')
 const avatarText = computed(() => username.value.slice(0, 1).toUpperCase())
 
 const handleSystemThemeChange = () => {

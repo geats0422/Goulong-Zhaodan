@@ -74,7 +74,11 @@ from main import app  # noqa: E402
 
 
 async def register_user(client: AsyncClient, username: str = "agent_user", password: str = VALID_PASSWORD):
-    response = await client.post("/auth/register", json={"username": username, "password": password})
+    response = await client.post("/auth/register", json={
+        "email": f"{username}@test.com",
+        "nickname": username,
+        "password": password,
+    })
     assert response.status_code == 201
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 ENGINEERING_CATEGORIES: dict[str, str] = {
+    "general": "通用法规",
     "new_infrastructure": "新基建",
     "traditional": "传统基建",
     "urban_renewal": "城市更新",

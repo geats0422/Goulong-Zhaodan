@@ -68,17 +68,40 @@
 
 ### 6. 用户知识库管理
 
-- 知识库按 `新基建 / 传统基建 / 城市更新` 三大工程分类组织
+- 知识库按 `通用法规 / 新基建 / 传统基建 / 城市更新` 四大工程分类组织
 - 用户可上传私有文档、启用/停用系统默认知识库
 - 支持按 `application_scenario`（招投标 / 合同）场景化召回
+- "通用法规"分类承载与具体工程类型无关的国家级法规（如《招标投标法》《民法典》等）
 
-### 7. 账号与个人设置
+### 7. 设置中枢（系统设置 / 账单订阅 / AI 模型 / 知识库 / 违禁词）
 
-- JWT + Refresh Token 双令牌体系（HS256）
-- 登录频率限制（防止爆破）
-- 弱密码黑名单 + 密码强度校验
-- 违禁词自定义（每个用户一份）
-- 个人资料 + 支付宝绑定 + 阅后即焚开关
+`/settings` 页面采用 5 个 tab 统一管理账号与平台设置：
+
+- **系统设置**：基础档案（用户名 / 手机 / 邮箱，唯一性校验）、账户安全（弹窗改密含眼睛图标 + 确认密码）、数据安全锁（阅后即焚开关）、第三方账号绑定展示
+- **账单订阅与管理**：当前订阅卡（计划名 + 价格 + 周期 + 配额进度条 `quota_used / monthly_quota`）、算力补充包（轻量/标准/企业）、升级弹窗（月度试剑/季度常驻/年度大匠）
+- **AI 模型与偏好**：从 `MODEL_CATALOG` 选择推理模型（DeepSeek V4 Pro / Flash）、查看模型信息条、数据脱敏开关（与系统设置数据安全锁双向同步）、模型 API Key 预览
+- **开发者 API Key**：4 种权限模板（MCP 只读 / CLI 审查 / Agent 自动化 / 高级自定义）、创建时自定义有效期（30/90/180/365 天 / 永不过期）、查看/隐藏/复制/吊销、二次确认弹窗
+- **知识库设置**：按工程分类展示系统 + 用户文档树
+- **违禁词设置**：用户级 CRUD（创建 / 编辑 / 删除）+ 体检上传时临时合并
+
+### 8. 营销着陆页
+
+4 个 Vue 路由驱动的着陆页，共享 `MarketingShell` 壳组件（支持浅色主题）：
+
+- `/` 营销首页（`MarketingHomePage.vue`）
+- `/solutions` 解决方案（`SolutionPage.vue`）
+- `/security` 安全合规（`SecurityPage.vue`）
+- `/cases` 客户案例（`CasesPage.vue`）
+- `/pricing` 版本与定价（`PricingPage.vue`，团队/企业区消费 `PLAN_CATALOG`）
+
+### 9. 主题切换
+
+`composables/useTheme.js` 持久化用户偏好到 `localStorage`，支持 `dark` / `light` 两种主题：
+
+- **深色**：Neo-Chinese Cyberpunk — `gold-on-obsidian`（`#0A0A0A` 背景 / `#d4af37` 金 / `#f2ca50` 金色文字）
+- **浅色**：暖玉纸面 — `#f7f1e3` 背景 / `#9b7416` 古铜金 / `#1f1a12` 墨色文字
+- 主题变量集中在 `frontend/src/style.css` 的 `:root` / `[data-theme="light"]` 选择器中
+- 所有交互组件（按钮、输入、下拉、卡片、导航）均完成两套主题适配
 
 ## 技术栈
 
@@ -120,7 +143,7 @@
 Goulong-Zhaodan/
 ├── backend/                  # Python + FastAPI 后端
 │   ├── agents/               # 多 Agent 流水线（inspector.py 协调器）
-│   ├── alembic/              # 数据库迁移（001~007）
+│   ├── alembic/              # 数据库迁移（001~011）
 │   ├── app/prompts/          # Agent 提示词管理（按场景模板化）
 │   ├── core/                 # 基础设施（auth, config, database, login_throttle, ...）
 │   ├── models/               # SQLAlchemy 模型（knowledge.py 集中式）
@@ -137,7 +160,7 @@ Goulong-Zhaodan/
 │   ├── src/
 │   │   ├── components/       # 业务组件（inspection/、app/、marketing/）
 │   │   ├── composables/      # 组合式函数（useAuth.js）
-│   │   ├── pages/            # 页面（Dashboard/KnowledgeBase/History/Statistics/Settings/Login/MarketingHome）
+│   │   ├── pages/            # 页面（Dashboard / KnowledgeBase / History / Statistics / Settings / Login / MarketingHome / Solution / Cases / Security / Pricing）
 │   │   ├── services/         # API 封装（inspectionApi.js / settingsApi.js）
 │   │   ├── router.js
 │   │   └── style.css         # 全局样式（含设计令牌）
@@ -251,8 +274,11 @@ MODEL_NAME=glm-4
 | 体检台 | `/inspection/stats/history?range=7d` | 统计 |
 | 知识库 | `/api/v1/knowledge/overview` `/api/v1/knowledge/upload` `/api/v1/knowledge/documents/{id}` `/api/v1/knowledge/retrieval` | 概览 / 上传 / 启停 / 检索 |
 | 设置 | `/settings/overview` `/settings/profile` `/settings/password` `/settings/taboo-words` | 概览 / 资料 / 密码 / 违禁词 |
-| Agent API | `/api/v1/agent/keys` `/api/v1/agent/keys/{id}` | API Key 管理（创建 / 吊销 / 列表） |
-| Agent API | `/api/v1/agent/me` `/api/v1/agent/jobs/inspect` `/api/v1/agent/jobs/{job_id}` | 身份查询 / 创建审查任务 / 查询任务状态 |
+| 设置 | `/settings/knowledge/documents/{id}` | 知识库文档启停 |
+| 设置 | `/settings/api-keys` `/settings/api-keys` `/settings/api-keys/{id}/secret` `/settings/api-keys/{id}` | 开发者 API Key 列表 / 创建 / 读取密钥 / 启停与吊销 |
+| Agent API | `/api/v1/agent/me` | 身份查询（按 API Key） |
+| Agent API | `/api/v1/agent/jobs/inspect` `/api/v1/agent/jobs/parse` `/api/v1/agent/jobs/{job_id}` | 创建审查 / 创建解析 / 查询任务状态 |
+| Agent API | `/api/v1/agent/records` `/api/v1/agent/records/{id}` `/api/v1/agent/knowledge/search` | 记录列表 / 详情 / 知识检索 |
 
 ## 开发与验证
 

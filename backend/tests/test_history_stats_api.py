@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import types
+import uuid
 from datetime import date
 from pathlib import Path
 import sys
@@ -27,7 +28,7 @@ from routers import inspection as inspection_router  # noqa: E402
 
 
 async def _override_user():
-    return {"user_id": "1", "username": "testuser", "is_active": True}
+    return {"user_id": "00000000-0000-0000-0000-000000000001", "is_active": True}
 
 
 client = TestClient(app)
@@ -66,7 +67,7 @@ def test_history_stats_aggregation_and_rate() -> None:
         [
             {
                 "id": 1,
-                "user_id": 1,
+                "user_id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
                 "project_id": "default",
                 "document_name": "a.txt",
                 "issues": [{"title": "违规"}],
@@ -75,7 +76,7 @@ def test_history_stats_aggregation_and_rate() -> None:
             },
             {
                 "id": 2,
-                "user_id": 1,
+                "user_id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
                 "project_id": "default",
                 "document_name": "b.txt",
                 "issues": [],

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import datetime
+import re
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
@@ -9,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.auth import get_current_user, hash_password, revoke_all_refresh_tokens, verify_password
+from core.config import settings
 from core.constants import ENGINEERING_CATEGORIES
 from core.database import get_db_session
 from core.password_rules import validate_password
@@ -23,16 +26,65 @@ from models.knowledge import (
 
 router = APIRouter(prefix="/settings", tags=["设置"])
 
+PLAN_CATALOG = {
+    "free":       {"label": "免费体验",   "period": "永久",  "price": "¥0",    "monthly_quota": 50,    "features": ["基础智能审查", "单文件上传", "Markdown 报告"]},
+    "personal":   {"label": "个人版",     "period": "/月",   "price": "¥39",   "monthly_quota": 500,   "features": ["多文件材料包", "私域红线标准", "本地脱敏", "阅后即焚"]},
+    "team":       {"label": "团队版",     "period": "/月",   "price": "¥299",  "monthly_quota": 3000,  "features": ["团队协作", "审计留痕", "自定义红线", "优先支持"]},
+    "enterprise": {"label": "企业定制",   "period": "按合同", "price": "议价",  "monthly_quota": None,  "features": ["私有化部署", "SSO 单点登录", "SLA 保障", "专属客户成功"]},
+}
+
+MODEL_CATALOG = [
+    {"model_name": "deepseek-ai/deepseek-v4-pro",   "label": "DeepSeek V4 Pro",   "tier": "高准确度 · 慢", "context": "128K"},
+    {"model_name": "deepseek-ai/deepseek-v4-flash", "label": "DeepSeek V4 Flash", "tier": "快速响应",      "context": "64K"},
+]
+
+SCOPE_TEMPLATES = [
+    {
+        "key": "mcp_readonly",
+        "label": "MCP 只读",
+        "description": "只读查询，适用于 Agent 上下文获取",
+        "scopes": ["profile:read", "inspection:read", "knowledge:read"],
+    },
+    {
+        "key": "cli_review",
+        "label": "CLI 审查",
+        "description": "查询 + AI 生成，适用于 CLI 工具",
+        "scopes": ["profile:read", "inspection:run", "inspection:read", "knowledge:read"],
+    },
+    {
+        "key": "agent_automation",
+        "label": "Agent 自动化",
+        "description": "完整业务自动化，含读写和 AI 生成",
+        "scopes": ["profile:read", "inspection:run", "inspection:read", "knowledge:read", "knowledge:write"],
+    },
+    {
+        "key": "advanced_custom",
+        "label": "高级自定义",
+        "description": "手动选择具权限范围",
+        "scopes": [],
+    },
+]
+
 
 class ProfileResponse(BaseModel):
-    username: str
-    display_name: str
+    nickname: str
+    email: str | None
+    phone: str | None
+    avatar_url: str | None
+    has_wechat: bool
+    has_alipay: bool
     subscription_plan: str
+    subscription_label: str
+    subscription_period: str
+    subscription_price: str
     monthly_quota: int
     quota_used: int
-    wechat_bound: bool
-    alipay_bound: bool
     burn_after_read: bool
+    model_name: str
+    model_base_url: str
+    model_api_key_preview: str
+    model_catalog: list[dict]
+    scope_templates: list[dict]
 
 
 class SettingsDocument(BaseModel):
@@ -69,19 +121,61 @@ class SettingsOverviewResponse(BaseModel):
 
 
 class ProfileUpdateRequest(BaseModel):
-    display_name: str | None = None
-    wechat_bound: bool | None = None
-    alipay_bound: bool | None = None
+    nickname: str | None = None
+    avatar_url: str | None = None
+    subscription_plan: str | None = None
+    model_name: str | None = None
     burn_after_read: bool | None = None
+    email: str | None = None
+    phone: str | None = None
 
-    @field_validator("display_name")
+    @field_validator("nickname")
     @classmethod
-    def validate_display_name(cls, value: str | None) -> str | None:
+    def validate_nickname(cls, value: str | None) -> str | None:
         if value is None:
             return value
         value = value.strip()
         if not value or len(value) > 100:
-            raise ValueError("显示名称长度须为 1-100 字符")
+            raise ValueError("昵称长度须为 1-100 字符")
+        return value
+
+    @field_validator("subscription_plan")
+    @classmethod
+    def validate_subscription_plan(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if value not in PLAN_CATALOG:
+            raise ValueError("subscription_plan 必须在 PLAN_CATALOG 中")
+        return value
+
+    @field_validator("model_name")
+    @classmethod
+    def validate_model_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        allowed = {m["model_name"] for m in MODEL_CATALOG}
+        if value not in allowed:
+            raise ValueError("model_name 必须在 MODEL_CATALOG 中")
+        return value
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        value = value.strip()
+        if not re.match(r"^\+?\d{6,20}$", value):
+            raise ValueError("手机号格式不正确（6-20 位数字，可带 + 前缀）")
+        return value
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        value = value.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", value):
+            raise ValueError("邮箱格式不正确")
         return value
 
 
@@ -136,14 +230,14 @@ class TabooWordUpdateRequest(TabooWordCreateRequest):
     pass
 
 
-def _current_user_id(user: dict) -> int:
+def _current_user_id(user: dict) -> uuid.UUID:
     try:
-        return int(user["user_id"])
+        return uuid.UUID(user["user_id"])
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=401, detail="Invalid user") from exc
 
 
-async def _get_user(db: AsyncSession, user_id: int) -> User:
+async def _get_user(db: AsyncSession, user_id: uuid.UUID) -> User:
     result = await db.execute(select(User).where(User.id == user_id))
     db_user = result.scalar_one_or_none()
     if db_user is None:
@@ -159,12 +253,9 @@ async def _get_or_create_profile(db: AsyncSession, db_user: User) -> UserProfile
 
     profile = UserProfile(
         user_id=db_user.id,
-        display_name=db_user.username,
-        subscription_plan="personal",
-        monthly_quota=500,
+        subscription_plan="free",
+        monthly_quota=50,
         quota_used=0,
-        wechat_bound=False,
-        alipay_bound=False,
         burn_after_read=True,
     )
     db.add(profile)
@@ -174,15 +265,29 @@ async def _get_or_create_profile(db: AsyncSession, db_user: User) -> UserProfile
 
 
 def _profile_response(db_user: User, profile: UserProfile) -> ProfileResponse:
+    key = settings.model_api_key
+    preview = f"****-****-{key[-4:]}" if len(key) >= 4 else "****"
+    plan = PLAN_CATALOG.get(profile.subscription_plan, PLAN_CATALOG["free"])
+    effective_model = profile.model_name or settings.model_name
     return ProfileResponse(
-        username=db_user.username,
-        display_name=profile.display_name,
+        nickname=db_user.nickname,
+        email=db_user.email,
+        phone=db_user.phone,
+        avatar_url=db_user.avatar_url,
+        has_wechat=db_user.wechat_openid is not None,
+        has_alipay=db_user.alipay_user_id is not None,
         subscription_plan=profile.subscription_plan,
-        monthly_quota=profile.monthly_quota,
+        subscription_label=plan["label"],
+        subscription_period=plan["period"],
+        subscription_price=plan["price"],
+        monthly_quota=profile.monthly_quota or plan["monthly_quota"] or 0,
         quota_used=profile.quota_used,
-        wechat_bound=profile.wechat_bound,
-        alipay_bound=profile.alipay_bound,
         burn_after_read=profile.burn_after_read,
+        model_name=effective_model,
+        model_base_url=settings.model_base_url,
+        model_api_key_preview=preview,
+        model_catalog=MODEL_CATALOG,
+        scope_templates=SCOPE_TEMPLATES,
     )
 
 
@@ -195,7 +300,7 @@ def _taboo_response(item: TabooWord) -> TabooWordResponse:
     )
 
 
-async def _build_knowledge(db: AsyncSession, user_id: int) -> list[SettingsKnowledgeCategory]:
+async def _build_knowledge(db: AsyncSession, user_id: uuid.UUID) -> list[SettingsKnowledgeCategory]:
     setting_result = await db.execute(
         select(KnowledgeDocumentSetting).where(KnowledgeDocumentSetting.user_id == user_id)
     )
@@ -260,10 +365,40 @@ async def update_profile(
     db_user = await _get_user(db, user_id)
     profile = await _get_or_create_profile(db, db_user)
 
-    for field in ("display_name", "wechat_bound", "alipay_bound", "burn_after_read"):
-        value = getattr(body, field)
-        if value is not None:
-            setattr(profile, field, value)
+    if body.nickname is not None:
+        db_user.nickname = body.nickname
+
+    if body.avatar_url is not None:
+        db_user.avatar_url = body.avatar_url
+
+    if body.subscription_plan is not None and body.subscription_plan != profile.subscription_plan:
+        plan_cfg = PLAN_CATALOG[body.subscription_plan]
+        profile.subscription_plan = body.subscription_plan
+        profile.monthly_quota = plan_cfg["monthly_quota"] or 0
+
+    if body.model_name is not None:
+        profile.model_name = body.model_name
+
+    if body.phone is not None:
+        if body.phone:
+            dup = await db.execute(
+                select(User).where(User.phone == body.phone, User.id != db_user.id)
+            )
+            if dup.scalar_one_or_none() is not None:
+                raise HTTPException(status_code=409, detail="手机号已被使用")
+        db_user.phone = body.phone
+
+    if body.email is not None:
+        if body.email:
+            dup = await db.execute(
+                select(User).where(User.email == body.email, User.id != db_user.id)
+            )
+            if dup.scalar_one_or_none() is not None:
+                raise HTTPException(status_code=409, detail="邮箱已被使用")
+        db_user.email = body.email
+
+    if body.burn_after_read is not None:
+        profile.burn_after_read = body.burn_after_read
 
     await db.commit()
     await db.refresh(profile)
@@ -391,7 +526,7 @@ class CreateApiKeyRequest(BaseModel):
 
 
 class ApiKeyResponse(BaseModel):
-    id: int
+    id: uuid.UUID
     name: str
     client_type: str
     scope_template: str
@@ -486,7 +621,7 @@ async def create_api_key_route(
 
 @router.get("/api-keys/{key_id}/secret", response_model=ApiKeySecretResponse)
 async def get_api_key_secret_route(
-    key_id: int,
+    key_id: uuid.UUID,
     db: AsyncSession = Depends(get_db_session),
     user: dict = Depends(get_current_user),
 ) -> ApiKeySecretResponse:
@@ -501,7 +636,7 @@ async def get_api_key_secret_route(
 
 @router.patch("/api-keys/{key_id}", response_model=ApiKeyResponse)
 async def update_api_key_route(
-    key_id: int,
+    key_id: uuid.UUID,
     body: UpdateApiKeyRequest,
     db: AsyncSession = Depends(get_db_session),
     user: dict = Depends(get_current_user),
@@ -525,7 +660,7 @@ async def update_api_key_route(
 
 @router.delete("/api-keys/{key_id}")
 async def revoke_api_key_route(
-    key_id: int,
+    key_id: uuid.UUID,
     db: AsyncSession = Depends(get_db_session),
     user: dict = Depends(get_current_user),
 ) -> dict:

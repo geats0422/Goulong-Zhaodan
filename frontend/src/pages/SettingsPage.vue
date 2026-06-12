@@ -1,6 +1,12 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
+import {
+  MODEL_CATALOG,
+  POWER_PACKS,
+  SCOPE_TEMPLATES,
+  SUB_PLANS,
+} from '../data/plans.js'
 import {
   createApiKey,
   createTabooWord,
@@ -17,10 +23,11 @@ import {
 
 const activeTab = ref('system')
 const tabs = [
-  { key: 'system', label: '[系统设置]' },
-  { key: 'knowledge', label: '[知识库设置]' },
-  { key: 'taboo', label: '[违禁词设置]' },
-  { key: 'apikey', label: '[API Key]' },
+  { key: 'system', label: '系统设置' },
+  { key: 'billing', label: '账单与订阅管理' },
+  { key: 'model', label: 'AI 模型与偏好' },
+  { key: 'knowledge', label: '知识库设置' },
+  { key: 'taboo', label: '违禁词设置' },
 ]
 
 const loading = ref(true)
@@ -30,49 +37,43 @@ const message = ref('')
 const profile = ref(null)
 const knowledge = ref([])
 const tabooWords = ref([])
-const profileForm = ref({ display_name: '', wechat_bound: false, alipay_bound: false, burn_after_read: true })
-const passwordForm = ref({ old_password: '', new_password: '' })
-const tabooForm = ref({ word: '', replacement: '', note: '' })
-const editingTabooId = ref(null)
+
+const editingIdentity = ref(false)
+const identityForm = ref({ nickname: '', phone: '', email: '' })
+
+const showChangePasswordDialog = ref(false)
+const passwordForm = ref({ old_password: '', new_password: '', confirm_new_password: '' })
+const passwordError = ref('')
+const showOldPassword = ref(false)
+const showNewPassword = ref(false)
+const showConfirmPassword = ref(false)
+
+const wechatBound = ref(false)
+const alipayBound = ref(false)
+const burnAfterRead = ref(true)
+
+const showUpgradeDialog = ref(false)
+const upgradingPlanKey = ref(null)
 
 const apiKeys = ref([])
-const apiKeyLoading = ref(false)
-const apiKeyError = ref('')
-const revealedKeys = ref({})
-const newKeyResult = ref(null)
-const apiKeyForm = ref({
-  name: '',
-  client_type: 'mcp',
-  scope_template: 'mcp_readonly',
-  scopes: [],
-  expires_at: '',
-})
-
-const clientTypeLabels = {
-  mcp: 'MCP',
-  cli: 'CLI',
-  skill: 'Skill',
-  agent: 'Agent',
-  other: '其他',
-}
-
-const scopeTemplateLabels = {
-  mcp_readonly: 'MCP 只读',
-  cli_inspection: 'CLI 审查',
-  agent_automation: 'Agent 自动化',
-  custom: '高级自定义',
-}
-
-const availableScopes = [
-  'read:settings',
-  'write:settings',
-  'read:knowledge',
-  'write:knowledge',
-  'read:taboo',
-  'write:taboo',
-  'read:api-keys',
-  'write:api-keys',
+const secretCache = ref({})
+const confirmingKeyId = ref(null)
+const confirmAction = ref(null)
+const confirmMessage = ref('')
+const showApiKeyForm = ref(false)
+const newKeyForm = ref({ name: '', scope_template: 'mcp_readonly', expires_in_days: 90, custom_scopes: [] })
+const newlyCreatedKey = ref(null)
+const showExpiryDropdown = ref(false)
+const expiryOptions = [
+  { value: 30, label: '30 天' },
+  { value: 90, label: '90 天', recommended: true },
+  { value: 180, label: '180 天' },
+  { value: 365, label: '365 天' },
+  { value: 0, label: '永不过期' },
 ]
+
+const tabooForm = ref({ word: '', replacement: '', note: '' })
+const editingTabooId = ref(null)
 
 const quotaPercent = computed(() => {
   if (!profile.value?.monthly_quota) return 0
@@ -87,11 +88,13 @@ async function loadSettings() {
     profile.value = data.profile
     knowledge.value = data.knowledge || []
     tabooWords.value = data.taboo_words || []
-    profileForm.value = {
-      display_name: data.profile.display_name,
-      wechat_bound: data.profile.wechat_bound,
-      alipay_bound: data.profile.alipay_bound,
-      burn_after_read: data.profile.burn_after_read,
+    wechatBound.value = data.profile.has_wechat
+    alipayBound.value = data.profile.has_alipay
+    burnAfterRead.value = data.profile.burn_after_read
+    identityForm.value = {
+      nickname: data.profile.nickname,
+      phone: data.profile.phone || '',
+      email: data.profile.email || '',
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : '设置加载失败'
@@ -100,28 +103,239 @@ async function loadSettings() {
   }
 }
 
-async function saveProfile() {
+async function loadApiKeys() {
+  try {
+    apiKeys.value = await listApiKeys()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'API Key 加载失败'
+  }
+}
+
+function startEditingIdentity() {
+  identityForm.value = {
+    nickname: profile.value.nickname,
+    phone: profile.value.phone || '',
+    email: profile.value.email || '',
+  }
+  editingIdentity.value = true
+}
+
+function cancelEditingIdentity() {
+  editingIdentity.value = false
+}
+
+async function saveIdentity() {
   saving.value = true
   message.value = ''
   try {
-    profile.value = await updateProfile(profileForm.value)
-    message.value = '系统设置已保存'
+    profile.value = await updateProfile({
+      nickname: identityForm.value.nickname,
+      phone: identityForm.value.phone || null,
+      email: identityForm.value.email || null,
+    })
+    editingIdentity.value = false
+    message.value = '身份信息已更新'
+    const stored = sessionStorage.getItem('goulong_current_user')
+    if (stored) {
+      const u = JSON.parse(stored)
+      u.nickname = identityForm.value.nickname
+      sessionStorage.setItem('goulong_current_user', JSON.stringify(u))
+    }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '保存失败'
+    if (err.message?.includes('409') || err.message?.includes('已被') || err.message?.includes('占用')) {
+      error.value = '该手机号/邮箱已被使用'
+    } else {
+      error.value = err.message
+    }
   } finally {
     saving.value = false
   }
 }
 
-async function savePassword() {
+function openChangePasswordDialog() {
+  passwordForm.value = { old_password: '', new_password: '', confirm_new_password: '' }
+  passwordError.value = ''
+  showOldPassword.value = false
+  showNewPassword.value = false
+  showConfirmPassword.value = false
+  showChangePasswordDialog.value = true
+}
+
+function cancelChangePassword() {
+  showChangePasswordDialog.value = false
+}
+
+async function submitChangePassword() {
+  if (passwordForm.value.new_password !== passwordForm.value.confirm_new_password) {
+    passwordError.value = '两次输入的新密码不一致'
+    return
+  }
+  saving.value = true
+  passwordError.value = ''
+  try {
+    await updatePassword({
+      old_password: passwordForm.value.old_password,
+      new_password: passwordForm.value.new_password,
+    })
+    showChangePasswordDialog.value = false
+    message.value = '密码已更新，请重新登录'
+    setTimeout(() => { window.location.href = '/login' }, 1500)
+  } catch (err) {
+    passwordError.value = err.message
+  } finally {
+    saving.value = false
+  }
+}
+
+async function toggleBurnAfterRead() {
+  burnAfterRead.value = !burnAfterRead.value
+  saving.value = true
+  try {
+    profile.value = await updateProfile({ burn_after_read: burnAfterRead.value })
+    message.value = burnAfterRead.value ? '已开启数据脱敏' : '已关闭数据脱敏'
+  } catch (err) {
+    burnAfterRead.value = !burnAfterRead.value
+    error.value = err.message
+  } finally {
+    saving.value = false
+  }
+}
+
+async function selectModel(modelName) {
   saving.value = true
   message.value = ''
   try {
-    await updatePassword(passwordForm.value)
-    passwordForm.value = { old_password: '', new_password: '' }
-    message.value = '密码已更新'
+    profile.value = await updateProfile({ model_name: modelName })
+    message.value = '模型已切换'
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '密码更新失败'
+    error.value = err.message
+  } finally {
+    saving.value = false
+  }
+}
+
+function openUpgradeDialog() {
+  upgradingPlanKey.value = null
+  showUpgradeDialog.value = true
+}
+
+function closeUpgradeDialog() {
+  showUpgradeDialog.value = false
+}
+
+function selectUpgradePlan(key) {
+  upgradingPlanKey.value = key
+}
+
+async function confirmUpgrade() {
+  if (!upgradingPlanKey.value) return
+  saving.value = true
+  try {
+    profile.value = await updateProfile({ subscription_plan: upgradingPlanKey.value })
+    showUpgradeDialog.value = false
+    message.value = '订阅方案已更新'
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleEyeClick(keyId) {
+  if (secretCache.value[keyId]) {
+    delete secretCache.value[keyId]
+    return
+  }
+  confirmAction.value = 'reveal'
+  confirmingKeyId.value = keyId
+  confirmMessage.value = '显示完整密钥存在泄露风险，确认显示？'
+}
+
+async function handleCopyClick(keyId) {
+  if (secretCache.value[keyId]) {
+    await navigator.clipboard.writeText(secretCache.value[keyId])
+    message.value = '已复制到剪贴板'
+    return
+  }
+  confirmAction.value = 'copy'
+  confirmingKeyId.value = keyId
+  confirmMessage.value = '复制密钥前需显示完整内容，确认显示并复制？'
+}
+
+async function handleRevokeClick(keyId) {
+  confirmAction.value = 'revoke'
+  confirmingKeyId.value = keyId
+  confirmMessage.value = '撤销后该密钥将立即失效，无法恢复。确认撤销？'
+}
+
+async function confirmAction2() {
+  const id = confirmingKeyId.value
+  const action = confirmAction.value
+  confirmingKeyId.value = null
+  confirmAction.value = null
+  confirmMessage.value = ''
+  if (!id) return
+  if (action === 'revoke') {
+    try {
+      await revokeApiKey(id)
+      delete secretCache.value[id]
+      await loadApiKeys()
+      message.value = 'API Key 已撤销'
+    } catch (err) {
+      error.value = err.message
+    }
+    return
+  }
+  try {
+    const data = await getApiKeySecret(id)
+    secretCache.value[id] = data.full_key
+    if (action === 'copy') {
+      await navigator.clipboard.writeText(data.full_key)
+      message.value = '已复制到剪贴板'
+    }
+    await loadApiKeys()
+  } catch (err) {
+    error.value = err.message
+  }
+}
+
+function cancelConfirm() {
+  confirmingKeyId.value = null
+  confirmAction.value = null
+  confirmMessage.value = ''
+}
+
+function openCreateApiKey() {
+  newKeyForm.value = { name: '', scope_template: 'mcp_readonly', expires_in_days: 90, custom_scopes: [] }
+  showApiKeyForm.value = true
+  newlyCreatedKey.value = null
+}
+
+function cancelCreateApiKey() {
+  showApiKeyForm.value = false
+}
+
+async function submitCreateApiKey() {
+  saving.value = true
+  message.value = ''
+  try {
+    const payload = {
+      name: newKeyForm.value.name,
+      scope_template: newKeyForm.value.scope_template,
+    }
+    if (newKeyForm.value.scope_template === 'advanced_custom' && newKeyForm.value.custom_scopes.length) {
+      payload.scopes = newKeyForm.value.custom_scopes
+    }
+    if (newKeyForm.value.expires_in_days) {
+      payload.expires_at = new Date(Date.now() + newKeyForm.value.expires_in_days * 24 * 60 * 60 * 1000).toISOString()
+    }
+    const created = await createApiKey(payload)
+    newlyCreatedKey.value = created
+    showApiKeyForm.value = false
+    await loadApiKeys()
+    message.value = 'API Key 已创建'
+  } catch (err) {
+    error.value = err.message
   } finally {
     saving.value = false
   }
@@ -180,119 +394,14 @@ async function removeTabooWord(wordId) {
   }
 }
 
-async function loadApiKeys() {
-  apiKeyLoading.value = true
-  apiKeyError.value = ''
-  try {
-    apiKeys.value = await listApiKeys()
-  } catch (err) {
-    apiKeyError.value = err instanceof Error ? err.message : 'API Key 列表加载失败'
-  } finally {
-    apiKeyLoading.value = false
-  }
-}
-
-function resetApiKeyForm() {
-  apiKeyForm.value = {
-    name: '',
-    client_type: 'mcp',
-    scope_template: 'mcp_readonly',
-    scopes: [],
-    expires_at: '',
-  }
-  newKeyResult.value = null
-}
-
-async function submitApiKey() {
-  saving.value = true
-  message.value = ''
-  try {
-    const payload = {
-      name: apiKeyForm.value.name,
-      client_type: apiKeyForm.value.client_type,
-      scope_template: apiKeyForm.value.scope_template,
-    }
-    if (apiKeyForm.value.scope_template === 'custom') {
-      payload.scopes = apiKeyForm.value.scopes
-    }
-    if (apiKeyForm.value.expires_at) {
-      payload.expires_at = apiKeyForm.value.expires_at
-    }
-    const created = await createApiKey(payload)
-    newKeyResult.value = created
-    await loadApiKeys()
-    message.value = 'API Key 已创建'
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'API Key 创建失败'
-  } finally {
-    saving.value = false
-  }
-}
-
-async function toggleRevealKey(keyId) {
-  if (revealedKeys.value[keyId]) {
-    revealedKeys.value = { ...revealedKeys.value, [keyId]: null }
-    return
-  }
-  if (!confirm('显示完整密钥存在泄露风险，确认显示？')) return
-  try {
-    const result = await getApiKeySecret(keyId)
-    revealedKeys.value = { ...revealedKeys.value, [keyId]: result.full_key }
-    const key = apiKeys.value.find((k) => k.id === keyId)
-    if (key) key.last_viewed_at = new Date().toISOString()
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : '获取密钥失败'
-  }
-}
-
-async function copyApiKey(keyId) {
-  const revealed = revealedKeys.value[keyId] || (newKeyResult.value?.id === keyId ? newKeyResult.value.full_key : null)
-  if (!revealed) {
-    if (!confirm('需要获取完整密钥才能复制，确认继续？')) return
-    try {
-      const result = await getApiKeySecret(keyId)
-      revealedKeys.value = { ...revealedKeys.value, [keyId]: result.full_key }
-      await doCopy(result.full_key)
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : '获取密钥失败'
-    }
-    return
-  }
-  await doCopy(revealed)
-}
-
-async function doCopy(text) {
-  try {
-    await navigator.clipboard.writeText(text)
-    message.value = '已复制到剪贴板'
-  } catch {
-    error.value = '复制失败，请手动复制'
-  }
-}
-
-async function handleRevokeKey(keyId) {
-  if (!confirm('确认撤销此 API Key？撤销后不可恢复。')) return
-  try {
-    await revokeApiKey(keyId)
-    apiKeys.value = apiKeys.value.filter((k) => k.id !== keyId)
-    revealedKeys.value = { ...revealedKeys.value, [keyId]: null }
-    message.value = 'API Key 已撤销'
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : '撤销失败'
-  }
-}
-
-onMounted(loadSettings)
-
-watch(activeTab, (tab) => {
-  if (tab === 'apikey' && !apiKeys.value.length && !apiKeyLoading.value) {
-    loadApiKeys()
-  }
+onMounted(() => {
+  loadSettings()
+  loadApiKeys()
 })
 </script>
 
 <template>
-  <div class="dashboard-page settings-page">
+  <div class="settings-page">
     <AppTopNav active="settings" />
 
     <main class="settings-main">
@@ -317,91 +426,369 @@ watch(activeTab, (tab) => {
       </nav>
 
       <section v-if="!loading && profile && activeTab === 'system'" class="settings-content system-settings">
-        <article class="settings-card circuit-card card-primary">
+        <article class="settings-card">
           <header>
-            <span class="material-symbols-outlined">account_balance_wallet</span>
-            <h2>令鉴与配额</h2>
-          </header>
-          <div class="quota-grid">
-            <div>
-              <p class="setting-label">当前订阅等级</p>
-              <strong><span class="material-symbols-outlined">workspace_premium</span>{{ profile.subscription_plan }}</strong>
+            <div class="card-header-main">
+              <span class="card-ref">REF.GL-001</span>
+              <h2>基础档案</h2>
             </div>
-            <div>
-              <div class="quota-head">
-                <p class="setting-label">本月可用体检额度</p>
-                <span>{{ profile.quota_used }} / {{ profile.monthly_quota }}</span>
-              </div>
-              <div class="quota-track"><i :style="{ width: `${quotaPercent}%` }"></i></div>
+            <button v-if="!editingIdentity" class="ghost-btn" type="button" @click="startEditingIdentity">编辑</button>
+          </header>
+          <div class="account-status-row">
+            <span class="account-status-dot"></span>
+            <span class="account-status-label">账号状态：</span>
+            <strong>正常</strong>
+          </div>
+          <div v-if="!editingIdentity" class="identity-grid">
+            <div class="identity-row">
+              <span class="identity-label">昵称</span>
+              <span class="identity-value">{{ profile.nickname }}</span>
+            </div>
+            <div class="identity-row">
+              <span class="identity-label">绑定手机号</span>
+              <span class="identity-value identity-muted">{{ profile.phone || '—' }}</span>
+              <button class="ghost-btn ghost-btn-sm" type="button" @click="startEditingIdentity">{{ profile.phone ? '更换' : '绑定' }}</button>
+            </div>
+            <div class="identity-row">
+              <span class="identity-label">绑定邮箱</span>
+              <span class="identity-value identity-muted">{{ profile.email || '—' }}</span>
+              <button class="ghost-btn ghost-btn-sm" type="button" @click="startEditingIdentity">{{ profile.email ? '更换' : '绑定' }}</button>
+            </div>
+          </div>
+          <div v-else class="identity-grid">
+            <label class="identity-edit-row">
+              <span class="identity-label">昵称</span>
+              <input v-model="identityForm.nickname" class="edit-input" />
+            </label>
+            <label class="identity-edit-row">
+              <span class="identity-label">手机号</span>
+              <input v-model="identityForm.phone" class="edit-input" placeholder="13xxxxxxxxx" />
+            </label>
+            <label class="identity-edit-row">
+              <span class="identity-label">邮箱</span>
+              <input v-model="identityForm.email" class="edit-input" placeholder="example@domain.com" />
+            </label>
+            <div class="identity-edit-actions">
+              <button class="primary-btn" type="button" :disabled="saving" @click="saveIdentity">保存</button>
+              <button class="ghost-btn" type="button" @click="cancelEditingIdentity">取消</button>
             </div>
           </div>
         </article>
 
         <article class="settings-card">
           <header>
-            <span class="material-symbols-outlined muted-icon">badge</span>
-            <h2>身份与绑定</h2>
-          </header>
-          <div class="identity-grid">
-            <label>
-              <span>用户名</span>
-              <input readonly :value="profile.username" />
-            </label>
-            <label>
-              <span>显示名称</span>
-              <input v-model="profileForm.display_name" maxlength="100" />
-            </label>
-          </div>
-          <div class="binding-section">
-            <p class="setting-label">第三方鉴权绑定</p>
-            <div class="binding-row">
-              <span class="binding-chip" :class="{ active: profileForm.wechat_bound }">
-                微信 <small>{{ profileForm.wechat_bound ? '已绑定' : '未绑定' }}</small>
-                <button type="button" @click="profileForm.wechat_bound = !profileForm.wechat_bound">切换</button>
-              </span>
-              <span class="binding-chip" :class="{ active: profileForm.alipay_bound }">
-                支付宝 <small>{{ profileForm.alipay_bound ? '已绑定' : '未绑定' }}</small>
-                <button type="button" @click="profileForm.alipay_bound = !profileForm.alipay_bound">切换</button>
-              </span>
+            <div class="card-header-main">
+              <span class="card-ref">REF.GL-002</span>
+              <h2>账户安全</h2>
             </div>
+          </header>
+          <div class="account-status-row">
+            <span class="identity-label">登录密码</span>
+            <span class="identity-value">••••••••</span>
+            <button class="ghost-btn" type="button" @click="openChangePasswordDialog">更改密码</button>
           </div>
-          <button class="settings-action" type="button" :disabled="saving" @click="saveProfile">保存系统设置</button>
+          <p class="security-hint">用于登录验证、敏感操作的二次确认</p>
         </article>
 
         <article class="settings-card">
-          <header><span class="material-symbols-outlined muted-icon">lock_reset</span><h2>修改密码</h2></header>
-          <div class="identity-grid">
-            <label><span>旧密码</span><input v-model="passwordForm.old_password" type="password" /></label>
-            <label><span>新密码</span><input v-model="passwordForm.new_password" type="password" minlength="6" /></label>
-          </div>
-          <button class="settings-action" type="button" :disabled="saving" @click="savePassword">更新密码</button>
-        </article>
-
-        <article class="settings-card circuit-card card-primary safety-card">
-          <div>
-            <header>
-              <span class="material-symbols-outlined">enhanced_encryption</span>
+          <header>
+            <div class="card-header-main">
+              <span class="card-ref">REF.GL-003</span>
               <h2>数据安全锁</h2>
-            </header>
-            <p>激活后，所有会话结束立即清除内存残留痕迹，符合最高级保密标准。</p>
-          </div>
-          <div class="burn-toggle">
-            <span>阅后即焚模式</span>
-            <label aria-label="阅后即焚模式">
-              <input v-model="profileForm.burn_after_read" type="checkbox" />
-              <i></i>
+            </div>
+            <label class="switch" :class="{ active: burnAfterRead }">
+              <input type="checkbox" :checked="burnAfterRead" @change="toggleBurnAfterRead" />
+              <span class="switch-track"></span>
+              <span class="switch-label">{{ burnAfterRead ? '已激活' : '未激活' }}</span>
             </label>
+          </header>
+          <p class="security-hint">激活后，所有会话结束立即清除内存残留痕迹，符合最高级保密标准。</p>
+        </article>
+
+        <article class="settings-card">
+          <header>
+            <div class="card-header-main">
+              <span class="card-ref">REF.GL-004</span>
+              <h2>第三方账号绑定</h2>
+            </div>
+          </header>
+          <p class="security-hint">绑定后可使用快捷登录及系统订阅服务</p>
+          <div class="third-party-grid">
+            <div class="third-party-row">
+              <span class="material-symbols-outlined">chat</span>
+              <span class="third-party-name">微信绑定</span>
+              <span class="third-party-status">{{ wechatBound ? '已绑定' : '加载中...' }}</span>
+              <button class="ghost-btn" type="button" @click="wechatBound = !wechatBound">{{ wechatBound ? '解除绑定' : '立即绑定' }}</button>
+            </div>
+            <div class="third-party-row">
+              <span class="material-symbols-outlined">account_balance</span>
+              <span class="third-party-name">支付宝绑定</span>
+              <span class="third-party-status">{{ alipayBound ? '已绑定' : '加载中...' }}</span>
+              <button class="ghost-btn" type="button" @click="alipayBound = !alipayBound">{{ alipayBound ? '解除绑定' : '立即绑定' }}</button>
+            </div>
           </div>
         </article>
+
+        <div v-if="showChangePasswordDialog" class="modal-overlay" @click.self="cancelChangePassword">
+          <div class="modal-card modal-card-sm">
+            <header class="modal-header">
+              <h3>更改密码</h3>
+              <button class="icon-btn" type="button" @click="cancelChangePassword">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </header>
+            <div class="modal-body">
+              <label class="form-row">
+                <span>当前密码</span>
+                <div class="password-input-wrap">
+                  <input v-model="passwordForm.old_password" :type="showOldPassword ? 'text' : 'password'" class="form-input" placeholder="输入当前密码" />
+                  <button type="button" class="password-toggle" @click="showOldPassword = !showOldPassword">
+                    <span class="material-symbols-outlined">{{ showOldPassword ? 'visibility_off' : 'visibility' }}</span>
+                  </button>
+                </div>
+              </label>
+              <label class="form-row">
+                <span>新密码</span>
+                <div class="password-input-wrap">
+                  <input v-model="passwordForm.new_password" :type="showNewPassword ? 'text' : 'password'" class="form-input" placeholder="设置新密码" minlength="6" />
+                  <button type="button" class="password-toggle" @click="showNewPassword = !showNewPassword">
+                    <span class="material-symbols-outlined">{{ showNewPassword ? 'visibility_off' : 'visibility' }}</span>
+                  </button>
+                </div>
+                <small class="form-hint">至少 6 位</small>
+              </label>
+              <label class="form-row">
+                <span>确认新密码</span>
+                <div class="password-input-wrap">
+                  <input v-model="passwordForm.confirm_new_password" :type="showConfirmPassword ? 'text' : 'password'" class="form-input" placeholder="再次输入新密码" />
+                  <button type="button" class="password-toggle" @click="showConfirmPassword = !showConfirmPassword">
+                    <span class="material-symbols-outlined">{{ showConfirmPassword ? 'visibility_off' : 'visibility' }}</span>
+                  </button>
+                </div>
+              </label>
+              <p v-if="passwordError" class="form-error">{{ passwordError }}</p>
+            </div>
+            <footer class="modal-footer">
+              <button class="ghost-btn" type="button" @click="cancelChangePassword">取消</button>
+              <button class="primary-btn" type="button" :disabled="saving" @click="submitChangePassword">确认修改</button>
+            </footer>
+          </div>
+        </div>
       </section>
 
-      <section v-else-if="!loading && activeTab === 'knowledge'" class="settings-content knowledge-settings full-width">
-        <article v-for="category in knowledge" :key="category.category_key" class="settings-card private-archive circuit-card card-primary">
-          <header><span class="material-symbols-outlined">folder_special</span><h2>{{ category.category_label }}</h2></header>
+      <section v-else-if="!loading && profile && activeTab === 'billing'" class="settings-content billing-settings">
+        <article class="settings-card billing-tier-card">
+          <div class="billing-tier-head">
+            <div>
+              <span class="card-ref">REF.SUB-001</span>
+              <h2>{{ profile.subscription_label }}<span class="tier-tag" :class="profile.subscription_plan === 'free' ? 'tier-tag-free' : 'tier-tag-paid'">{{ profile.subscription_plan === 'free' ? '未订阅' : profile.subscription_period }}</span></h2>
+              <p class="billing-tier-hint">{{ profile.subscription_plan === 'free' ? '当前为免费体验等级，未购买任何付费方案。' : `当前为${profile.subscription_label}（${profile.subscription_price}${profile.subscription_period}），可通过下方算力包扩展配额。` }}</p>
+            </div>
+            <button v-if="profile.subscription_plan === 'free'" class="primary-btn" type="button" @click="openUpgradeDialog">立即升级</button>
+          </div>
+          <div class="billing-quota-bar">
+            <div class="quota-bar-header">
+              <span class="quota-bar-label">已用额度</span>
+              <span class="quota-bar-value">{{ profile.quota_used }} / {{ profile.monthly_quota }}</span>
+            </div>
+            <div class="quota-bar-track">
+              <div class="quota-bar-fill" :style="{ width: Math.min(100, (profile.quota_used / Math.max(1, profile.monthly_quota)) * 100) + '%' }"></div>
+            </div>
+          </div>
+        </article>
+
+        <h3 class="section-title"><span class="material-symbols-outlined">bolt</span>算力补充包</h3>
+        <div class="power-pack-grid">
+          <article v-for="pack in POWER_PACKS" :key="pack.key" class="power-pack-card" :class="{ recommended: pack.recommended }">
+            <span class="card-ref">{{ pack.ref }}</span>
+            <span v-if="pack.recommended" class="recommend-tag">最受欢迎</span>
+            <h3 class="pack-name">{{ pack.name }}</h3>
+            <p class="pack-price">{{ pack.price }}<span class="pack-unit">{{ pack.unit }}</span></p>
+            <ul class="pack-features">
+              <li v-for="f in pack.features" :key="f.text" :class="{ disabled: !f.ok }">
+                <span class="material-symbols-outlined">{{ f.ok ? 'check' : 'close' }}</span>{{ f.text }}
+              </li>
+            </ul>
+            <button class="ghost-btn ghost-btn-block" type="button" @click="message = `已记录购买意向：${pack.name}（支付即将上线）`">购买</button>
+          </article>
+        </div>
+
+        <div v-if="showUpgradeDialog" class="modal-overlay" @click.self="closeUpgradeDialog">
+          <div class="modal-card modal-card-lg">
+            <header class="modal-header">
+              <div>
+                <span class="card-ref">REF.SUB-MODAL</span>
+                <h3>订阅方案</h3>
+                <p class="modal-subtitle">选择适合您的数字笔杆子。告别幻觉，字字有据。</p>
+              </div>
+              <button class="icon-btn" type="button" @click="closeUpgradeDialog">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </header>
+            <div class="upgrade-grid">
+              <article v-for="sub in SUB_PLANS" :key="sub.key" class="upgrade-card" :class="{ selected: upgradingPlanKey === sub.key, recommended: sub.recommended }">
+                <span class="card-ref">{{ sub.ref }}</span>
+                <h4 class="upgrade-name">{{ sub.name }}</h4>
+                <p class="upgrade-price">{{ sub.price }}<span class="upgrade-period">{{ sub.period }}</span></p>
+                <ul class="upgrade-features">
+                  <li v-for="f in sub.features" :key="f">
+                    <span class="material-symbols-outlined">check</span>{{ f }}
+                  </li>
+                </ul>
+                <button class="primary-btn primary-btn-block" type="button" :disabled="saving" @click="selectUpgradePlan(sub.key); confirmUpgrade()">
+                  {{ sub.actionLabel }}
+                </button>
+              </article>
+            </div>
+            <footer class="modal-footer">
+              <span class="modal-security-hint"><span class="material-symbols-outlined">verified</span>所有方案均含银行级加密与数据隔离保护</span>
+              <a href="/pricing" class="modal-link">查看完整方案对比 →</a>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section v-else-if="!loading && profile && activeTab === 'model'" class="settings-content model-settings">
+        <article class="settings-card">
+          <header>
+            <div class="card-header-main">
+              <span class="card-ref">REF.MODEL-001</span>
+              <h2>AI 模型选择</h2>
+            </div>
+          </header>
+          <p class="security-hint">选择驱动审查引擎的底层模型。不同模型在推理深度与响应速度之间存在权衡。</p>
+          <div class="model-card-grid">
+            <div v-for="card in MODEL_CATALOG" :key="card.model_name" class="model-card" :class="{ selected: profile.model_name === card.model_name }" @click="selectModel(card.model_name)">
+              <span v-if="profile.model_name === card.model_name" class="material-symbols-outlined model-check">check_circle</span>
+              <strong class="model-card-title">{{ card.label }}</strong>
+              <span class="model-card-tier">{{ card.tier }}</span>
+              <span class="model-card-context">上下文：{{ card.context }}</span>
+            </div>
+          </div>
+          <div class="model-info-bar">
+            <span>当前服务端：{{ profile.model_base_url }}</span>
+            <span>API Key：{{ profile.model_api_key_preview }}</span>
+          </div>
+          <label class="switch switch-row" :class="{ active: burnAfterRead }">
+            <span class="switch-label-text">启用数据脱敏（身份证 / 手机号 / 银行卡 / 金额）</span>
+            <span class="switch-track-wrap">
+              <input type="checkbox" :checked="burnAfterRead" @change="toggleBurnAfterRead" />
+              <span class="switch-track"></span>
+            </span>
+          </label>
+        </article>
+
+        <article class="settings-card">
+          <header>
+            <div class="card-header-main">
+              <span class="card-ref">REF.API-001</span>
+              <h2>开发者 API Key</h2>
+            </div>
+            <button v-if="!showApiKeyForm && !newlyCreatedKey" class="primary-btn" type="button" @click="openCreateApiKey">创建 API Key</button>
+          </header>
+          <p class="security-hint">用于 Agent / MCP / CLI 调用。后端记录 last_viewed_at、last_used_at。</p>
+
+          <form v-if="showApiKeyForm" class="apikey-form" @submit.prevent="submitCreateApiKey">
+            <label class="form-row">
+              <span>密钥名称 <em>*</em></span>
+              <input v-model="newKeyForm.name" class="form-input" required maxlength="100" placeholder="如：我的 CLI 工具" />
+            </label>
+            <div class="form-row">
+              <span>权限模板</span>
+              <div class="scope-template-grid">
+                <label v-for="tpl in SCOPE_TEMPLATES" :key="tpl.key" class="scope-template-card" :class="{ selected: newKeyForm.scope_template === tpl.key }">
+                  <input v-model="newKeyForm.scope_template" type="radio" :value="tpl.key" />
+                  <div>
+                    <strong>{{ tpl.label }}</strong>
+                    <span>{{ tpl.description }}</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+            <div class="form-row">
+              <span>有效期</span>
+              <div class="custom-select" :class="{ open: showExpiryDropdown }" tabindex="0" @focusout="showExpiryDropdown = false">
+                <button type="button" class="custom-select-trigger" @click="showExpiryDropdown = !showExpiryDropdown">
+                  <span>{{ expiryOptions.find(o => o.value === newKeyForm.expires_in_days)?.label || '选择有效期' }}</span>
+                  <span class="material-symbols-outlined custom-select-arrow">expand_more</span>
+                </button>
+                <ul v-if="showExpiryDropdown" class="custom-select-options">
+                  <li v-for="opt in expiryOptions" :key="opt.value" :class="{ active: newKeyForm.expires_in_days === opt.value }" @click="newKeyForm.expires_in_days = opt.value; showExpiryDropdown = false">
+                    {{ opt.label }}
+                    <span v-if="opt.recommended" class="option-badge">推荐</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="primary-btn" type="submit" :disabled="saving">创建</button>
+              <button class="ghost-btn" type="button" @click="cancelCreateApiKey">取消</button>
+            </div>
+          </form>
+
+          <div v-if="newlyCreatedKey" class="apikey-new-key">
+            <p class="apikey-new-hint">请立即复制完整密钥，关闭后将无法再次查看：</p>
+            <div class="apikey-new-row">
+              <code>{{ newlyCreatedKey.full_key }}</code>
+              <button class="primary-btn" type="button" @click="navigator.clipboard.writeText(newlyCreatedKey.full_key); message = '已复制'">复制</button>
+              <button class="ghost-btn" type="button" @click="newlyCreatedKey = null">关闭</button>
+            </div>
+          </div>
+
+          <div v-if="!apiKeys.length && !showApiKeyForm" class="empty-state">暂无 API Key</div>
+          <div v-else class="apikey-list">
+            <div v-for="key in apiKeys" :key="key.id" class="apikey-row">
+              <div class="apikey-row-prefix">
+                <span class="apikey-status" :class="'status-' + key.status">{{ key.status === 'active' ? '活跃' : '已撤销' }}</span>
+                <code>{{ secretCache[key.id] || key.key_prefix }}</code>
+              </div>
+              <div class="apikey-row-meta">
+                <strong>{{ key.name }}</strong>
+                <span class="apikey-detail">{{ key.client_type }} · {{ key.scope_template }}</span>
+              </div>
+              <div class="apikey-row-actions">
+                <button class="icon-btn" type="button" :title="secretCache[key.id] ? '隐藏' : '显示'" @click="handleEyeClick(key.id)">
+                  <span class="material-symbols-outlined">{{ secretCache[key.id] ? 'visibility_off' : 'visibility' }}</span>
+                </button>
+                <button class="icon-btn" type="button" title="复制" @click="handleCopyClick(key.id)">
+                  <span class="material-symbols-outlined">content_copy</span>
+                </button>
+                <button class="icon-btn icon-btn-danger" type="button" title="撤销" @click="handleRevokeClick(key.id)">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <div v-if="confirmingKeyId" class="modal-overlay" @click.self="cancelConfirm">
+          <div class="modal-card modal-card-sm">
+            <header class="modal-header">
+              <h3>{{ confirmAction === 'revoke' ? '撤销 API Key' : '确认显示' }}</h3>
+            </header>
+            <div class="modal-body">
+              <p>{{ confirmMessage }}</p>
+            </div>
+            <footer class="modal-footer">
+              <button class="ghost-btn" type="button" @click="cancelConfirm">取消</button>
+              <button class="primary-btn" type="button" @click="confirmAction2">确认</button>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section v-else-if="!loading && activeTab === 'knowledge'" class="settings-content knowledge-settings">
+        <article v-for="category in knowledge" :key="category.category_key" class="settings-card">
+          <header>
+            <div class="card-header-main">
+              <span class="card-ref">REF.KB-{{ category.category_key }}</span>
+              <h2>{{ category.category_label }}</h2>
+            </div>
+          </header>
           <div v-if="category.subcategories.length" class="knowledge-grid">
-            <div v-for="sub in category.subcategories" :key="sub.id">
-              <strong>{{ sub.name }}</strong>
-              <span v-if="!sub.documents.length">暂无文档</span>
+            <div v-for="sub in category.subcategories" :key="sub.id" class="knowledge-sub">
+              <strong class="knowledge-sub-name">{{ sub.name }}</strong>
+              <span v-if="!sub.documents.length" class="empty-state">暂无文档</span>
               <label v-for="doc in sub.documents" :key="doc.id" class="doc-toggle">
                 <input type="checkbox" :checked="doc.enabled" @change="toggleDocument(doc)" />
                 <span>{{ doc.title }}</span>
@@ -412,16 +799,21 @@ watch(activeTab, (tab) => {
         </article>
       </section>
 
-      <section v-else-if="!loading" class="settings-content taboo-settings">
-        <article class="settings-card taboo-card">
-          <header><span class="material-symbols-outlined">warning</span><h2>生成与审查规避标准</h2></header>
-          <p>设置绝对红线规避标准，引擎在处理文本时将严格隔离以下词条。</p>
+      <section v-else-if="!loading && activeTab === 'taboo'" class="settings-content taboo-settings">
+        <article class="settings-card">
+          <header>
+            <div class="card-header-main">
+              <span class="card-ref">REF.TB-001</span>
+              <h2>违禁词库</h2>
+            </div>
+          </header>
+          <p class="security-hint">设置绝对红线规避标准，引擎在处理文本时将严格隔离以下词条。</p>
           <form class="taboo-input" @submit.prevent="submitTabooWord">
             <input v-model="tabooForm.word" placeholder="输入需规避的敏感词汇..." required maxlength="100" />
             <input v-model="tabooForm.replacement" placeholder="建议替换词（可选）" maxlength="100" />
             <input v-model="tabooForm.note" placeholder="备注（可选）" />
-            <button type="submit" :disabled="saving">{{ editingTabooId ? '保存修改' : '隔离入库' }}</button>
-            <button v-if="editingTabooId" type="button" @click="resetTabooForm">取消</button>
+            <button class="primary-btn" type="submit" :disabled="saving">{{ editingTabooId ? '保存修改' : '隔离入库' }}</button>
+            <button v-if="editingTabooId" class="ghost-btn" type="button" @click="resetTabooForm">取消</button>
           </form>
           <div v-if="!tabooWords.length" class="empty-state">暂无违禁词</div>
           <div v-else class="taboo-list">
@@ -434,771 +826,225 @@ watch(activeTab, (tab) => {
           </div>
         </article>
       </section>
-
-      <section v-else-if="!loading && activeTab === 'apikey'" class="settings-content apikey-settings">
-        <article class="settings-card circuit-card card-primary">
-          <header><span class="material-symbols-outlined">key</span><h2>创建 API Key</h2></header>
-          <form class="apikey-form" @submit.prevent="submitApiKey">
-            <label>
-              <span>名称</span>
-              <input v-model="apiKeyForm.name" placeholder="为密钥命名..." required maxlength="100" />
-            </label>
-            <label>
-              <span>客户端类型</span>
-              <select v-model="apiKeyForm.client_type">
-                <option v-for="(label, value) in clientTypeLabels" :key="value" :value="value">{{ label }}</option>
-              </select>
-            </label>
-            <label>
-              <span>权限模板</span>
-              <select v-model="apiKeyForm.scope_template">
-                <option v-for="(label, value) in scopeTemplateLabels" :key="value" :value="value">{{ label }}</option>
-              </select>
-            </label>
-            <div v-if="apiKeyForm.scope_template === 'custom'" class="apikey-scopes">
-              <span class="setting-label">自定义权限范围</span>
-              <label v-for="scope in availableScopes" :key="scope" class="doc-toggle">
-                <input type="checkbox" :value="scope" v-model="apiKeyForm.scopes" />
-                <span>{{ scope }}</span>
-              </label>
-            </div>
-            <label>
-              <span>过期时间（可选）</span>
-              <input v-model="apiKeyForm.expires_at" type="datetime-local" />
-            </label>
-            <button class="settings-action" type="submit" :disabled="saving">创建密钥</button>
-          </form>
-
-          <div v-if="newKeyResult" class="apikey-new-key">
-            <p class="setting-label">密钥已创建（仅显示一次）</p>
-            <div class="apikey-new-key-row">
-              <code>{{ newKeyResult.full_key }}</code>
-              <button type="button" @click="copyApiKey(newKeyResult.id)">复制</button>
-            </div>
-          </div>
-        </article>
-
-        <article class="settings-card">
-          <header><span class="material-symbols-outlined muted-icon">vpn_key</span><h2>已创建的密钥</h2></header>
-          <div v-if="apiKeyLoading" class="settings-state">正在加载 API Key...</div>
-          <div v-else-if="apiKeyError" class="settings-error">{{ apiKeyError }}</div>
-          <div v-else-if="!apiKeys.length" class="empty-state">暂无 API Key</div>
-          <div v-else class="apikey-list">
-            <div v-for="key in apiKeys" :key="key.id" class="apikey-row">
-              <div class="apikey-row-prefix">
-                <button type="button" class="apikey-icon-btn" :aria-label="revealedKeys[key.id] ? '隐藏密钥' : '显示密钥'" @click="toggleRevealKey(key.id)">
-                  <span class="material-symbols-outlined">{{ revealedKeys[key.id] ? 'visibility_off' : 'visibility' }}</span>
-                </button>
-                <code>{{ revealedKeys[key.id] || key.key_prefix }}</code>
-              </div>
-              <div class="apikey-row-meta">
-                <strong>{{ key.name }}</strong>
-                <span class="apikey-status" :class="'status-' + key.status">{{ key.status }}</span>
-                <span class="apikey-detail">{{ scopeTemplateLabels[key.scope_template] || key.scope_template }}</span>
-                <span class="apikey-detail">{{ clientTypeLabels[key.client_type] || key.client_type }}</span>
-                <span class="apikey-detail">创建: {{ key.created_at ? new Date(key.created_at).toLocaleString('zh-CN') : '-' }}</span>
-                <span class="apikey-detail">最后使用: {{ key.last_used_at ? new Date(key.last_used_at).toLocaleString('zh-CN') : '-' }}</span>
-              </div>
-              <div class="apikey-row-actions">
-                <button type="button" class="apikey-icon-btn" aria-label="复制密钥" @click="copyApiKey(key.id)">
-                  <span class="material-symbols-outlined">content_copy</span>
-                </button>
-                <button type="button" class="apikey-icon-btn apikey-revoke-btn" aria-label="撤销密钥" @click="handleRevokeKey(key.id)">
-                  <span class="material-symbols-outlined">delete</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </article>
-      </section>
     </main>
   </div>
 </template>
 
 <style scoped>
-.settings-page {
-  min-height: 100vh;
-  background: #0f1115;
-}
-
-.settings-main {
-  width: min(1440px, calc(100% - 40px));
-  margin: 0 auto;
-  padding: 48px 0 96px;
-}
-
-.settings-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #99907c;
-  font-family: "Geist", monospace;
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.settings-breadcrumb a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.settings-breadcrumb a:hover,
-.settings-breadcrumb strong {
-  color: #f2ca50;
-  font-weight: 500;
-}
-
-.settings-breadcrumb .material-symbols-outlined {
-  font-size: 16px;
-}
-
-.settings-header {
-  margin: 24px 0 28px;
-  padding-top: 16px;
-  border-top: 2px solid rgba(212, 175, 55, 0.4);
-}
-
-.settings-header h1 {
-  margin: 0;
-  color: #e5e2e1;
-  font-family: "Noto Serif", "Noto Serif SC", serif;
-  font-size: clamp(32px, 4vw, 48px);
-  line-height: 1.2;
-}
-
-.settings-tabs {
-  display: flex;
-  gap: 32px;
-  border-bottom: 1px solid #353534;
-  margin-bottom: 32px;
-}
-
-.settings-tabs button {
-  position: relative;
-  border: 0;
-  padding: 0 0 16px;
-  background: transparent;
-  color: #d0c5af;
-  font-size: 18px;
-  cursor: pointer;
-}
-
-.settings-tabs button.active {
-  border-bottom: 2px solid #d4af37;
-  color: #f2ca50;
-  box-shadow: 0 4px 10px -2px rgba(212, 175, 55, 0.3);
-}
-
-.settings-tabs button.active::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -5px;
-  width: 8px;
-  height: 8px;
-  transform: translateX(-50%);
-  background: #d4af37;
-}
-
-.settings-content {
-  max-width: 960px;
-}
-
-.settings-content.full-width {
-  max-width: 1120px;
-}
-
-.settings-state,
-.settings-error,
-.settings-message,
-.empty-state {
-  border: 1px solid #4d4635;
-  padding: 14px 16px;
-  margin-bottom: 18px;
-  background: #1c1b1b;
-  color: #d0c5af;
-}
-
-.settings-error {
-  border-color: rgba(255, 180, 171, 0.55);
-  color: #ffb4ab;
-}
-
-.settings-message {
-  border-color: rgba(74, 222, 128, 0.35);
-  color: #34d399;
-}
-
-.system-settings,
-.knowledge-settings,
-.taboo-settings,
-.apikey-settings {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.knowledge-settings {
-  max-width: 1120px;
-  display: grid;
-  grid-template-columns: 360px 1fr;
-}
-
-.settings-card {
-  position: relative;
-  border: 1px solid rgba(212, 175, 55, 0.2);
-  padding: 24px;
-  background: rgba(18, 18, 18, 0.72);
-  backdrop-filter: blur(20px);
-}
-
-.settings-action {
-  margin-top: 22px;
-  border: 1px solid #d4af37;
-  padding: 10px 18px;
-  background: rgba(212, 175, 55, 0.1);
-  color: #f2ca50;
-  cursor: pointer;
-}
-
-.settings-action:disabled,
-.taboo-input button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.card-primary {
-  border-top: 2px solid rgba(212, 175, 55, 0.62);
-}
-
-.circuit-card::before,
-.circuit-card::after {
-  content: "";
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  border: 1px solid #d4af37;
-}
-
-.circuit-card::before {
-  top: 0;
-  left: 0;
-  border-right: 0;
-  border-bottom: 0;
-}
-
-.circuit-card::after {
-  right: 0;
-  bottom: 0;
-  border-top: 0;
-  border-left: 0;
-}
-
-.settings-card header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.settings-card header h2 {
-  margin: 0;
-  color: #e5e2e1;
-  font-family: "Noto Serif", "Noto Serif SC", serif;
-  font-size: 24px;
-}
-
-.settings-card header .material-symbols-outlined {
-  color: #f2ca50;
-}
-
-.muted-icon {
-  color: #99907c !important;
-}
-
-.quota-grid,
-.identity-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 32px;
-}
-
-.setting-label,
-.identity-grid label span {
-  display: block;
-  margin: 0 0 8px;
-  color: #99907c;
-  font-family: "Geist", monospace;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-}
-
-.quota-grid strong {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: #ffe088;
-  font-size: 18px;
-}
-
-.quota-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-}
-
-.quota-head span {
-  color: #f2ca50;
-  font-family: "Geist", monospace;
-  font-size: 12px;
-}
-
-.quota-track {
-  position: relative;
-  height: 8px;
-  overflow: hidden;
-  background: #2a2a2a;
-}
-
-.quota-track i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 28.4%;
-  background: #10b981;
-  box-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
-}
-
-.identity-grid input,
-.taboo-input input {
-  width: 100%;
-  border: 0;
-  border-bottom: 1px solid #4d4635;
-  padding: 0 0 10px;
-  background: transparent;
-  color: #d0c5af;
-  font-family: "Geist", monospace;
-  outline: none;
-}
-
-.binding-section {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid #353534;
-}
-
-.binding-row,
-.taboo-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.binding-chip,
-.taboo-list span {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid #4d4635;
-  padding: 8px 12px;
-  background: #1c1b1b;
-  color: #e5e2e1;
-  font-family: "Geist", monospace;
-  font-size: 12px;
-}
-
-.binding-chip.active {
-  border-color: rgba(212, 175, 55, 0.35);
-  background: rgba(242, 202, 80, 0.05);
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.15);
-}
-
-.binding-chip small {
-  color: #99907c;
-}
-
-.binding-chip button {
-  border: 0;
-  background: transparent;
-  color: #f2ca50;
-  cursor: pointer;
-}
-
-.binding-chip.active small {
-  color: #f2ca50;
-}
-
-.safety-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 24px;
-}
-
-.safety-card p {
-  margin: 0;
-  color: #99907c;
-}
-
-.burn-toggle {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #34d399;
-  font-family: "Geist", monospace;
-  font-size: 12px;
-}
-
-.burn-toggle label {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  cursor: pointer;
-}
-
-.burn-toggle input {
-  opacity: 0;
-}
-
-.burn-toggle i {
-  position: absolute;
-  inset: 0;
-  border: 1px solid #4d4635;
-  border-radius: 999px;
-  background: #353534;
-}
-
-.burn-toggle i::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-}
-
-.burn-toggle input:checked + i {
-  background: #10b981;
-  box-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
-}
-
-.public-tree ul {
-  list-style: none;
-  display: grid;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-}
-
-.public-tree li,
-.knowledge-grid div {
-  border: 1px solid #4d4635;
-  padding: 14px;
-  background: #1c1b1b;
-  color: #d0c5af;
-}
-
-.knowledge-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-.knowledge-grid strong {
-  display: block;
-  color: #e5e2e1;
-  font-family: "Noto Serif", "Noto Serif SC", serif;
-  font-size: 22px;
-}
-
-.knowledge-grid span {
-  color: #99907c;
-  font-family: "Geist", monospace;
-  font-size: 12px;
-}
-
-.doc-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  color: #d0c5af;
-  font-size: 13px;
-}
-
-.doc-toggle input {
-  accent-color: #d4af37;
-}
-
-.taboo-card {
-  border-top: 2px solid #ffb4ab;
-  overflow: hidden;
-}
-
-.taboo-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 120px;
-  background: linear-gradient(180deg, rgba(255, 180, 171, 0.1), transparent);
-  pointer-events: none;
-}
-
-.taboo-card header,
-.taboo-card p,
-.taboo-input,
-.taboo-list {
-  position: relative;
-  z-index: 1;
-}
-
-.taboo-card header h2,
-.taboo-card header .material-symbols-outlined {
-  color: #ffb4ab;
-}
-
-.taboo-card p {
-  color: #99907c;
-}
-
-.taboo-input {
-  display: flex;
-  gap: 10px;
-  margin: 28px 0;
-}
-
-.taboo-input input:focus {
-  border-bottom-color: #ffb4ab;
-}
-
-.taboo-input button {
-  border: 1px solid #ffb4ab;
-  padding: 10px 22px;
-  background: rgba(255, 180, 171, 0.2);
-  color: #ffb4ab;
-  cursor: pointer;
-}
-
-.taboo-list span {
-  border-color: rgba(255, 180, 171, 0.5);
-}
-
-.taboo-list small {
-  color: #99907c;
-}
-
-.taboo-list button {
-  border: 0;
-  background: transparent;
-  color: #99907c;
-  cursor: pointer;
-}
-
-.taboo-list button:hover {
-  color: #ffb4ab;
-}
-
-.apikey-form {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.apikey-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.apikey-form label span {
-  color: #99907c;
-  font-family: "Geist", monospace;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-}
-
-.apikey-form input,
-.apikey-form select {
-  width: 100%;
-  border: 0;
-  border-bottom: 1px solid #4d4635;
-  padding: 0 0 10px;
-  background: transparent;
-  color: #d0c5af;
-  font-family: "Geist", monospace;
-  outline: none;
-}
-
-.apikey-form select {
-  cursor: pointer;
-}
-
-.apikey-form select option {
-  background: #1c1b1b;
-  color: #d0c5af;
-}
-
-.apikey-form .settings-action {
-  grid-column: 1 / -1;
-  width: fit-content;
-}
-
-.apikey-scopes {
-  grid-column: 1 / -1;
-  padding: 12px 0;
-  border-top: 1px solid #353534;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.apikey-new-key {
-  margin-top: 20px;
-  padding: 16px;
-  border: 1px solid rgba(74, 222, 128, 0.35);
-  background: rgba(52, 211, 153, 0.05);
-}
-
-.apikey-new-key-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.apikey-new-key code {
-  flex: 1;
-  padding: 10px 14px;
-  background: #1c1b1b;
-  color: #34d399;
-  font-family: "Geist", monospace;
-  font-size: 13px;
-  word-break: break-all;
-}
-
-.apikey-new-key button {
-  border: 1px solid #34d399;
-  padding: 8px 16px;
-  background: rgba(52, 211, 153, 0.1);
-  color: #34d399;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.apikey-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.apikey-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  border: 1px solid #4d4635;
-  padding: 14px 16px;
-  background: #1c1b1b;
-}
-
-.apikey-row-prefix {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 220px;
-}
-
-.apikey-row-prefix code {
-  color: #d0c5af;
-  font-family: "Geist", monospace;
-  font-size: 12px;
-  word-break: break-all;
-}
-
-.apikey-row-meta {
-  flex: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  font-family: "Geist", monospace;
-  font-size: 12px;
-}
-
-.apikey-row-meta strong {
-  color: #e5e2e1;
-}
-
-.apikey-status {
-  padding: 2px 8px;
-  border: 1px solid #4d4635;
-  font-size: 11px;
-  text-transform: uppercase;
-}
-
-.apikey-status.status-active {
-  border-color: rgba(74, 222, 128, 0.35);
-  color: #34d399;
-}
-
-.apikey-status.status-revoked {
-  border-color: rgba(255, 180, 171, 0.55);
-  color: #ffb4ab;
-}
-
-.apikey-detail {
-  color: #99907c;
-}
-
-.apikey-row-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.apikey-icon-btn {
-  border: 0;
-  padding: 4px;
-  background: transparent;
-  color: #99907c;
-  cursor: pointer;
-}
-
-.apikey-icon-btn:hover {
-  color: #f2ca50;
-}
-
-.apikey-icon-btn .material-symbols-outlined {
-  font-size: 18px;
-}
-
-.apikey-revoke-btn:hover {
-  color: #ffb4ab;
-}
+.settings-page { min-height: 100vh; background: #0A0A0A; }
+.settings-main { width: min(1440px, calc(100% - 64px)); margin: 0 auto; padding: 48px 0 96px; }
+.settings-breadcrumb { display: flex; align-items: center; gap: 8px; color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; }
+.settings-breadcrumb a { color: inherit; text-decoration: none; }
+.settings-breadcrumb strong { color: #f2ca50; }
+.settings-breadcrumb .material-symbols-outlined { font-size: 16px; }
+.settings-header { margin: 24px 0 28px; padding-top: 16px; border-top: 1px solid rgba(212, 175, 55, 0.4); }
+.settings-header h1 { margin: 0; color: #e5e2e1; font-family: "Syne", sans-serif; font-size: clamp(32px, 4vw, 48px); font-weight: 700; line-height: 1.2; }
+.settings-tabs { display: flex; gap: 32px; border-bottom: 1px solid #353534; margin-bottom: 32px; }
+.settings-tabs button { position: relative; border: 0; padding: 0 0 16px; background: transparent; color: #d0c5af; font-size: 18px; cursor: pointer; font-family: "Hanken Grotesk", sans-serif; }
+.settings-tabs button.active { border-bottom: 2px solid #d4af37; color: #f2ca50; }
+.settings-tabs button.active::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 8px; height: 8px; transform: translateX(-50%); background: #d4af37; box-shadow: 0 0 12px rgba(212, 175, 55, 0.3); }
+
+.settings-state, .settings-error, .settings-message, .empty-state { border: 1px solid #4d4635; padding: 14px 16px; margin-bottom: 18px; background: #1c1b1b; color: #d0c5af; }
+.settings-error { border-color: rgba(255, 180, 171, 0.55); color: #ffb4ab; }
+.settings-message { border-color: rgba(74, 222, 128, 0.35); color: #34d399; }
+
+.system-settings, .billing-settings, .model-settings, .knowledge-settings, .taboo-settings { display: flex; flex-direction: column; gap: 24px; }
+
+.settings-card { position: relative; border: 1px solid rgba(212, 175, 55, 0.2); padding: 24px; background: #121212; }
+.settings-card::before { content: ""; position: absolute; top: 0; left: 24px; right: 24px; height: 1px; background: linear-gradient(90deg, transparent, #d4af37 50%, transparent); opacity: 0.5; }
+.settings-card header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+.card-header-main { display: flex; flex-direction: column; gap: 6px; }
+.card-header-main h2 { margin: 0; color: #e5e2e1; font-family: "Syne", sans-serif; font-size: 24px; font-weight: 700; }
+.card-ref { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+
+.primary-btn { border: 1px solid #d4af37; padding: 10px 22px; background: #d4af37; color: #1a1410; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 0.25rem; transition: box-shadow 200ms; }
+.primary-btn:hover { box-shadow: 0 0 12px rgba(212, 175, 55, 0.3); }
+.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.primary-btn-block { width: 100%; }
+
+.ghost-btn { border: 1px solid rgba(212, 175, 55, 0.4); padding: 8px 18px; background: transparent; color: #f2ca50; font-family: "Hanken Grotesk", sans-serif; font-size: 13px; cursor: pointer; border-radius: 0.25rem; transition: all 200ms; }
+.ghost-btn:hover { background: rgba(212, 175, 55, 0.1); }
+.ghost-btn-sm { padding: 4px 12px; font-size: 12px; }
+.ghost-btn-block { display: block; width: 100%; margin-top: auto; }
+
+.icon-btn { border: 0; background: transparent; color: #99907c; cursor: pointer; padding: 4px; }
+.icon-btn:hover { color: #f2ca50; }
+.icon-btn-danger:hover { color: #ffb4ab; }
+.icon-btn .material-symbols-outlined { font-size: 18px; }
+
+.account-status-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; margin-bottom: 12px; }
+.account-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px rgba(52, 211, 153, 0.5); }
+.account-status-label { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 12px; }
+
+.identity-grid { display: grid; gap: 16px; }
+.identity-row { display: grid; grid-template-columns: 140px 1fr auto; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(155, 116, 22, 0.15); }
+.identity-row:last-child { border-bottom: 0; }
+.identity-label { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.08em; }
+.identity-value { color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 15px; }
+.identity-muted { color: #99907c; }
+.identity-edit-row { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; }
+.identity-edit-row .identity-label { color: #d0c5af; font-size: 13px; }
+.edit-input { width: 100%; border: 0; border-bottom: 1px solid #4d4635; padding: 8px 0; background: transparent; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 15px; outline: none; }
+.edit-input:focus { border-bottom-color: #d4af37; box-shadow: 0 4px 12px -4px rgba(212, 175, 55, 0.3); }
+.identity-edit-actions { display: flex; gap: 12px; margin-top: 12px; }
+
+.security-hint { color: #99907c; font-size: 12px; font-family: "Hanken Grotesk", sans-serif; margin: 8px 0 0; }
+
+.switch { display: inline-flex; align-items: center; gap: 12px; cursor: pointer; }
+.switch input { display: none; }
+.switch-track { position: relative; width: 44px; height: 22px; background: #353534; border-radius: 999px; transition: background 200ms; flex-shrink: 0; }
+.switch-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: #99907c; border-radius: 50%; transition: all 200ms; }
+.switch.active .switch-track { background: #34d399; box-shadow: 0 0 12px rgba(52, 211, 153, 0.3); }
+.switch.active .switch-track::after { left: 24px; background: #fff; }
+.switch-label { color: #f2ca50; font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.08em; }
+.switch-row { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px 16px; border: 1px solid rgba(155, 116, 22, 0.18); background: #1c1b1b; }
+.switch-label-text { color: #d0c5af; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; }
+.switch-track-wrap { display: inline-flex; align-items: center; }
+
+.third-party-grid { display: flex; flex-direction: column; gap: 12px; }
+.third-party-row { display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 16px; padding: 14px 16px; border: 1px solid rgba(155, 116, 22, 0.18); background: #1c1b1b; }
+.third-party-row .material-symbols-outlined { color: #f2ca50; }
+.third-party-name { color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; }
+.third-party-status { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 12px; }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
+.modal-card { background: #121212; border: 1px solid rgba(212, 175, 55, 0.3); border-radius: 0; max-width: 720px; width: 100%; max-height: 90vh; overflow: auto; }
+.modal-card-sm { max-width: 480px; }
+.modal-card-lg { max-width: 960px; }
+.modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 28px; border-bottom: 1px solid rgba(155, 116, 22, 0.2); }
+.modal-header h3 { margin: 0; color: #e5e2e1; font-family: "Syne", sans-serif; font-size: 22px; }
+.modal-subtitle { color: #99907c; font-size: 13px; margin: 4px 0 0; }
+.modal-body { padding: 20px 28px; }
+.modal-footer { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 16px 28px; border-top: 1px solid rgba(155, 116, 22, 0.2); }
+.modal-security-hint { display: inline-flex; align-items: center; gap: 6px; color: #99907c; font-size: 12px; margin-right: auto; }
+.modal-security-hint .material-symbols-outlined { font-size: 14px; color: #34d399; }
+.modal-link { color: #d4af37; text-decoration: none; font-family: "Hanken Grotesk", sans-serif; font-size: 13px; }
+.modal-link:hover { text-decoration: underline; }
+
+.form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.form-row > span { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.08em; }
+.form-row em { color: #ffb4ab; font-style: normal; margin-left: 2px; }
+.form-input { width: 100%; border: 1px solid #4d4635; padding: 10px 14px; background: #0A0A0A; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; outline: none; border-radius: 0.25rem; }
+.form-input:focus { border-color: #d4af37; box-shadow: 0 0 12px rgba(212, 175, 55, 0.3); }
+.form-hint { color: #99907c; font-size: 11px; margin-top: 2px; }
+
+.custom-select { position: relative; }
+.custom-select-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border: 0; border-bottom: 2px solid #4d4635; background: transparent; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; cursor: pointer; transition: border-color 0.2s; }
+.custom-select-trigger:hover { border-bottom-color: #a67c00; }
+.custom-select.open .custom-select-trigger { border-bottom-color: #d4af37; box-shadow: 0 4px 0 -2px rgba(212, 175, 55, 0.3); }
+.custom-select-arrow { font-size: 18px; color: #99907c; transition: transform 0.2s; }
+.custom-select.open .custom-select-arrow { transform: rotate(180deg); color: #d4af37; }
+.custom-select-options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; margin: 0; padding: 4px 0; list-style: none; border: 1px solid rgba(212, 175, 55, 0.3); background: #141414; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 12px rgba(212, 175, 55, 0.08); }
+.custom-select-options li { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.custom-select-options li:hover { background: rgba(212, 175, 55, 0.08); color: #f2ca50; }
+.custom-select-options li.active { color: #d4af37; background: rgba(212, 175, 55, 0.06); }
+.option-badge { padding: 1px 8px; border: 1px solid rgba(212, 175, 55, 0.4); color: #d4af37; font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.06em; }
+.form-error { color: #ffb4ab; font-size: 13px; margin: 8px 0 0; padding: 8px 12px; border: 1px solid rgba(255, 180, 171, 0.3); background: rgba(255, 180, 171, 0.05); }
+.form-actions { display: flex; gap: 12px; margin-top: 12px; }
+
+.password-input-wrap { position: relative; }
+.password-input-wrap .form-input { padding-right: 42px; }
+.password-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: #99907c; cursor: pointer; padding: 6px; }
+.password-toggle:hover { color: #f2ca50; }
+.password-toggle .material-symbols-outlined { font-size: 18px; }
+
+.billing-tier-card { background: linear-gradient(135deg, #121212, #1c1b1b); }
+.billing-tier-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.billing-tier-head h2 { margin: 4px 0; color: #e5e2e1; font-family: "Syne", sans-serif; font-size: 28px; }
+.tier-tag { display: inline-block; margin-left: 8px; padding: 2px 10px; border: 1px solid #d4af37; color: #d4af37; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.08em; vertical-align: middle; }
+.tier-tag-free { border-color: #99907c; color: #99907c; }
+.tier-tag-paid { border-color: #d4af37; color: #d4af37; }
+.billing-tier-hint { color: #99907c; font-size: 13px; margin: 8px 0 0; max-width: 480px; }
+
+.billing-quota-bar { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(212, 175, 55, 0.12); }
+.quota-bar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.quota-bar-label { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.06em; }
+.quota-bar-value { color: #f2ca50; font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 600; }
+.quota-bar-track { width: 100%; height: 6px; background: rgba(212, 175, 55, 0.1); overflow: hidden; }
+.quota-bar-fill { height: 100%; background: linear-gradient(90deg, #d4af37, #f2ca50); box-shadow: 0 0 8px rgba(212, 175, 55, 0.4); transition: width 0.6s ease; }
+
+.section-title { display: flex; align-items: center; gap: 8px; margin: 24px 0 16px; color: #f2ca50; font-family: "Syne", sans-serif; font-size: 20px; font-weight: 700; }
+.section-title .material-symbols-outlined { color: #d4af37; }
+
+.power-pack-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.power-pack-card { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 24px; border: 1px solid rgba(155, 116, 22, 0.2); background: #121212; transition: border-color 200ms; }
+.power-pack-card:hover { border-color: rgba(212, 175, 55, 0.5); }
+.power-pack-card.recommended { border-color: #d4af37; box-shadow: 0 0 20px rgba(212, 175, 55, 0.15); }
+.recommend-tag { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); padding: 2px 12px; background: #d4af37; color: #1a1410; font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; }
+.pack-name { margin: 8px 0 0; color: #e5e2e1; font-family: "Syne", sans-serif; font-size: 20px; }
+.pack-price { margin: 0; color: #f2ca50; font-family: "Syne", sans-serif; font-size: 32px; font-weight: 700; }
+.pack-unit { color: #99907c; font-size: 14px; font-weight: 400; margin-left: 4px; }
+.pack-features { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.pack-features li { display: flex; align-items: center; gap: 8px; color: #d0c5af; font-size: 13px; }
+.pack-features li.disabled { color: #66563a; }
+.pack-features li .material-symbols-outlined { font-size: 16px; color: #34d399; }
+.pack-features li.disabled .material-symbols-outlined { color: #66563a; }
+
+.upgrade-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 24px 28px; }
+.upgrade-card { display: flex; flex-direction: column; gap: 12px; padding: 24px; border: 1px solid rgba(155, 116, 22, 0.2); background: #1c1b1b; transition: all 200ms; }
+.upgrade-card:hover { border-color: rgba(212, 175, 55, 0.4); }
+.upgrade-card.selected { border-color: #d4af37; box-shadow: 0 0 20px rgba(212, 175, 55, 0.2); }
+.upgrade-card.recommended { border-color: #d4af37; }
+.upgrade-name { margin: 8px 0 0; color: #e5e2e1; font-family: "Syne", sans-serif; font-size: 20px; }
+.upgrade-price { margin: 0; color: #1a1410; background: #d4af37; padding: 12px 16px; text-align: center; font-family: "Syne", sans-serif; font-size: 24px; font-weight: 700; }
+.upgrade-period { color: rgba(26, 20, 16, 0.6); font-size: 12px; font-weight: 400; margin-left: 4px; }
+.upgrade-features { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.upgrade-features li { display: flex; align-items: center; gap: 8px; color: #d0c5af; font-size: 12px; }
+.upgrade-features li .material-symbols-outlined { font-size: 14px; color: #34d399; }
+
+.model-card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 20px 0; }
+.model-card { position: relative; border: 1px solid #353534; padding: 20px; background: #1c1b1b; cursor: pointer; transition: all 200ms; }
+.model-card:hover { border-color: rgba(212, 175, 55, 0.4); }
+.model-card.selected { border-color: #d4af37; background: linear-gradient(180deg, rgba(212, 175, 55, 0.1), rgba(212, 175, 55, 0.02)); box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.3), 0 0 20px rgba(212, 175, 55, 0.1); }
+.model-check { position: absolute; top: 12px; right: 12px; color: #d4af37; font-size: 20px; }
+.model-card-title { display: block; color: #e5e2e1; font-family: "Syne", sans-serif; font-size: 18px; margin-bottom: 8px; }
+.model-card-tier { display: block; color: #f2ca50; font-size: 13px; margin-bottom: 4px; }
+.model-card-context { display: block; color: #99907c; font-size: 12px; font-family: "JetBrains Mono", monospace; }
+.model-info-bar { display: flex; flex-wrap: wrap; gap: 24px; padding: 14px 16px; border: 1px solid #353534; background: #1c1b1b; color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 12px; margin-bottom: 16px; }
+
+.apikey-form { display: flex; flex-direction: column; gap: 4px; }
+.scope-template-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 8px; }
+.scope-template-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid #353534; background: #0A0A0A; cursor: pointer; transition: all 200ms; border-radius: 0.25rem; }
+.scope-template-card input { margin-top: 4px; }
+.scope-template-card strong { display: block; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; }
+.scope-template-card span { color: #99907c; font-size: 12px; }
+.scope-template-card.selected { border-color: #d4af37; background: rgba(212, 175, 55, 0.05); box-shadow: 0 0 12px rgba(212, 175, 55, 0.15); }
+
+.apikey-new-key { margin-top: 16px; padding: 16px; border: 1px solid rgba(74, 222, 128, 0.35); background: rgba(52, 211, 153, 0.05); }
+.apikey-new-hint { color: #d0c5af; font-size: 13px; margin: 0 0 12px; }
+.apikey-new-row { display: flex; align-items: center; gap: 8px; }
+.apikey-new-row code { flex: 1; padding: 10px 14px; background: #0A0A0A; color: #34d399; font-family: "JetBrains Mono", monospace; font-size: 12px; word-break: break-all; border: 1px solid rgba(74, 222, 128, 0.3); }
+
+.apikey-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.apikey-row { display: grid; grid-template-columns: 1fr 1fr auto; align-items: center; gap: 16px; padding: 14px 16px; border: 1px solid #353534; background: #1c1b1b; }
+.apikey-row-prefix { display: flex; flex-direction: column; gap: 4px; }
+.apikey-status { display: inline-block; padding: 2px 8px; border: 1px solid #4d4635; font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; width: fit-content; }
+.apikey-status.status-active { border-color: rgba(74, 222, 128, 0.35); color: #34d399; }
+.apikey-status.status-revoked { border-color: rgba(255, 180, 171, 0.55); color: #ffb4ab; }
+.apikey-row-prefix code { color: #d0c5af; font-family: "JetBrains Mono", monospace; font-size: 12px; word-break: break-all; }
+.apikey-row-meta { display: flex; flex-direction: column; gap: 4px; }
+.apikey-row-meta strong { color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; }
+.apikey-detail { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 11px; }
+.apikey-row-actions { display: flex; gap: 4px; }
+
+.knowledge-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.knowledge-sub { display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #353534; background: #1c1b1b; }
+.knowledge-sub-name { color: #e5e2e1; font-family: "Syne", sans-serif; font-size: 16px; }
+.doc-toggle { display: flex; align-items: center; gap: 8px; color: #d0c5af; font-size: 13px; }
+.doc-toggle input { accent-color: #d4af37; }
+
+.taboo-input { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+.taboo-input input { flex: 1; min-width: 160px; border: 1px solid #4d4635; padding: 10px 14px; background: #0A0A0A; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; outline: none; border-radius: 0.25rem; }
+.taboo-input input:focus { border-color: #d4af37; box-shadow: 0 0 12px rgba(212, 175, 55, 0.3); }
+.taboo-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.taboo-list span { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid rgba(255, 180, 171, 0.5); background: #1c1b1b; color: #e5e2e1; font-family: "JetBrains Mono", monospace; font-size: 12px; }
+.taboo-list small { color: #99907c; }
+.taboo-list button { border: 0; background: transparent; color: #99907c; cursor: pointer; }
+.taboo-list button:hover { color: #ffb4ab; }
 
 @media (max-width: 900px) {
-  .settings-tabs,
-  .safety-card,
-  .taboo-input {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .quota-grid,
-  .identity-grid,
-  .knowledge-settings,
-  .knowledge-grid,
-  .apikey-form {
-    grid-template-columns: 1fr;
-  }
-
-  .apikey-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .apikey-row-prefix {
-    min-width: auto;
-  }
+  .power-pack-grid, .upgrade-grid, .model-card-grid, .scope-template-grid, .apikey-row, .knowledge-grid { grid-template-columns: 1fr; }
+  .identity-row { grid-template-columns: 1fr; gap: 4px; }
+  .third-party-row { grid-template-columns: 1fr; }
 }
 </style>

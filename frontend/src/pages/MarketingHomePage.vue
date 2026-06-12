@@ -35,7 +35,7 @@ const plans = [
         </p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="/dashboard">登录进入应用</a>
-          <a class="btn btn-ghost" href="/solution.html">查看解决方案</a>
+          <a class="btn btn-ghost" href="/solution">查看解决方案</a>
         </div>
       </section>
 
@@ -57,7 +57,7 @@ const plans = [
             <p class="eyebrow">SOLUTION</p>
             <h2>解决方案：句龙 · 照胆核心能力</h2>
           </div>
-          <a href="/solution.html">进入解决方案</a>
+          <a href="/solution">进入解决方案</a>
         </div>
         <div class="capability-grid">
           <article v-for="capability in capabilities" :key="capability[0]" class="circuit-card">
@@ -76,7 +76,7 @@ const plans = [
             <h2>静默处理，证据可追溯</h2>
             <p>围绕 TEE、本地脱敏、阅后即焚与审计留痕建立安全边界，让业务经办人可以在正式流转前完成低风险自检。</p>
           </div>
-          <a class="btn btn-ghost" href="/security.html">查看数据安全</a>
+          <a class="btn btn-ghost" href="/security">查看数据安全</a>
         </div>
       </section>
 
@@ -86,7 +86,7 @@ const plans = [
             <p class="eyebrow">CASE STUDIES</p>
             <h2>客户案例</h2>
           </div>
-          <a href="/cases.html">查看完整案例</a>
+          <a href="/cases">查看完整案例</a>
         </div>
         <div class="metrics-grid">
           <article v-for="metric in metrics" :key="metric[1]">
@@ -102,7 +102,7 @@ const plans = [
             <p class="eyebrow">AUTHORIZATION TALLY</p>
             <h2>版本与定价</h2>
           </div>
-          <a href="/pricing.html">查看全部定价</a>
+          <a href="/pricing">查看全部定价</a>
         </div>
         <div class="plan-grid">
           <article v-for="plan in plans" :key="plan[0]" class="circuit-card">
@@ -118,7 +118,7 @@ const plans = [
         <h2>把材料包问题拦在提交之前</h2>
         <div class="hero-actions">
           <a class="btn btn-primary" href="/dashboard">进入应用靶场</a>
-          <a class="btn btn-ghost" href="/pricing.html">选择授权周期</a>
+          <a class="btn btn-ghost" href="/pricing">选择授权周期</a>
         </div>
       </section>
     </main>

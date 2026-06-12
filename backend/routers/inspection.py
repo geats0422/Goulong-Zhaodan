@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import tempfile
 import re
+import uuid as uuid_mod
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -50,9 +51,9 @@ _inspection_records: list[dict[str, Any]] = []
 _inspection_sessions: dict[str, dict[str, Any]] = {}
 
 
-def _current_user_id(user: dict) -> int:
+def _current_user_id(user: dict) -> uuid_mod.UUID:
     try:
-        return int(user["user_id"])
+        return uuid_mod.UUID(user["user_id"])
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=401, detail="Invalid user") from exc
 
@@ -94,7 +95,7 @@ def _detect_document_type(filename: str, text: str) -> dict[str, str]:
 
 def _create_inspection_session(
     *,
-    user_id: int,
+    user_id: uuid_mod.UUID,
     filename: str,
     file_size: int,
     file_format: str,
@@ -126,7 +127,7 @@ def _create_inspection_session(
     return session
 
 
-def _get_session_for_user(session_id: str, user_id: int, now: datetime | None = None) -> dict[str, Any]:
+def _get_session_for_user(session_id: str, user_id: uuid_mod.UUID, now: datetime | None = None) -> dict[str, Any]:
     """按 session_id 与 user_id 读取解析会话，避免跨用户访问。"""
     session = _inspection_sessions.get(session_id)
     if session is None or session.get("user_id") != user_id:
@@ -154,7 +155,7 @@ def _cleanup_expired_inspection_sessions(now: datetime | None = None) -> int:
     return len(expired_session_ids)
 
 
-def _trim_inspection_sessions(user_id: int) -> None:
+def _trim_inspection_sessions(user_id: uuid_mod.UUID) -> None:
     """限制内存会话数量，避免认证用户反复上传造成内存压力。"""
     user_sessions = [
         session
@@ -395,7 +396,7 @@ def _inspection_record_to_history_dict(record: InspectionRecord) -> dict[str, An
 async def _create_pending_inspection_record(
     *,
     db: AsyncSession,
-    user_id: int,
+    user_id: uuid_mod.UUID,
     document_name: str,
     document_type: str,
     document_type_label: str,

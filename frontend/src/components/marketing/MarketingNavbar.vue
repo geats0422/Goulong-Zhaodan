@@ -51,10 +51,10 @@ onBeforeUnmount(() => {
       </a>
 
       <div class="marketing-links" aria-label="着陆页导航">
-        <a href="/solution.html">解决方案</a>
-        <a href="/security.html">数据安全</a>
-        <a href="/cases.html">客户案例</a>
-        <a href="/pricing.html">版本与定价</a>
+        <a href="/solution">解决方案</a>
+        <a href="/security">数据安全</a>
+        <a href="/cases">客户案例</a>
+        <a href="/pricing">版本与定价</a>
       </div>
 
       <div class="marketing-actions">

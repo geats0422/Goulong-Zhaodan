@@ -3,11 +3,11 @@
     <div class="marketing-footer-row">
       <p>© 2024 句龙 · 照胆. ALL RIGHTS RESERVED. SECURED BY TIGER TALLY PROTOCOL.</p>
       <p>
-        <a href="/security.html">隐私政策</a>
+        <a href="/security">隐私政策</a>
         <span>·</span>
-        <a href="/pricing.html">服务条款</a>
+        <a href="/pricing">服务条款</a>
         <span>·</span>
-        <a href="/solution.html">技术文档</a>
+        <a href="/solution">技术文档</a>
       </p>
     </div>
   </footer>
