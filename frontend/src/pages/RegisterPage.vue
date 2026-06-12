@@ -102,7 +102,13 @@ function gotoLogin() {
 
     <div class="register-canvas">
       <aside class="brand-panel">
-        <div class="brand-mark">句龙照胆</div>
+        <div class="brand-mark">
+          <span>句</span>
+          <span>龙</span>
+          <span>·</span>
+          <span>照</span>
+          <span>胆</span>
+        </div>
         <div class="brand-meta">
           <span class="brand-name">句龙·照胆</span>
           <span class="brand-sub">国家合规审查 · AI 代理服务器</span>
@@ -337,15 +343,23 @@ function gotoLogin() {
 }
 
 .brand-mark {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-end;
+  gap: 6px;
+  margin-bottom: 24px;
   font-family: "Noto Serif SC", "Songti SC", serif;
-  color: #d4af37;
   font-size: 18px;
-  line-height: 1.4;
-  letter-spacing: 0.2em;
+  line-height: 1;
+  color: #d4af37;
+  text-shadow: 0 0 12px rgba(212, 175, 55, 0.3);
+}
+
+.brand-mark span {
+  display: block;
   writing-mode: vertical-rl;
   text-orientation: upright;
-  margin-bottom: 24px;
-  text-shadow: 0 0 12px rgba(212, 175, 55, 0.3);
+  letter-spacing: 0.1em;
 }
 
 .register-page[data-theme="light"] .brand-mark {
