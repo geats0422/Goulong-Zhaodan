@@ -6,7 +6,7 @@ import { useAuth } from '../composables/useAuth.js'
 import { fetchInspectionRecords } from '../services/inspectionApi.js'
 
 const { currentUser } = useAuth()
-const username = computed(() => currentUser.value?.username || '用户')
+const username = computed(() => currentUser.value?.nickname || '用户')
 const fileInput = ref(null)
 const selectedFile = ref(null)
 const modalOpen = ref(false)

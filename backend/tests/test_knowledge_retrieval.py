@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
@@ -30,7 +31,10 @@ async def clean_db():
     async with async_session() as session:
         await session.execute(text("UPDATE knowledge_documents SET current_version_id = NULL"))
         for table in [
+            "inspection_records",
             "refresh_tokens",
+            "api_keys",
+            "agent_jobs",
             "knowledge_document_settings",
             "taboo_words",
             "user_profiles",
@@ -46,9 +50,9 @@ async def clean_db():
     await engine.dispose()
 
 
-async def _create_user(username: str = "retrieval_user") -> int:
+async def _create_user(nickname: str = "retrieval_user") -> uuid.UUID:
     async with async_session() as session:
-        user = User(username=username, hashed_password="hashed")
+        user = User(nickname=nickname, email=f"{nickname}@test.com", hashed_password="hashed")
         session.add(user)
         await session.commit()
         await session.refresh(user)
@@ -61,7 +65,7 @@ async def _create_document_with_node(
     content: str,
     owner_type: str,
     application_scenario: str,
-    owner_user_id: int | None = None,
+    owner_user_id: uuid.UUID | None = None,
     status: str = "completed",
     position: int = 1,
 ) -> int:
@@ -105,8 +109,9 @@ async def _create_document_with_node(
 
 @pytest.mark.asyncio
 async def test_retrieve_regulation_base_returns_empty_structure():
+    user_id = await _create_user()
     async with async_session() as session:
-        result = await retrieve_regulation_base(session, user_id=1, application_scenario="bidding", limit=5)
+        result = await retrieve_regulation_base(session, user_id=user_id, application_scenario="bidding", limit=5)
 
     assert result == {"snippets": [], "sources": []}
 
@@ -144,6 +149,8 @@ async def test_retrieve_regulation_base_returns_only_matching_system_completed_n
 @pytest.mark.asyncio
 async def test_retrieve_regulation_base_excludes_disabled_user_document_and_defaults_enabled():
     user_id = await _create_user()
+    # 为"其他用户文档"创建一个不同的用户
+    other_user_id = await _create_user("other_retrieval_user")
     disabled_doc_id = await _create_document_with_node(
         title="用户禁用文档",
         content="禁用片段",
@@ -162,7 +169,7 @@ async def test_retrieve_regulation_base_excludes_disabled_user_document_and_defa
         title="其他用户文档",
         content="其他用户片段",
         owner_type="user",
-        owner_user_id=999,
+        owner_user_id=other_user_id,
         application_scenario="contract",
     )
     async with async_session() as session:

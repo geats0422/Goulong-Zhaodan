@@ -46,6 +46,8 @@ async def client():
     assert_safe_database_for_cleanup()
     await engine.dispose()
     await init_db()
+    from core.rate_limit import register_limiter
+    register_limiter.reset()
     inspection_router._inspection_records.clear()
     inspection_router._inspection_sessions.clear()
     async with async_session() as session:
@@ -53,6 +55,8 @@ async def client():
         for table in [
             "inspection_records",
             "refresh_tokens",
+            "api_keys",
+            "agent_jobs",
             "knowledge_document_settings",
             "taboo_words",
             "user_profiles",
@@ -73,8 +77,12 @@ async def client():
     await engine.dispose()
 
 
-async def register_and_auth(client: AsyncClient, username: str = "inspection_user") -> tuple[dict[str, str], int]:
-    response = await client.post("/auth/register", json={"username": username, "password": VALID_PASSWORD})
+async def register_and_auth(client: AsyncClient, username: str = "inspection_user") -> tuple[dict[str, str], str]:
+    response = await client.post("/auth/register", json={
+        "email": f"{username}@test.com",
+        "nickname": username,
+        "password": VALID_PASSWORD,
+    })
     assert response.status_code == 201
     data = response.json()
     return {"Authorization": f"Bearer {data['access_token']}"}, data["id"]
@@ -502,7 +510,9 @@ async def test_upload_passes_application_scenario_regulation_base_and_merged_tab
     )
 
     assert response.status_code == 200
-    assert captured["retrieval"] == {"user_id": user_id, "application_scenario": "contract", "limit": 8}
+    assert str(captured["retrieval"]["user_id"]) == user_id
+    assert captured["retrieval"]["application_scenario"] == "contract"
+    assert captured["retrieval"]["limit"] == 8
     deps = captured["deps"]
     assert deps.application_scenario == "contract"
     assert deps.regulation_base == {"snippets": [{"content": "法规依据"}], "sources": [{"title": "系统法规"}]}

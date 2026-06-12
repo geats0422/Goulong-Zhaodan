@@ -73,7 +73,11 @@ from main import app  # noqa: E402
 
 
 async def register_and_auth(client: AsyncClient, username: str = "apikey_user", password: str = VALID_PASSWORD):
-    response = await client.post("/auth/register", json={"username": username, "password": password})
+    response = await client.post("/auth/register", json={
+        "email": f"{username}@test.com",
+        "nickname": username,
+        "password": password,
+    })
     assert response.status_code == 201
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
@@ -105,7 +109,7 @@ async def test_create_api_key(client: AsyncClient):
     assert len(data["scopes"]) > 0
     assert data["key_prefix"].startswith("glzd_live_")
     assert data["status"] == "active"
-    assert isinstance(data["id"], int)
+    assert isinstance(data["id"], str)
 
 
 @pytest.mark.asyncio
@@ -184,7 +188,7 @@ async def test_get_api_key_secret_updates_last_viewed_at(client: AsyncClient):
 async def test_get_api_key_secret_not_found(client: AsyncClient):
     headers = await register_and_auth(client, "notfound_user")
 
-    response = await client.get("/settings/api-keys/9999/secret", headers=headers)
+    response = await client.get("/settings/api-keys/00000000-0000-0000-0000-000000000000/secret", headers=headers)
 
     assert response.status_code == 404
 
@@ -224,7 +228,7 @@ async def test_revoke_api_key(client: AsyncClient):
 async def test_revoke_api_key_not_found(client: AsyncClient):
     headers = await register_and_auth(client, "revoke_nf_user")
 
-    response = await client.delete("/settings/api-keys/9999", headers=headers)
+    response = await client.delete("/settings/api-keys/00000000-0000-0000-0000-000000000000", headers=headers)
 
     assert response.status_code == 404
 

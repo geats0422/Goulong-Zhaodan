@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import uuid
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +11,7 @@ from models.knowledge import DocumentVersion, IndexNode, KnowledgeDocument, Know
 
 async def retrieve_regulation_base(
     db: AsyncSession,
-    user_id: int,
+    user_id: uuid.UUID,
     application_scenario: str,
     limit: int,
 ) -> dict[str, list[dict[str, Any]]]:

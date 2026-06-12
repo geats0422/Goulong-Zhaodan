@@ -47,22 +47,13 @@ VALID_PASSWORD = "TestPass123"
 
 @pytest_asyncio.fixture
 async def client():
+    await engine.dispose()
     await init_db()
     from core.rate_limit import register_limiter
     register_limiter.reset()
     assert_safe_database_for_cleanup()
-    if engine.dialect.name == "postgresql":
-        async with engine.begin() as conn:
-            await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS owner_type VARCHAR(20) DEFAULT 'user' NOT NULL"))
-            await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS owner_user_id INTEGER"))
-            await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS application_scenario VARCHAR(20) DEFAULT 'bidding' NOT NULL"))
-            await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS source_path VARCHAR(1000)"))
-            await conn.execute(text("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS model_name VARCHAR(120)"))
-            await conn.execute(text("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS phone VARCHAR(32)"))
-            await conn.execute(text("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS email VARCHAR(255)"))
-            await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_user_profile_phone ON user_profiles (phone) WHERE phone IS NOT NULL"))
-            await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_user_profile_email ON user_profiles (email) WHERE email IS NOT NULL"))
     async with async_session() as session:
+        await session.execute(text("UPDATE knowledge_documents SET current_version_id = NULL"))
         for table in [
             "refresh_tokens",
             "api_keys",
@@ -87,7 +78,11 @@ async def client():
 
 
 async def register_and_auth(client: AsyncClient, username: str = "settings_user", password: str = VALID_PASSWORD):
-    response = await client.post("/auth/register", json={"username": username, "password": password})
+    response = await client.post("/auth/register", json={
+        "email": f"{username}@test.com",
+        "nickname": username,
+        "password": password,
+    })
     assert response.status_code == 201
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
@@ -113,13 +108,10 @@ async def test_settings_overview_defaults(client: AsyncClient):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["profile"]["username"] == "settings_user"
-    assert data["profile"]["display_name"] == "settings_user"
+    assert data["profile"]["nickname"] == "settings_user"
     assert data["profile"]["subscription_plan"] == "free"
     assert data["profile"]["monthly_quota"] == 50
     assert data["profile"]["quota_used"] == 0
-    assert data["profile"]["wechat_bound"] is False
-    assert data["profile"]["alipay_bound"] is False
     assert data["profile"]["burn_after_read"] is True
     assert data["taboo_words"] == []
     docs = [doc for cat in data["knowledge"] for sub in cat["subcategories"] for doc in sub["documents"]]
@@ -134,15 +126,15 @@ async def test_update_profile_is_user_scoped(client: AsyncClient):
     response = await client.patch(
         "/settings/profile",
         headers=user_a,
-        json={"display_name": "张三", "wechat_bound": True, "alipay_bound": True, "burn_after_read": False},
+        json={"nickname": "张三", "burn_after_read": False},
     )
     assert response.status_code == 200
-    assert response.json()["display_name"] == "张三"
+    assert response.json()["nickname"] == "张三"
 
     overview_a = await client.get("/settings/overview", headers=user_a)
     overview_b = await client.get("/settings/overview", headers=user_b)
-    assert overview_a.json()["profile"]["wechat_bound"] is True
-    assert overview_b.json()["profile"]["wechat_bound"] is False
+    assert overview_a.json()["profile"]["burn_after_read"] is False
+    assert overview_b.json()["profile"]["burn_after_read"] is True
 
 
 @pytest.mark.asyncio
@@ -170,8 +162,8 @@ async def test_update_password(client: AsyncClient):
     )
     assert ok.status_code == 200
 
-    old_login = await client.post("/auth/login", json={"username": "password_user", "password": "OldPass123"})
-    new_login = await client.post("/auth/login", json={"username": "password_user", "password": "NewPass456"})
+    old_login = await client.post("/auth/login", json={"email": "password_user@test.com", "password": "OldPass123"})
+    new_login = await client.post("/auth/login", json={"email": "password_user@test.com", "password": "NewPass456"})
     assert old_login.status_code == 401
     assert new_login.status_code == 200
 
@@ -179,7 +171,8 @@ async def test_update_password(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_password_change_revokes_refresh_tokens(client: AsyncClient):
     reg = await client.post("/auth/register", json={
-        "username": "revoke_user",
+        "email": "revoke_user@test.com",
+        "nickname": "revoke_user",
         "password": "OldPass123",
     })
     access_token = reg.json()["access_token"]
@@ -318,32 +311,15 @@ async def test_overview_includes_model_env(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_update_profile_username(client: AsyncClient):
+async def test_update_profile_nickname(client: AsyncClient):
     headers = await register_and_auth(client, "username_user")
 
-    resp = await client.patch("/settings/profile", headers=headers, json={"username": "newname1"})
+    resp = await client.patch("/settings/profile", headers=headers, json={"nickname": "newname1"})
     assert resp.status_code == 200
-    assert resp.json()["username"] == "newname1"
+    assert resp.json()["nickname"] == "newname1"
 
     overview = await client.get("/settings/overview", headers=headers)
-    assert overview.json()["profile"]["username"] == "newname1"
-
-
-@pytest.mark.asyncio
-async def test_update_profile_username_unique_conflict(client: AsyncClient):
-    headers_a = await register_and_auth(client, "unique_user_a")
-    await register_and_auth(client, "unique_user_b")
-
-    resp = await client.patch("/settings/profile", headers=headers_a, json={"username": "unique_user_b"})
-    assert resp.status_code == 409
-
-
-@pytest.mark.asyncio
-async def test_update_profile_invalid_username(client: AsyncClient):
-    headers = await register_and_auth(client, "invaliduser_user")
-
-    resp = await client.patch("/settings/profile", headers=headers, json={"username": "invalid user!"})
-    assert resp.status_code == 422
+    assert overview.json()["profile"]["nickname"] == "newname1"
 
 
 @pytest.mark.asyncio

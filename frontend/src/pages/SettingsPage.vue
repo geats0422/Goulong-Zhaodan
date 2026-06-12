@@ -39,7 +39,7 @@ const knowledge = ref([])
 const tabooWords = ref([])
 
 const editingIdentity = ref(false)
-const identityForm = ref({ username: '', phone: '', email: '' })
+const identityForm = ref({ nickname: '', phone: '', email: '' })
 
 const showChangePasswordDialog = ref(false)
 const passwordForm = ref({ old_password: '', new_password: '', confirm_new_password: '' })
@@ -88,11 +88,11 @@ async function loadSettings() {
     profile.value = data.profile
     knowledge.value = data.knowledge || []
     tabooWords.value = data.taboo_words || []
-    wechatBound.value = data.profile.wechat_bound
-    alipayBound.value = data.profile.alipay_bound
+    wechatBound.value = data.profile.has_wechat
+    alipayBound.value = data.profile.has_alipay
     burnAfterRead.value = data.profile.burn_after_read
     identityForm.value = {
-      username: data.profile.username,
+      nickname: data.profile.nickname,
       phone: data.profile.phone || '',
       email: data.profile.email || '',
     }
@@ -113,7 +113,7 @@ async function loadApiKeys() {
 
 function startEditingIdentity() {
   identityForm.value = {
-    username: profile.value.username,
+    nickname: profile.value.nickname,
     phone: profile.value.phone || '',
     email: profile.value.email || '',
   }
@@ -129,21 +129,21 @@ async function saveIdentity() {
   message.value = ''
   try {
     profile.value = await updateProfile({
-      username: identityForm.value.username,
+      nickname: identityForm.value.nickname,
       phone: identityForm.value.phone || null,
       email: identityForm.value.email || null,
     })
     editingIdentity.value = false
     message.value = '身份信息已更新'
-    const stored = sessionStorage.getItem('opencode_user')
+    const stored = sessionStorage.getItem('goulong_current_user')
     if (stored) {
       const u = JSON.parse(stored)
-      u.username = identityForm.value.username
-      sessionStorage.setItem('opencode_user', JSON.stringify(u))
+      u.nickname = identityForm.value.nickname
+      sessionStorage.setItem('goulong_current_user', JSON.stringify(u))
     }
   } catch (err) {
     if (err.message?.includes('409') || err.message?.includes('已被') || err.message?.includes('占用')) {
-      error.value = '该手机号/邮箱/用户名已被使用'
+      error.value = '该手机号/邮箱已被使用'
     } else {
       error.value = err.message
     }
@@ -441,8 +441,8 @@ onMounted(() => {
           </div>
           <div v-if="!editingIdentity" class="identity-grid">
             <div class="identity-row">
-              <span class="identity-label">用户名</span>
-              <span class="identity-value">{{ profile.username }}</span>
+              <span class="identity-label">昵称</span>
+              <span class="identity-value">{{ profile.nickname }}</span>
             </div>
             <div class="identity-row">
               <span class="identity-label">绑定手机号</span>
@@ -457,8 +457,8 @@ onMounted(() => {
           </div>
           <div v-else class="identity-grid">
             <label class="identity-edit-row">
-              <span class="identity-label">用户名</span>
-              <input v-model="identityForm.username" class="edit-input" />
+              <span class="identity-label">昵称</span>
+              <input v-model="identityForm.nickname" class="edit-input" />
             </label>
             <label class="identity-edit-row">
               <span class="identity-label">手机号</span>

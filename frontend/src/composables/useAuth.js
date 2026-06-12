@@ -49,11 +49,16 @@ async function fetchWithAuth(url, options = {}) {
   return response
 }
 
-async function login(username, password) {
+async function login(identity, password) {
+  // 自动判断 identity 是 email 还是 phone
+  const body = identity.includes('@')
+    ? { email: identity, password }
+    : { phone: identity, password }
+
   const response = await fetch('/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify(body),
     credentials: 'include',
   })
 
@@ -64,17 +69,21 @@ async function login(username, password) {
 
   const data = await response.json()
   _accessToken = data.access_token
-  currentUser.value = { id: data.id, username: data.username }
+  currentUser.value = { id: data.id, nickname: data.nickname, email: data.email, phone: data.phone }
   sessionStorage.setItem(ACCESS_TOKEN_KEY, _accessToken)
   sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser.value))
   return data
 }
 
-async function register(username, password) {
+async function register({ email, phone, nickname, password }) {
+  const body = { nickname, password }
+  if (email) body.email = email
+  if (phone) body.phone = phone
+
   const response = await fetch('/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify(body),
     credentials: 'include',
   })
 
@@ -85,7 +94,7 @@ async function register(username, password) {
 
   const data = await response.json()
   _accessToken = data.access_token
-  currentUser.value = { id: data.id, username: data.username }
+  currentUser.value = { id: data.id, nickname: data.nickname, email: data.email, phone: data.phone }
   sessionStorage.setItem(ACCESS_TOKEN_KEY, _accessToken)
   sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser.value))
   return data

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import datetime
-import re
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy import select
 
 from core.auth import (
@@ -22,28 +22,25 @@ from core.database import get_db_session
 from core.login_throttle import login_throttle
 from core.password_rules import validate_password
 from core.rate_limit import register_limiter
-from models.knowledge import User
+from models.knowledge import User, UserProfile
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
-_USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]+$")
 _REFRESH_COOKIE_NAME = "refresh_token"
 _REFRESH_COOKIE_MAX_AGE = 7 * 24 * 3600
 
 
 class RegisterRequest(BaseModel):
-    username: str
+    email: str | None = None
+    phone: str | None = None
+    nickname: str
     password: str
 
-    @field_validator("username")
-    @classmethod
-    def validate_username(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 3 or len(v) > 50:
-            raise ValueError("用户名长度须为 3-50 字符")
-        if not _USERNAME_RE.match(v):
-            raise ValueError("用户名仅支持字母、数字和下划线")
-        return v
+    @model_validator(mode="after")
+    def check_identity(self):
+        if not self.email and not self.phone:
+            raise ValueError("必须提供 email 或 phone（至少一项）")
+        return self
 
     @field_validator("password")
     @classmethod
@@ -55,13 +52,15 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    username: str
+    email: str | None = None
+    phone: str | None = None
     password: str
 
-    @field_validator("username")
-    @classmethod
-    def normalize_username(cls, v: str) -> str:
-        return v.strip()
+    @model_validator(mode="after")
+    def check_identity(self):
+        if not self.email and not self.phone:
+            raise ValueError("必须提供 email 或 phone")
+        return self
 
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
@@ -83,17 +82,36 @@ async def register(body: RegisterRequest, response: Response, request: Request, 
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
     register_limiter.record(ip)
 
-    result = await db.execute(select(User).where(User.username == body.username))
-    if result.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=400, detail="注册失败")
+    # 按 email 或 phone 查重
+    if body.email:
+        result = await db.execute(select(User).where(User.email == body.email))
+        if result.scalar_one_or_none() is not None:
+            raise HTTPException(status_code=400, detail="该邮箱已被注册")
+    if body.phone:
+        result = await db.execute(select(User).where(User.phone == body.phone))
+        if result.scalar_one_or_none() is not None:
+            raise HTTPException(status_code=400, detail="该手机号已被注册")
 
     user = User(
-        username=body.username,
+        nickname=body.nickname,
         hashed_password=hash_password(body.password),
+        email=body.email,
+        phone=body.phone,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    # 创建默认 UserProfile
+    profile = UserProfile(
+        user_id=user.id,
+        subscription_plan="free",
+        monthly_quota=50,
+        quota_used=0,
+        burn_after_read=True,
+    )
+    db.add(profile)
+    await db.commit()
 
     access_token = create_access_token(user.id)
     refresh_token, jti = create_refresh_token(user.id)
@@ -105,7 +123,9 @@ async def register(body: RegisterRequest, response: Response, request: Request, 
 
     return {
         "id": user.id,
-        "username": user.username,
+        "nickname": user.nickname,
+        "email": user.email,
+        "phone": user.phone,
         "access_token": access_token,
         "refresh_token": refresh_token,
     }
@@ -113,7 +133,8 @@ async def register(body: RegisterRequest, response: Response, request: Request, 
 
 @router.post("/login")
 async def login(body: LoginRequest, response: Response, db=Depends(get_db_session)):
-    wait = login_throttle.check(body.username)
+    throttle_key = body.email or body.phone
+    wait = login_throttle.check(throttle_key)
     if wait > 0:
         raise HTTPException(
             status_code=429,
@@ -121,17 +142,21 @@ async def login(body: LoginRequest, response: Response, db=Depends(get_db_sessio
             headers={"Retry-After": str(wait)},
         )
 
-    result = await db.execute(select(User).where(User.username == body.username))
+    # 按 email 或 phone 查找用户
+    if body.email:
+        result = await db.execute(select(User).where(User.email == body.email))
+    else:
+        result = await db.execute(select(User).where(User.phone == body.phone))
     user = result.scalar_one_or_none()
 
     if user is None or not verify_password(body.password, user.hashed_password):
-        login_throttle.record_failure(body.username)
-        raise HTTPException(status_code=401, detail="用户名或密码错误")
+        login_throttle.record_failure(throttle_key)
+        raise HTTPException(status_code=401, detail="邮箱/手机号或密码错误")
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="账号已被停用")
 
-    login_throttle.reset(body.username)
+    login_throttle.reset(throttle_key)
 
     access_token = create_access_token(user.id)
     refresh_token, jti = create_refresh_token(user.id)
@@ -143,7 +168,9 @@ async def login(body: LoginRequest, response: Response, db=Depends(get_db_sessio
 
     return {
         "id": user.id,
-        "username": user.username,
+        "nickname": user.nickname,
+        "email": user.email,
+        "phone": user.phone,
         "access_token": access_token,
         "refresh_token": refresh_token,
     }
@@ -160,7 +187,7 @@ async def refresh(request: Request, db=Depends(get_db_session)):
     if jti and await is_refresh_token_revoked(db, jti):
         raise HTTPException(status_code=401, detail="Refresh token has been revoked")
 
-    access_token = create_access_token(int(payload["sub"]))
+    access_token = create_access_token(uuid.UUID(payload["sub"]))
     return {"access_token": access_token}
 
 
@@ -168,13 +195,15 @@ async def refresh(request: Request, db=Depends(get_db_session)):
 async def me(user: dict = Depends(get_current_user), db=Depends(get_db_session)):
     from sqlalchemy import select as sa_select
 
-    result = await db.execute(sa_select(User).where(User.id == int(user["user_id"])))
+    result = await db.execute(sa_select(User).where(User.id == uuid.UUID(user["user_id"])))
     db_user = result.scalar_one_or_none()
     if db_user is None:
         raise HTTPException(status_code=401, detail="User not found")
 
     return {
         "id": db_user.id,
-        "username": db_user.username,
+        "nickname": db_user.nickname,
+        "email": db_user.email,
+        "phone": db_user.phone,
         "is_active": db_user.is_active,
     }

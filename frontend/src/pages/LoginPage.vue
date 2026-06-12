@@ -22,19 +22,16 @@ const smsSending = ref(false)
 const showPassword = ref(false)
 const agreedToTerms = ref(false)
 
-const emailValid = computed(() => {
+const identityValid = computed(() => {
   if (!account.value) return false
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account.value)
-})
-const usernameValid = computed(() => {
-  if (!account.value) return false
-  return /^[A-Za-z0-9_]{3,50}$/.test(account.value)
+  // 接受 email 或手机号
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account.value) || /^1[3-9]\d{9}$/.test(account.value)
 })
 const passwordValid = computed(() => password.value.length >= 8)
 const phoneValid = computed(() => /^1[3-9]\d{9}$/.test(phone.value))
 
 const canSubmitPassword = computed(() =>
-  (emailValid.value || usernameValid.value) && passwordValid.value
+  identityValid.value && passwordValid.value
 )
 const canSubmitSms = computed(() => phoneValid.value && smsCode.value.length === 6)
 
@@ -62,7 +59,7 @@ async function handleSmsLogin() {
 async function handlePasswordLogin() {
   error.value = ''
   if (!canSubmitPassword.value) {
-    error.value = '请输入有效的账号和密码（密码至少 8 位）'
+    error.value = '请输入有效的邮箱/手机号和密码（密码至少 8 位）'
     return
   }
   if (!agreedToTerms.value) {
@@ -186,15 +183,15 @@ function gotoRegister() {
         </form>
 
         <form v-else class="form-body" @submit.prevent="handlePasswordLogin">
-          <p class="form-hint">使用注册时填写的邮箱或用户名登录</p>
+          <p class="form-hint">使用注册时填写的邮箱或手机号登录</p>
 
           <label class="field">
-            <span>邮箱 / 用户名</span>
+            <span>邮箱 / 手机号</span>
             <input
               v-model="account"
               type="text"
               autocomplete="username"
-              placeholder="请输入邮箱或用户名"
+              placeholder="请输入邮箱或手机号"
             />
           </label>
 

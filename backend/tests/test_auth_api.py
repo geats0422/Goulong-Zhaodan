@@ -45,14 +45,21 @@ VALID_PASSWORD = "TestPass123"
 
 @pytest_asyncio.fixture
 async def client():
+    await engine.dispose()
     await init_db()
     from core.database import async_session
+    from core.rate_limit import register_limiter
     from sqlalchemy import text
 
     assert_safe_database_for_cleanup()
+    register_limiter.reset()
     async with async_session() as session:
+        await session.execute(text("UPDATE knowledge_documents SET current_version_id = NULL"))
         for table in [
             "refresh_tokens",
+            "api_keys",
+            "agent_jobs",
+            "inspection_records",
             "knowledge_document_settings",
             "taboo_words",
             "user_profiles",
@@ -74,34 +81,38 @@ async def client():
 @pytest.mark.asyncio
 async def test_register_success(client: AsyncClient):
     resp = await client.post("/auth/register", json={
-        "username": "testuser1",
+        "email": "testuser1@example.com",
+        "nickname": "testuser1",
         "password": VALID_PASSWORD,
     })
     assert resp.status_code == 201
     data = resp.json()
-    assert data["username"] == "testuser1"
+    assert data["nickname"] == "testuser1"
+    assert data["email"] == "testuser1@example.com"
     assert "access_token" in data
     assert "refresh_token" in data
     assert "refresh_token" in resp.cookies
 
 
 @pytest.mark.asyncio
-async def test_register_duplicate_username(client: AsyncClient):
+async def test_register_duplicate_email(client: AsyncClient):
     await client.post("/auth/register", json={
-        "username": "testuser_dup",
+        "email": "dup@example.com",
+        "nickname": "testuser_dup",
         "password": VALID_PASSWORD,
     })
     resp = await client.post("/auth/register", json={
-        "username": "testuser_dup",
+        "email": "dup@example.com",
+        "nickname": "testuser_dup2",
         "password": VALID_PASSWORD,
     })
-    assert resp.status_code == 409
+    assert resp.status_code == 400
 
 
 @pytest.mark.asyncio
-async def test_register_short_username(client: AsyncClient):
+async def test_register_missing_identity(client: AsyncClient):
     resp = await client.post("/auth/register", json={
-        "username": "ab",
+        "nickname": "noid_user",
         "password": VALID_PASSWORD,
     })
     assert resp.status_code == 422
@@ -110,7 +121,8 @@ async def test_register_short_username(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_password_too_short(client: AsyncClient):
     resp = await client.post("/auth/register", json={
-        "username": "validname",
+        "email": "shortpw@example.com",
+        "nickname": "validname",
         "password": "Ab1",
     })
     assert resp.status_code == 422
@@ -119,7 +131,8 @@ async def test_register_password_too_short(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_password_no_uppercase(client: AsyncClient):
     resp = await client.post("/auth/register", json={
-        "username": "validname2",
+        "email": "noupc@example.com",
+        "nickname": "validname2",
         "password": "testpass123",
     })
     assert resp.status_code == 422
@@ -128,7 +141,8 @@ async def test_register_password_no_uppercase(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_password_no_lowercase(client: AsyncClient):
     resp = await client.post("/auth/register", json={
-        "username": "validname3",
+        "email": "nolow@example.com",
+        "nickname": "validname3",
         "password": "TESTPASS123",
     })
     assert resp.status_code == 422
@@ -137,7 +151,8 @@ async def test_register_password_no_lowercase(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_password_no_digit(client: AsyncClient):
     resp = await client.post("/auth/register", json={
-        "username": "validname4",
+        "email": "nodig@example.com",
+        "nickname": "validname4",
         "password": "TestPassWord",
     })
     assert resp.status_code == 422
@@ -146,7 +161,8 @@ async def test_register_password_no_digit(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_password_has_space(client: AsyncClient):
     resp = await client.post("/auth/register", json={
-        "username": "validname5",
+        "email": "spacepw@example.com",
+        "nickname": "validname5",
         "password": "Test Pass123",
     })
     assert resp.status_code == 422
@@ -155,7 +171,8 @@ async def test_register_password_has_space(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_password_weak(client: AsyncClient):
     resp = await client.post("/auth/register", json={
-        "username": "validname6",
+        "email": "weakpw@example.com",
+        "nickname": "validname6",
         "password": "Password123",
     })
     assert resp.status_code == 422
@@ -164,7 +181,8 @@ async def test_register_password_weak(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_password_allowed_special(client: AsyncClient):
     resp = await client.post("/auth/register", json={
-        "username": "specuser1",
+        "email": "specuser1@example.com",
+        "nickname": "specuser1",
         "password": "TestPass123!",
     })
     assert resp.status_code == 201
@@ -173,7 +191,8 @@ async def test_register_password_allowed_special(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_password_disallowed_special(client: AsyncClient):
     resp = await client.post("/auth/register", json={
-        "username": "specuser2",
+        "email": "specuser2@example.com",
+        "nickname": "specuser2",
         "password": "TestPass123`",
     })
     assert resp.status_code == 422
@@ -182,7 +201,8 @@ async def test_register_password_disallowed_special(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_password_too_long(client: AsyncClient):
     resp = await client.post("/auth/register", json={
-        "username": "longpw",
+        "email": "longpw@example.com",
+        "nickname": "longpw",
         "password": "A" * 129 + "a1",
     })
     assert resp.status_code == 422
@@ -191,42 +211,30 @@ async def test_register_password_too_long(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_login_success(client: AsyncClient):
     await client.post("/auth/register", json={
-        "username": "loginuser",
+        "email": "login@example.com",
+        "nickname": "loginuser",
         "password": VALID_PASSWORD,
     })
     resp = await client.post("/auth/login", json={
-        "username": "loginuser",
+        "email": "login@example.com",
         "password": VALID_PASSWORD,
     })
     assert resp.status_code == 200
     data = resp.json()
-    assert data["username"] == "loginuser"
+    assert data["nickname"] == "loginuser"
     assert "access_token" in data
     assert "refresh_token" in resp.cookies
 
 
 @pytest.mark.asyncio
-async def test_login_trims_username(client: AsyncClient):
-    await client.post("/auth/register", json={
-        "username": "trimuser",
-        "password": VALID_PASSWORD,
-    })
-    resp = await client.post("/auth/login", json={
-        "username": " trimuser ",
-        "password": VALID_PASSWORD,
-    })
-    assert resp.status_code == 200
-    assert resp.json()["username"] == "trimuser"
-
-
-@pytest.mark.asyncio
 async def test_login_wrong_password(client: AsyncClient):
     await client.post("/auth/register", json={
-        "username": "wrongpass",
+        "email": "wrongpw@example.com",
+        "nickname": "wrongpass",
         "password": VALID_PASSWORD,
     })
     resp = await client.post("/auth/login", json={
-        "username": "wrongpass",
+        "email": "wrongpw@example.com",
         "password": "WrongPass999",
     })
     assert resp.status_code == 401
@@ -235,7 +243,7 @@ async def test_login_wrong_password(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_login_nonexistent_user(client: AsyncClient):
     resp = await client.post("/auth/login", json={
-        "username": "nonexistent",
+        "email": "nonexistent@example.com",
         "password": VALID_PASSWORD,
     })
     assert resp.status_code == 401
@@ -244,7 +252,8 @@ async def test_login_nonexistent_user(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_refresh_success(client: AsyncClient):
     reg = await client.post("/auth/register", json={
-        "username": "refreshuser",
+        "email": "refresh@example.com",
+        "nickname": "refreshuser",
         "password": VALID_PASSWORD,
     })
     refresh_token = reg.json()["refresh_token"]
@@ -265,7 +274,8 @@ async def test_refresh_invalid_token(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_me_success(client: AsyncClient):
     reg = await client.post("/auth/register", json={
-        "username": "meuser",
+        "email": "me@example.com",
+        "nickname": "meuser",
         "password": VALID_PASSWORD,
     })
     access_token = reg.json()["access_token"]
@@ -275,7 +285,7 @@ async def test_me_success(client: AsyncClient):
     })
     assert resp.status_code == 200
     data = resp.json()
-    assert data["username"] == "meuser"
+    assert data["nickname"] == "meuser"
 
 
 @pytest.mark.asyncio

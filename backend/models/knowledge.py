@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import datetime
+import uuid
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, JSON, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -39,7 +41,7 @@ class KnowledgeDocument(Base):
         ForeignKey("document_versions.id"), nullable=True,
     )
     owner_type: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
-    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     application_scenario: Mapped[str] = mapped_column(String(20), nullable=False, default="bidding")
     source_path: Mapped[str | None] = mapped_column(String(1000), unique=True, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
@@ -104,8 +106,13 @@ class IndexNode(Base):
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    phone: Mapped[str | None] = mapped_column(String(20), unique=True, index=True, nullable=True)
+    wechat_openid: Mapped[str | None] = mapped_column(String(64), unique=True, index=True, nullable=True)
+    alipay_user_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True, nullable=True)
+    nickname: Mapped[str] = mapped_column(String(100), nullable=False)
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
@@ -117,18 +124,14 @@ class User(Base):
 class UserProfile(Base):
     __tablename__ = "user_profiles"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, nullable=False)
-    display_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), unique=True, nullable=False)
+    legacy_id: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
     subscription_plan: Mapped[str] = mapped_column(String(50), nullable=False, default="personal")
     monthly_quota: Mapped[int] = mapped_column(nullable=False, default=500)
     quota_used: Mapped[int] = mapped_column(nullable=False, default=0)
-    wechat_bound: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    alipay_bound: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     burn_after_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     model_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    phone: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
     created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(
         default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow,
@@ -139,7 +142,7 @@ class TabooWord(Base):
     __tablename__ = "taboo_words"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     word: Mapped[str] = mapped_column(String(100), nullable=False)
     replacement: Mapped[str | None] = mapped_column(String(100), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -157,7 +160,7 @@ class KnowledgeDocumentSetting(Base):
     __tablename__ = "knowledge_document_settings"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     document_id: Mapped[int] = mapped_column(ForeignKey("knowledge_documents.id"), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     updated_at: Mapped[datetime.datetime] = mapped_column(
@@ -173,7 +176,7 @@ class InspectionRecord(Base):
     __tablename__ = "inspection_records"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     document_name: Mapped[str] = mapped_column(String(255), nullable=False)
     document_type: Mapped[str] = mapped_column(String(20), nullable=False)
     document_type_label: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -192,7 +195,7 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     token_jti: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     expires_at: Mapped[datetime.datetime] = mapped_column(nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

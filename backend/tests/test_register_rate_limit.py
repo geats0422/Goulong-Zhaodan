@@ -63,7 +63,7 @@ def test_different_ips_independent():
     assert not limiter.is_limited(ip_b)
 
 
-def test_register_duplicate_username_unified_message():
+def test_register_duplicate_email_unified_message():
     from unittest.mock import AsyncMock, patch
 
     from fastapi import HTTPException
@@ -84,7 +84,9 @@ def test_register_duplicate_username_unified_message():
     mock_db.execute = AsyncMock(return_value=mock_result)
 
     body = MagicMock()
-    body.username = "dup_user"
+    body.email = "dup@example.com"
+    body.phone = None
+    body.nickname = "dup_user"
     body.password = "TestPass123"
 
     mock_response = MagicMock()
@@ -95,7 +97,7 @@ def test_register_duplicate_username_unified_message():
             asyncio.run(register(body, mock_response, mock_request, mock_db))
 
     assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "注册失败"
+    assert "已被注册" in exc_info.value.detail
 
 
 def test_is_limited_cleans_expired_keys():

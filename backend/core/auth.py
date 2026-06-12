@@ -19,7 +19,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     return _bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: uuid.UUID) -> str:
     expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
         minutes=settings.access_token_expire_minutes,
     )
@@ -27,7 +27,7 @@ def create_access_token(user_id: int) -> str:
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
-def create_refresh_token(user_id: int) -> tuple[str, str]:
+def create_refresh_token(user_id: uuid.UUID) -> tuple[str, str]:
     jti = uuid.uuid4().hex
     expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
         days=settings.refresh_token_expire_days,
@@ -56,7 +56,7 @@ def decode_token(token: str, token_type: str) -> dict:
     return payload
 
 
-async def store_refresh_token(db, user_id: int, jti: str, expires_at: datetime.datetime) -> None:
+async def store_refresh_token(db, user_id: uuid.UUID, jti: str, expires_at: datetime.datetime) -> None:
     from models.knowledge import RefreshToken
 
     db.add(RefreshToken(user_id=user_id, token_jti=jti, expires_at=expires_at, revoked=False))
@@ -73,7 +73,7 @@ async def is_refresh_token_revoked(db, jti: str) -> bool:
     return token_record.revoked
 
 
-async def revoke_all_refresh_tokens(db, user_id: int) -> None:
+async def revoke_all_refresh_tokens(db, user_id: uuid.UUID) -> None:
     from models.knowledge import RefreshToken
 
     await db.execute(
@@ -92,6 +92,5 @@ async def get_current_user(request: Request) -> dict:
 
     return {
         "user_id": payload["sub"],
-        "username": payload.get("username"),
         "is_active": payload.get("is_active", True),
     }

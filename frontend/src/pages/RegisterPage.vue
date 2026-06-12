@@ -58,8 +58,9 @@ const passwordValid = computed(() => passwordStrength.value === passwordRules.va
 const confirmValid = computed(() => confirmPassword.value.length > 0 && confirmPassword.value === password.value)
 
 const canRegister = computed(() =>
-  nicknameValid.value && phoneValid.value && smsCode.value.length === 6 &&
-  emailValid.value && passwordValid.value && confirmValid.value && agreedToTerms.value
+  nicknameValid.value &&
+  (emailValid.value || phoneValid.value) &&
+  passwordValid.value && confirmValid.value && agreedToTerms.value
 )
 
 async function startSmsCountdown() {
@@ -75,12 +76,21 @@ async function startSmsCountdown() {
 async function handleRegister() {
   error.value = ''
   if (!canRegister.value) {
-    error.value = '请检查所有字段并勾选同意条款'
+    if (!nicknameValid.value) error.value = '请输入有效的昵称（2-30 位）'
+    else if (!emailValid.value && !phoneValid.value) error.value = '邮箱和手机号至少填写一项'
+    else if (!passwordValid.value) error.value = '密码不符合要求'
+    else if (!confirmValid.value) error.value = '两次输入的密码不一致'
+    else error.value = '请检查所有字段并勾选同意条款'
     return
   }
   loading.value = true
   try {
-    await register(nickname.value, password.value)
+    await register({
+      email: emailValid.value ? email.value : undefined,
+      phone: phoneValid.value ? phone.value : undefined,
+      nickname: nickname.value,
+      password: password.value,
+    })
     await router.push('/dashboard')
   } catch (e) {
     error.value = e.message

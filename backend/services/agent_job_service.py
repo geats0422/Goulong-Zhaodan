@@ -15,8 +15,8 @@ async def enqueue_job(task_name: str, job_id: str) -> None:
 
 async def create_job(
     db: AsyncSession,
-    user_id: int,
-    api_key_id: int,
+    user_id: uuid.UUID,
+    api_key_id: uuid.UUID,
     job_type: str,
     input_payload: dict | None = None,
 ) -> AgentJob:
@@ -45,7 +45,7 @@ async def create_job(
 async def get_job(
     db: AsyncSession,
     job_id: str,
-    user_id: int,
+    user_id: uuid.UUID,
 ) -> AgentJob | None:
     stmt = select(AgentJob).where(
         AgentJob.job_id == job_id,

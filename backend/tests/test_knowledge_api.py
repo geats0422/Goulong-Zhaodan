@@ -344,7 +344,7 @@ class TestGetOverview:
         response = client.get("/api/v1/knowledge/overview")
         assert response.status_code == 200
         data = response.json()
-        assert len(data["categories"]) == 3
+        assert len(data["categories"]) == 4
         trad = next(c for c in data["categories"] if c["key"] == "traditional")
         assert trad["label"] == "传统基建"
         assert len(trad["subcategories"]) == 1
@@ -384,7 +384,7 @@ class TestGetOverview:
         response = client.get("/api/v1/knowledge/overview")
         assert response.status_code == 200
         data = response.json()
-        assert len(data["categories"]) == 3
+        assert len(data["categories"]) == 4
         for cat in data["categories"]:
             assert cat["subcategories"] == []
 
