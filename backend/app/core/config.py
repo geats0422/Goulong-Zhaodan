@@ -1,7 +1,11 @@
 """配置管理 — 从环境变量读取，不硬编码密钥"""
 from __future__ import annotations
 
+import logging
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -35,6 +39,8 @@ class Settings(BaseSettings):
 
     api_key_encryption_secret: str = "dev-encryption-secret-change-in-production"
 
+    trusted_proxy_count: int = 0
+
     environment: str = "development"
     data_encryption_key: str = ""
 
@@ -47,6 +53,16 @@ class Settings(BaseSettings):
 
 # 全局配置实例
 settings = Settings()
+
+_INSECURE_DEFAULTS = {
+    "jwt_secret_key": "goulong-jwt-dev-secret-change-in-production",
+    "api_key_encryption_secret": "dev-encryption-secret-change-in-production",
+    "api_key": "goulong-dev-key",
+}
+if settings.environment != "production":
+    for attr, default in _INSECURE_DEFAULTS.items():
+        if getattr(settings, attr) == default:
+            _logger.warning("开发环境使用默认 %s，请勿暴露此服务到公网", attr)
 
 
 def get_model_name() -> str:
@@ -68,9 +84,14 @@ def assert_production_security() -> None:
     defaults = {
         "jwt_secret_key": "goulong-jwt-dev-secret-change-in-production",
         "api_key_encryption_secret": "dev-encryption-secret-change-in-production",
+        "api_key": "goulong-dev-key",
     }
     for attr, default in defaults.items():
         if getattr(settings, attr) == default:
             raise RuntimeError(f"生产环境不允许使用默认 {attr}")
     if not settings.model_api_key:
         raise RuntimeError("生产环境必须配置 MODEL_API_KEY")
+    if not settings.data_encryption_key:
+        raise RuntimeError("生产环境必须配置 DATA_ENCRYPTION_KEY")
+    if "your-password" in settings.database_url:
+        raise RuntimeError("生产环境必须修改 DATABASE_URL 中的默认密码")

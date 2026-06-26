@@ -23,10 +23,10 @@ def create_access_token(user_id: uuid.UUID) -> str:
 
 
 def create_refresh_token(user_id: uuid.UUID) -> tuple[str, str]:
-    from goulong_auth.auth.jwt import create_refresh_token as _create
-    import uuid as _uuid
+    from goulong_auth.auth.jwt import create_refresh_token as _create, decode_token as _decode
     token = _create(user_id, product="zhaodan")
-    jti = _uuid.uuid4().hex
+    payload = _decode(token)
+    jti = payload.jti
     return token, jti
 
 
@@ -41,6 +41,7 @@ def decode_token(token: str, token_type: str) -> dict:
         "product": payload.product,
         "exp": payload.exp,
         "iat": payload.iat,
+        "jti": payload.jti,
         "sub": str(payload.user_id),
     }
 

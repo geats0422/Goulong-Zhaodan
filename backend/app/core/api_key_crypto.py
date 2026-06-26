@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import secrets
 
 from cryptography.fernet import Fernet
@@ -21,11 +22,12 @@ def hash_api_key(key: str) -> str:
 
 
 def verify_api_key_hash(plain_key: str, hashed: str) -> bool:
-    return hashlib.sha256(plain_key.encode()).hexdigest() == hashed
+    computed = hashlib.sha256(plain_key.encode()).hexdigest()
+    return hmac.compare_digest(computed, hashed)
 
 
 def get_key_prefix(key: str) -> str:
-    return key[: len(PREFIX) + 4]
+    return key[: len(PREFIX) + 8]
 
 
 def _get_encryption_secret() -> str:

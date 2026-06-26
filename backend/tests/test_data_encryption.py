@@ -2,8 +2,14 @@ from __future__ import annotations
 
 import os
 
+from app.core.config import Settings
+
+_test_settings = Settings(data_encryption_key="test-encryption-key-for-unit-tests", environment="development")
 os.environ["DATA_ENCRYPTION_KEY"] = "test-encryption-key-for-unit-tests"
 os.environ["ENVIRONMENT"] = "development"
+
+from app.core import config as _config
+_config.settings = _test_settings
 
 from app.core.data_encryption import decrypt_text, encrypt_text, safe_decrypt_text
 

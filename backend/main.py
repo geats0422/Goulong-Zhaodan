@@ -1,10 +1,12 @@
 """FastAPI 应用入口"""
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
 
 from app.core.config import assert_production_security, settings
 from app.core.database import init_db
@@ -13,6 +15,8 @@ from app.api.v1.knowledge import router as knowledge_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.agent import router as agent_router
 from app.api.v1.settings import router as settings_router
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -29,12 +33,48 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+_MAX_CONTENT_LENGTH = 100 * 1024 * 1024
+
+
+@app.middleware("http")
+async def max_body_size_middleware(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > _MAX_CONTENT_LENGTH:
+        return JSONResponse(status_code=413, content={"detail": "请求体过大"})
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response: Response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self';"
+    )
+    if request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
+_cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+if "*" in _cors_origins:
+    raise RuntimeError("CORS origins 不允许使用 '*' 通配符（allow_credentials=True 时不安全）")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins.split(","),
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
+    max_age=600,
 )
 
 app.include_router(inspection_router)
@@ -42,6 +82,12 @@ app.include_router(knowledge_router, prefix="/api/v1")
 app.include_router(auth_router)
 app.include_router(settings_router)
 app.include_router(agent_router)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled exception: %s", exc)
+    return JSONResponse(status_code=500, content={"detail": "服务器内部错误"})
 
 
 @app.get("/health")

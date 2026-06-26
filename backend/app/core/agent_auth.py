@@ -25,10 +25,10 @@ async def get_api_key_user(
     if api_key.status == "revoked":
         raise HTTPException(status_code=401, detail="api_key_revoked")
 
-    if api_key.expires_at is not None and api_key.expires_at < datetime.datetime.utcnow():
+    if api_key.expires_at is not None and api_key.expires_at < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
         raise HTTPException(status_code=401, detail="api_key_expired")
 
-    api_key.last_used_at = datetime.datetime.utcnow()
+    api_key.last_used_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     await db.commit()
 
     return {

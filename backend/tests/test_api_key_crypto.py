@@ -60,8 +60,8 @@ class TestEncryptDecryptApiKey:
 
 class TestGetKeyPrefix:
     def test_extracts_prefix(self):
-        key = "glzd_live_ab12xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-        assert get_key_prefix(key) == "glzd_live_ab12"
+        key = "glzd_live_ab12cd34xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        assert get_key_prefix(key) == "glzd_live_ab12cd34"
 
 
 class TestMissingEncryptionSecret:

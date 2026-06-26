@@ -35,21 +35,19 @@ from app.core.database import get_db_session
 from app.models import Base
 from app.models.api_keys import ApiKey
 from app.services.api_key_service import create_api_key
-from app.models.knowledge import User
+from goulong_auth.models import User
 
 
 @pytest_asyncio.fixture
 async def engine():
-    eng = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield eng
-    await eng.dispose()
+    from app.core.database import engine as global_engine
+    yield global_engine
 
 
 @pytest_asyncio.fixture
 def session_factory(engine):
-    return sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    from app.core.database import async_session
+    return async_session
 
 
 @pytest_asyncio.fixture
@@ -60,7 +58,7 @@ async def db(session_factory):
 
 @pytest_asyncio.fixture
 async def user_id(db: AsyncSession):
-    user = User(nickname="auth_tester", hashed_password="fakehash")
+    user = User(nickname="auth_tester", email="auth_tester@test.com", hashed_password="fakehash")
     db.add(user)
     await db.commit()
     await db.refresh(user)
