@@ -23,14 +23,12 @@ for mod_name in [
 
 os.environ["API_KEY_ENCRYPTION_SECRET"] = "test-secret-for-unit-tests"
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
-from app.models import Base
-from app.models.api_keys import ApiKey
-from goulong_auth.models import User
-from app.services.api_key_service import (
+from app.models.api_keys import ApiKey  # noqa: E402
+from goulong_auth.models import User  # noqa: E402
+from app.services.api_key_service import (  # noqa: E402
     authenticate_api_key,
     create_api_key,
     get_api_key_secret,

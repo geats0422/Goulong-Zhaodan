@@ -17,16 +17,20 @@ from pydantic import BaseModel
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.inspector import run_inspection
 from app.core.auth import get_current_user
 from app.core.constants import validate_application_scenario
-from app.core.data_encryption import decrypt_text, encrypt_text
+from app.core.data_encryption import decrypt_text
 from app.core.database import get_db_session
-from app.core.deps import InspectionDeps
 from app.core.file_magic import validate_file_magic
-from app.models.knowledge import InspectionRecord, TabooWord
+from app.models.knowledge import InspectionRecord
+from app.services.inspection_runner import (
+    DOCUMENT_TYPE_LABELS,
+    InspectionReportResponse,
+    _inspection_records,
+    create_pending_inspection_record,
+    execute_inspection,
+)
 from app.services.markdown_converter import ConversionError, convert_to_markdown
-from app.services.knowledge_retrieval import retrieve_regulation_base
 
 _logger = logging.getLogger(__name__)
 
@@ -40,17 +44,9 @@ DOCUMENT_TYPE_KEYWORDS = {
     "contract": ["合同", "协议", "甲方", "乙方", "民法典", "违约责任", "签订", "付款", "履约", "违约金", "不可抗力"],
     "bidding": ["招标", "投标", "招投标", "采购", "评标", "中标", "投标人", "投标保证金"],
 }
-DOCUMENT_TYPE_LABELS = {
-    "contract": "合同",
-    "bidding": "招投标文件",
-    "unknown": "未知类型",
-}
 DATA_IMAGE_PATTERN = re.compile(r"!\[[^\]]*]\(data:image/[^)]*\)", re.IGNORECASE)
 MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)]\([^)]*\)")
 
-
-# ─── 内存中的体检记录（后续可替换为 PostgreSQL） ───
-_inspection_records: list[dict[str, Any]] = []
 
 # ─── 内存中的解析会话（按 user_id 读取隔离，后续可替换为 Redis） ───
 _inspection_sessions: dict[str, dict[str, Any]] = {}
@@ -275,19 +271,6 @@ class InspectionParseResponse(BaseModel):
     file: InspectionParseFileResponse
 
 
-class InspectionReportResponse(BaseModel):
-    """体检报告响应"""
-
-    id: int
-    overall_risk: str
-    summary: str
-    issues: list[dict[str, Any]]
-    regulation_refs: list[str]
-    document_name: str
-    document_type: str = ""
-    document_type_label: str = ""
-
-
 class InspectionRecordListItem(BaseModel):
     id: int
     document_name: str
@@ -365,69 +348,11 @@ def _safe_int(value: Any) -> int:
         return 0
 
 
-def _merge_unique_words(*groups: list[str]) -> list[str]:
-    seen: set[str] = set()
-    merged: list[str] = []
-    for group in groups:
-        for word in group:
-            normalized = word.strip()
-            if normalized and normalized not in seen:
-                seen.add(normalized)
-                merged.append(normalized)
-    return merged
-
-
 def _strip_document_extension(document_name: str) -> str:
     suffix = Path(document_name).suffix
     if suffix:
         return document_name[: -len(suffix)]
     return document_name
-
-
-def _inspection_record_to_history_dict(record: InspectionRecord) -> dict[str, Any]:
-    return {
-        "id": record.id,
-        "user_id": record.user_id,
-        "document_name": record.document_name,
-        "project_id": record.project_id,
-        "overall_risk": record.overall_risk,
-        "summary": record.summary,
-        "issues": record.issues or [],
-        "regulation_refs": record.regulation_refs or [],
-        "text_preview": record.text_preview,
-        "created_at": record.created_at,
-        "quota_consumed": record.quota_consumed,
-    }
-
-
-async def _create_pending_inspection_record(
-    *,
-    db: AsyncSession,
-    user_id: uuid_mod.UUID,
-    document_name: str,
-    document_type: str,
-    document_type_label: str,
-    text: str,
-) -> InspectionRecord:
-    record = InspectionRecord(
-        user_id=user_id,
-        document_name=document_name,
-        document_type=document_type,
-        document_type_label=document_type_label,
-        project_id="default",
-        overall_risk="pending",
-        summary="文件已解析，等待审查",
-        issues=[],
-        regulation_refs=[],
-        text_preview=text[:500],
-        parsed_content=encrypt_text(text),
-        quota_consumed=0,
-    )
-    db.add(record)
-    await db.commit()
-    await db.refresh(record)
-    _inspection_records.append(_inspection_record_to_history_dict(record))
-    return record
 
 
 def _pdf_hex_text(value: str) -> str:
@@ -486,31 +411,6 @@ def _build_pdf_report(record: InspectionRecord) -> bytes:
     return bytes(pdf)
 
 
-async def _load_user_taboo_words(db: AsyncSession, user: dict) -> list[str]:
-    user_id = _current_user_id(user)
-    result = await db.execute(select(TabooWord.word).where(TabooWord.user_id == user_id).order_by(TabooWord.id))
-    return list(result.scalars().all())
-
-
-def _allowed_regulation_refs(regulation_base: dict[str, Any], taboo_words: list[str]) -> set[str]:
-    refs = {
-        str(source.get("title", "")).strip()
-        for source in regulation_base.get("sources", [])
-        if str(source.get("title", "")).strip()
-    }
-    refs.update(f"违禁词:{word}" for word in taboo_words if word)
-    return refs
-
-
-def _sanitize_inspection_result_refs(result: Any, allowed_refs: set[str]) -> None:
-    result.regulation_refs = [ref for ref in result.regulation_refs if ref in allowed_refs]
-    for issue in result.issues:
-        ref = issue.get("regulation_ref") or issue.get("citation")
-        if ref and ref not in allowed_refs:
-            issue.pop("regulation_ref", None)
-            issue.pop("citation", None)
-
-
 def _aggregate_history_stats(records: list[dict[str, Any]], days: int = 7) -> HistoryStatsResponse:
     buckets = {
         d.isoformat(): {"total_docs": 0, "hit_docs": 0, "quota_consumed": 0}
@@ -560,84 +460,6 @@ def _aggregate_history_stats(records: list[dict[str, Any]], days: int = 7) -> Hi
     )
 
 
-async def execute_inspection(
-    *,
-    db: AsyncSession,
-    user: dict,
-    document_name: str,
-    text: str,
-    project_id: str,
-    application_scenario: str,
-    taboo_words_input: str = "",
-    record_id: int | None = None,
-) -> InspectionReportResponse:
-    """公共审查执行：加载违禁词 → 召回知识库 → 运行 Agent → 保存记录 → 返回报告。"""
-    user_id = _current_user_id(user)
-
-    saved_taboo_words = await _load_user_taboo_words(db, user)
-    temporary_taboo_words = [w.strip() for w in taboo_words_input.split(",") if w.strip()]
-    taboo_list = _merge_unique_words(saved_taboo_words, temporary_taboo_words)
-    regulation_base = await retrieve_regulation_base(
-        db,
-        user_id=user_id,
-        application_scenario=application_scenario,
-        limit=8,
-    )
-
-    deps = InspectionDeps(
-        project_id=project_id,
-        user_id=str(user_id),
-        application_scenario=application_scenario,
-        regulation_base=regulation_base,
-        taboo_words=taboo_list or None,
-        db=db,
-    )
-
-    try:
-        result = await run_inspection(text, deps)
-    except Exception as exc:
-        _logger.exception("智能审查引擎异常")
-        raise HTTPException(
-            status_code=502,
-            detail="智能审查引擎不可用，请稍后重试",
-        ) from exc
-    _sanitize_inspection_result_refs(result, _allowed_regulation_refs(regulation_base, taboo_list))
-
-    record = None
-    if record_id is not None:
-        record = await db.scalar(select(InspectionRecord).where(InspectionRecord.id == record_id, InspectionRecord.user_id == user_id))
-    if record is None:
-        record = InspectionRecord(user_id=user_id, document_name=document_name)
-        db.add(record)
-
-    record.document_name = document_name
-    record.document_type = application_scenario
-    record.document_type_label = DOCUMENT_TYPE_LABELS.get(application_scenario, application_scenario)
-    record.project_id = project_id
-    record.overall_risk = result.overall_risk
-    record.summary = result.summary
-    record.issues = result.issues
-    record.regulation_refs = result.regulation_refs
-    record.text_preview = text[:500]
-    record.parsed_content = encrypt_text(text)
-    record.quota_consumed = max(1, len(text) // 500)
-    await db.commit()
-    await db.refresh(record)
-    _inspection_records[:] = [r for r in _inspection_records if r.get("id") != record.id]
-    _inspection_records.append(_inspection_record_to_history_dict(record))
-
-    return InspectionReportResponse(
-        id=record.id,
-        overall_risk=result.overall_risk,
-        summary=result.summary,
-        issues=result.issues,
-        regulation_refs=result.regulation_refs,
-        document_name=document_name,
-        document_type=application_scenario,
-        document_type_label=DOCUMENT_TYPE_LABELS.get(application_scenario, application_scenario),
-    )
-
-
 @router.post("/upload", response_model=InspectionReportResponse)
 async def upload_and_inspect(
     file: UploadFile = File(..., description="待体检的工程文档"),
@@ -661,7 +483,7 @@ async def upload_and_inspect(
 
     return await execute_inspection(
         db=db,
-        user=user,
+        user_id=_current_user_id(user),
         document_name=filename,
         text=text,
         project_id=project_id,
@@ -681,7 +503,7 @@ async def parse_inspection_file(
     user_id = _current_user_id(user)
     detected_type = _detect_document_type(filename, text)
     file_format = _inspection_file_format(filename)
-    record = await _create_pending_inspection_record(
+    record = await create_pending_inspection_record(
         db=db,
         user_id=user_id,
         document_name=filename,
@@ -733,7 +555,7 @@ async def inspect_session(
 
     return await execute_inspection(
         db=db,
-        user=user,
+        user_id=_current_user_id(user),
         document_name=session["filename"],
         text=session["text"],
         project_id=body.project_id,
@@ -862,7 +684,7 @@ async def inspect_record(
 
     return await execute_inspection(
         db=db,
-        user=user,
+        user_id=_current_user_id(user),
         document_name=record.document_name,
         text=decrypted_text,
         project_id=body.project_id,

@@ -6,11 +6,10 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.core.database import async_session, engine, init_db  # noqa: E402
+from app.core.database import async_session  # noqa: E402
 from app.models.knowledge import (  # noqa: E402
     DocumentVersion,
     EngineeringSubcategory,

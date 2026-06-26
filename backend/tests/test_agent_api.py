@@ -36,14 +36,12 @@ sys.modules["app.agents.inspector"] = fake_inspector_module
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
 
 VALID_PASSWORD = "TestPass123"
 
 
 @pytest_asyncio.fixture
 async def client():
-    from app.core.database import engine
     from app.core.rate_limit import register_limiter
 
     register_limiter.reset()
@@ -54,6 +52,10 @@ async def client():
 
 
 from main import app  # noqa: E402
+import app.services.inspection_runner as _inspection_runner  # noqa: E402
+
+# execute_inspection 已下沉到 inspection_runner，强制绑定 fake 避免 agents 真实 import 链
+_inspection_runner.run_inspection = _fake_run_inspection
 
 
 async def register_user(client: AsyncClient, username: str = "agent_user", password: str = VALID_PASSWORD):
@@ -423,6 +425,51 @@ async def test_agent_inspect_success(client: AsyncClient):
     assert "summary" in data
     assert "issues" in data
     assert "regulation_refs" in data
+
+
+@pytest.mark.asyncio
+async def test_agent_parse_creates_pending_record(client: AsyncClient):
+    jwt_headers = await register_user(client, "agent_parse_sync_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+
+    response = await client.post(
+        "/api/v1/agent/parse",
+        headers=api_headers,
+        files={"file": ("招标文件.txt", "本项目为公开招标采购，投标人须提交完整投标文件。", "text/plain")},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["record_id"] > 0
+    assert data["document_name"] == "招标文件.txt"
+    assert data["document_type"] == "bidding"
+    assert "公开招标" in data["text_preview"]
+
+
+@pytest.mark.asyncio
+async def test_agent_inspect_by_record_id(client: AsyncClient):
+    jwt_headers = await register_user(client, "agent_inspect_record_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+
+    parse_response = await client.post(
+        "/api/v1/agent/parse",
+        headers=api_headers,
+        files={"file": ("待审查招标文件.txt", "本项目为公开招标采购，投标人须具备相应资质并提交投标文件。", "text/plain")},
+    )
+    assert parse_response.status_code == 200
+    record_id = parse_response.json()["record_id"]
+
+    response = await client.post(
+        "/api/v1/agent/inspect",
+        headers=api_headers,
+        json={"record_id": record_id, "project_id": "agent-project"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == record_id
+    assert data["document_name"] == "待审查招标文件.txt"
+    assert data["document_type"] == "bidding"
 
 
 @pytest.mark.asyncio

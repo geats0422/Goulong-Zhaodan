@@ -20,14 +20,12 @@ for mod_name in [
     if mod_name not in sys.modules:
         sys.modules[mod_name] = types.ModuleType(mod_name)
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
-from app.models import Base
-from app.models.api_keys import ApiKey
-from goulong_auth.models import User
+from app.models.api_keys import ApiKey  # noqa: E402
+from goulong_auth.models import User  # noqa: E402
 
-from app.services.agent_job_service import (
+from app.services.agent_job_service import (  # noqa: E402
     create_job,
     get_job,
     mark_job_failed,
@@ -252,7 +250,9 @@ async def test_create_job_enqueue_failure(
         job = await create_job(session, user_id, api_key_id, "inspect")
 
     assert job is not None
-    assert job.status == "queued"
+    assert job.status == "failed"
+    assert job.finished_at is not None
+    assert "任务投递失败" in (job.error_message or "")
     assert job.job_id.startswith("job_")
 
     found = await get_job(session, job.job_id, user_id)

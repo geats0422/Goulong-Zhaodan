@@ -26,6 +26,7 @@ fake_inspector_module = types.ModuleType("app.agents.inspector")
 
 async def _fake_run_inspection(*args, **kwargs):
     from types import SimpleNamespace
+
     return SimpleNamespace(overall_risk="low", summary="", issues=[], regulation_refs=[])
 
 
@@ -35,7 +36,6 @@ sys.modules["app.agents.inspector"] = fake_inspector_module
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
 
 VALID_PASSWORD = "TestPass123"
 

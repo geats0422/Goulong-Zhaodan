@@ -19,7 +19,26 @@ for mod_name in [
     if mod_name not in sys.modules:
         sys.modules[mod_name] = types.ModuleType(mod_name)
 
-from app.workers.tasks import (
+if "markitdown" not in sys.modules or not hasattr(sys.modules.get("markitdown"), "MarkItDown"):
+    _fake_md = types.ModuleType("markitdown")
+    _fake_md.MarkItDown = MagicMock()
+    sys.modules["markitdown"] = _fake_md
+
+if "app.agents.inspector" not in sys.modules:
+    _fake_inspector = types.ModuleType("app.agents.inspector")
+
+    async def _fake_run_inspection(*args, **kwargs):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(overall_risk="low", summary="", issues=[], regulation_refs=[])
+
+    _fake_inspector.run_inspection = _fake_run_inspection
+    sys.modules["app.agents.inspector"] = _fake_inspector
+
+from app.workers.tasks import (  # noqa: E402
+    _run_inspect,
+    _run_knowledge_upload,
+    _run_parse,
     inspect_document_task,
     knowledge_upload_task,
     parse_document_task,
@@ -43,6 +62,7 @@ async def test_inspect_task_success():
         patch("app.workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
         patch("app.workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
         patch("app.workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
+        patch("app.workers.tasks._run_inspect", new_callable=AsyncMock, return_value={"record_id": 1, "overall_risk": "low"}),
     ):
         await inspect_document_task({}, "job_abc123")
 
@@ -87,6 +107,7 @@ async def test_parse_task_success():
         patch("app.workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
         patch("app.workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
         patch("app.workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
+        patch("app.workers.tasks._run_parse", new_callable=AsyncMock, return_value={"record_id": 1}),
     ):
         await parse_document_task({}, "job_parse_ok")
 
@@ -131,6 +152,7 @@ async def test_knowledge_upload_task_success():
         patch("app.workers.tasks.mark_job_running", new_callable=AsyncMock) as mock_running,
         patch("app.workers.tasks.mark_job_succeeded", new_callable=AsyncMock) as mock_succeeded,
         patch("app.workers.tasks.mark_job_failed", new_callable=AsyncMock) as mock_failed,
+        patch("app.workers.tasks._run_knowledge_upload", new_callable=AsyncMock, return_value={"document_id": 1}),
     ):
         await knowledge_upload_task({}, "job_ku_ok")
 
@@ -164,3 +186,170 @@ async def test_knowledge_upload_task_failure():
         assert mock_failed.call_args[0][0] is mock_session
         assert mock_failed.call_args[0][1] == "job_ku_fail"
         assert "知识库写入失败" in mock_failed.call_args.kwargs["error_message"]
+
+
+@pytest.mark.asyncio
+async def test_run_inspect_executes_inspection_with_payload():
+    """_run_inspect 从 job.input_payload 取参，调 execute_inspection，返回结果摘要。"""
+    import uuid
+    from types import SimpleNamespace
+
+    mock_session, mock_ctx = _make_mock_session_ctx()
+    mock_job = SimpleNamespace(
+        job_id="job_inspect_1",
+        user_id=uuid.UUID("12345678-1234-1234-1234-123456789012"),
+        input_payload={
+            "document_name": "测试招标.pdf",
+            "text": "本项目为公开招标采购，投标人须具备相应资质。",
+            "application_scenario": "bidding",
+        },
+    )
+    mock_db_result = MagicMock()
+    mock_db_result.scalar_one_or_none = MagicMock(return_value=mock_job)
+    mock_session.execute = AsyncMock(return_value=mock_db_result)
+
+    fake_report = SimpleNamespace(id=42, overall_risk="low", document_name="测试招标.pdf")
+
+    with (
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        patch("app.services.inspection_runner.execute_inspection", new_callable=AsyncMock, return_value=fake_report) as mock_exec,
+    ):
+        result = await _run_inspect({}, "job_inspect_1")
+
+    assert result == {"record_id": 42, "overall_risk": "low", "document_name": "测试招标.pdf"}
+    mock_exec.assert_awaited_once()
+    call_kwargs = mock_exec.call_args.kwargs
+    assert call_kwargs["document_name"] == "测试招标.pdf"
+    assert call_kwargs["text"] == "本项目为公开招标采购，投标人须具备相应资质。"
+    assert call_kwargs["application_scenario"] == "bidding"
+    assert str(call_kwargs["user_id"]) == "12345678-1234-1234-1234-123456789012"
+
+
+@pytest.mark.asyncio
+async def test_run_inspect_raises_on_missing_text():
+    """input_payload.text 缺失或过短时 _run_inspect 应 raise（_execute_task 会标记 failed）。"""
+    from types import SimpleNamespace
+
+    mock_session, mock_ctx = _make_mock_session_ctx()
+    mock_job = SimpleNamespace(job_id="job_empty", user_id=None, input_payload={"document_name": "x.pdf"})
+    mock_db_result = MagicMock()
+    mock_db_result.scalar_one_or_none = MagicMock(return_value=mock_job)
+    mock_session.execute = AsyncMock(return_value=mock_db_result)
+
+    with (
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        pytest.raises(ValueError, match="text"),
+    ):
+        await _run_inspect({}, "job_empty")
+
+
+@pytest.mark.asyncio
+async def test_run_parse_creates_pending_record_with_text_payload():
+    """_run_parse 应从 job.input_payload.text 创建可后续体检的 pending record。"""
+    import uuid
+    from types import SimpleNamespace
+
+    mock_session, mock_ctx = _make_mock_session_ctx()
+    mock_job = SimpleNamespace(
+        job_id="job_parse_1",
+        user_id=uuid.UUID("12345678-1234-1234-1234-123456789012"),
+        input_payload={
+            "document_name": "异步招标.txt",
+            "text": "本项目为公开招标采购，投标人须提交完整投标文件。",
+            "project_id": "async-project",
+        },
+    )
+    mock_db_result = MagicMock()
+    mock_db_result.scalar_one_or_none = MagicMock(return_value=mock_job)
+    mock_session.execute = AsyncMock(return_value=mock_db_result)
+    fake_record = SimpleNamespace(id=99)
+
+    with (
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        patch("app.services.inspection_runner.create_pending_inspection_record", new_callable=AsyncMock, return_value=fake_record) as mock_create,
+    ):
+        result = await _run_parse({}, "job_parse_1")
+
+    assert result["record_id"] == 99
+    assert result["document_name"] == "异步招标.txt"
+    assert result["document_type"] == "bidding"
+    assert "公开招标" in result["text_preview"]
+    mock_create.assert_awaited_once()
+    call_kwargs = mock_create.call_args.kwargs
+    assert str(call_kwargs["user_id"]) == "12345678-1234-1234-1234-123456789012"
+    assert call_kwargs["project_id"] == "async-project"
+
+
+@pytest.mark.asyncio
+async def test_run_parse_raises_on_missing_text():
+    """input_payload.text 缺失或过短时 _run_parse 应 raise（_execute_task 会标记 failed）。"""
+    from types import SimpleNamespace
+
+    mock_session, mock_ctx = _make_mock_session_ctx()
+    mock_job = SimpleNamespace(job_id="job_parse_empty", user_id=None, input_payload={"document_name": "x.txt"})
+    mock_db_result = MagicMock()
+    mock_db_result.scalar_one_or_none = MagicMock(return_value=mock_job)
+    mock_session.execute = AsyncMock(return_value=mock_db_result)
+
+    with (
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        pytest.raises(ValueError, match="text"),
+    ):
+        await _run_parse({}, "job_parse_empty")
+
+
+@pytest.mark.asyncio
+async def test_run_knowledge_upload_uses_existing_ingestion_handler():
+    """_run_knowledge_upload 应把 base64 文件 payload 交给现有知识库入库逻辑处理。"""
+    import base64
+    import uuid
+    from types import SimpleNamespace
+
+    mock_session, mock_ctx = _make_mock_session_ctx()
+    mock_job = SimpleNamespace(
+        job_id="job_knowledge_1",
+        user_id=uuid.UUID("12345678-1234-1234-1234-123456789012"),
+        input_payload={
+            "document_name": "法规.pdf",
+            "content_base64": base64.b64encode(b"%PDF-1.4 fake").decode("ascii"),
+            "category": "general",
+            "subcategory_name": "测试法规",
+            "application_scenario": "bidding",
+        },
+    )
+    mock_db_result = MagicMock()
+    mock_db_result.scalar_one_or_none = MagicMock(return_value=mock_job)
+    mock_session.execute = AsyncMock(return_value=mock_db_result)
+    fake_response = SimpleNamespace(model_dump=lambda: {"document_id": 7, "version_id": 8, "status": "completed"})
+
+    with (
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        patch("app.api.v1.knowledge.upload_and_ingest", new_callable=AsyncMock, return_value=fake_response) as mock_upload,
+    ):
+        result = await _run_knowledge_upload({}, "job_knowledge_1")
+
+    assert result == {"document_id": 7, "version_id": 8, "status": "completed"}
+    mock_upload.assert_awaited_once()
+    call_kwargs = mock_upload.call_args.kwargs
+    assert call_kwargs["file"].filename == "法规.pdf"
+    assert call_kwargs["category"] == "general"
+    assert call_kwargs["subcategory_name"] == "测试法规"
+    assert call_kwargs["user"] == {"user_id": "12345678-1234-1234-1234-123456789012"}
+
+
+@pytest.mark.asyncio
+async def test_run_knowledge_upload_raises_on_missing_content():
+    """content_base64 缺失时 _run_knowledge_upload 应 raise（_execute_task 会标记 failed）。"""
+    from types import SimpleNamespace
+
+    mock_session, mock_ctx = _make_mock_session_ctx()
+    mock_job = SimpleNamespace(job_id="job_knowledge_empty", user_id=None, input_payload={"document_name": "法规.pdf"})
+    mock_db_result = MagicMock()
+    mock_db_result.scalar_one_or_none = MagicMock(return_value=mock_job)
+    mock_session.execute = AsyncMock(return_value=mock_db_result)
+
+    with (
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        pytest.raises(ValueError, match="content_base64"),
+    ):
+        await _run_knowledge_upload({}, "job_knowledge_empty")

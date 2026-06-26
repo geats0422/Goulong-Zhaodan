@@ -35,7 +35,6 @@ import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 
-from app.core.database import engine, init_db  # noqa: E402
 from main import app  # noqa: E402
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
 

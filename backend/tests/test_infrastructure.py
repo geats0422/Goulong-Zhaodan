@@ -24,7 +24,7 @@ from app.core.constants import (  # noqa: E402
     validate_category,
     validate_file_type,
 )
-from app.models import Base, DocumentVersion, EngineeringSubcategory, IndexNode, KnowledgeDocument  # noqa: E402
+from app.models import DocumentVersion, EngineeringSubcategory, IndexNode, KnowledgeDocument  # noqa: E402
 from app.services.file_storage import build_storage_path, ensure_storage_dir, save_upload_file  # noqa: E402
 
 

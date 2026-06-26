@@ -111,7 +111,7 @@ def test_phone_not_embedded_in_longer_number() -> None:
     assert "[手机号***]" not in result.text
 
 
-from app.prompts.inspection_prompts import format_inspection_prompt, format_regulation_prompt
+from app.prompts.inspection_prompts import format_inspection_prompt, format_regulation_prompt  # noqa: E402
 
 
 def test_format_regulation_prompt_masks_phone() -> None:

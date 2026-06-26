@@ -8,10 +8,10 @@ _test_settings = Settings(data_encryption_key="test-encryption-key-for-unit-test
 os.environ["DATA_ENCRYPTION_KEY"] = "test-encryption-key-for-unit-tests"
 os.environ["ENVIRONMENT"] = "development"
 
-from app.core import config as _config
+from app.core import config as _config  # noqa: E402
 _config.settings = _test_settings
 
-from app.core.data_encryption import decrypt_text, encrypt_text, safe_decrypt_text
+from app.core.data_encryption import decrypt_text, encrypt_text, safe_decrypt_text  # noqa: E402
 
 
 def test_encrypt_decrypt_roundtrip() -> None:

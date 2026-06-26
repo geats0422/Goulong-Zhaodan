@@ -18,7 +18,7 @@ for mod_name in [
     if mod_name not in sys.modules:
         sys.modules[mod_name] = types.ModuleType(mod_name)
 
-from app.core.api_key_scopes import (
+from app.core.api_key_scopes import (  # noqa: E402
     ALL_SCOPES,
     AVAILABLE_SCOPES,
     CLIENT_TYPES,

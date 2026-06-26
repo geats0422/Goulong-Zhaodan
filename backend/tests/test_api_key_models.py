@@ -21,10 +21,8 @@ for mod_name in [
 
 import datetime  # noqa: E402
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
-from app.models import Base  # noqa: E402
 from goulong_auth.models import User  # noqa: E402
 from app.models.api_keys import AgentJob, ApiKey  # noqa: E402
 

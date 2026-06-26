@@ -32,9 +32,9 @@ async def _fake_run_inspection(*args, **kwargs):
 fake_inspector_module.run_inspection = _fake_run_inspection
 sys.modules["app.agents.inspector"] = fake_inspector_module
 
-import pytest
+import pytest  # noqa: E402
 
-from app.core.rate_limit import IPRateLimiter
+from app.core.rate_limit import IPRateLimiter  # noqa: E402
 
 
 def test_register_within_limit():

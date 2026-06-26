@@ -10,7 +10,16 @@ from app.models.api_keys import AgentJob
 
 
 async def enqueue_job(task_name: str, job_id: str) -> None:
-    pass
+    """将任务投递到 arq 队列。投递失败由调用方处理。"""
+    from arq import create_pool
+
+    from app.core.redis import get_redis_settings
+
+    pool = await create_pool(get_redis_settings())
+    try:
+        await pool.enqueue_job(task_name, job_id=job_id)
+    finally:
+        await pool.close()
 
 
 async def create_job(
@@ -35,9 +44,13 @@ async def create_job(
     await db.refresh(job)
 
     try:
-        await enqueue_job(f"{job_type}_document_task", job.id)
-    except Exception:
-        pass
+        await enqueue_job(f"{job_type}_document_task", job.job_id)
+    except Exception as exc:
+        job.status = "failed"
+        job.error_message = f"任务投递失败: {exc}"
+        job.finished_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        await db.commit()
+        await db.refresh(job)
 
     return job
 

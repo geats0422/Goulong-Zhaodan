@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.agent_auth import get_api_key_user, require_api_scope
 from app.core.constants import validate_application_scenario
+from app.core.data_encryption import decrypt_text
 from app.core.database import get_db_session
 from app.models import InspectionRecord
-from app.api.v1.inspection import InspectionReportResponse, execute_inspection
+from app.services.inspection_runner import InspectionReportResponse, create_pending_inspection_record, execute_inspection
 from app.services.agent_job_service import create_job, get_job
 from app.services.knowledge_retrieval import retrieve_regulation_base
+from app.api.v1.inspection import _detect_document_type, _read_inspection_upload_text
 
 router = APIRouter(prefix="/api/v1/agent", tags=["Agent API"])
 
@@ -174,16 +176,55 @@ async def search_knowledge(
     )
 
 
-class AgentInspectRequest(BaseModel):
+class AgentParseResponse(BaseModel):
+    record_id: int
     document_name: str
-    text: str
+    document_type: str
+    document_type_label: str
+    text_preview: str
+
+
+@router.post("/parse", response_model=AgentParseResponse)
+async def agent_parse(
+    file: UploadFile = File(..., description="待解析的工程文档"),
+    project_id: str = Form(default="default"),
+    user: dict = Depends(require_api_scope("inspection:run")),
+    db: AsyncSession = Depends(get_db_session),
+) -> AgentParseResponse:
+    """同步解析：MCP / Agent 客户端上传文件，返回可二次体检的 record_id。"""
+    filename, _, text = await _read_inspection_upload_text(file)
+    detected_type = _detect_document_type(filename, text)
+    record = await create_pending_inspection_record(
+        db=db,
+        user_id=user["user_id"],
+        document_name=filename,
+        document_type=detected_type["document_type"],
+        document_type_label=detected_type["document_type_label"],
+        text=text,
+        project_id=project_id,
+    )
+    return AgentParseResponse(
+        record_id=record.id,
+        document_name=filename,
+        document_type=detected_type["document_type"],
+        document_type_label=detected_type["document_type_label"],
+        text_preview=text[:500],
+    )
+
+
+class AgentInspectRequest(BaseModel):
+    document_name: str | None = None
+    text: str | None = None
+    record_id: int | None = None
     application_scenario: str = "bidding"
     taboo_words: str = ""
     project_id: str = "default"
 
     @field_validator("document_name")
     @classmethod
-    def _validate_document_name(cls, value: str) -> str:
+    def _validate_document_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         value = value.strip()
         if not value or len(value) > 200:
             raise ValueError("document_name 长度须为 1-200 字符")
@@ -197,20 +238,43 @@ async def agent_inspect(
     db: AsyncSession = Depends(get_db_session),
 ) -> InspectionReportResponse:
     """同步体检：MCP / Agent 客户端直接传入文档正文，一次调用返回完整审查报告。"""
+    document_name = body.document_name
+    text = body.text
+    application_scenario = body.application_scenario
+
+    if body.record_id is not None:
+        record = await db.scalar(
+            select(InspectionRecord).where(
+                InspectionRecord.id == body.record_id,
+                InspectionRecord.user_id == user["user_id"],
+            )
+        )
+        if record is None:
+            raise HTTPException(status_code=404, detail="record_not_found")
+        if not record.parsed_content.strip():
+            raise HTTPException(status_code=400, detail="该记录缺少完整解析正文，请重新上传后审查")
+        document_name = record.document_name
+        text = decrypt_text(record.parsed_content)
+        application_scenario = record.document_type if record.document_type != "unknown" else body.application_scenario
+
+    if document_name is None or text is None:
+        raise HTTPException(status_code=400, detail="请提供 record_id 或 document_name + text")
+
     try:
-        validate_application_scenario(body.application_scenario)
+        validate_application_scenario(application_scenario)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="非法应用场景") from exc
 
-    if len(body.text.strip()) < 10:
+    if len(text.strip()) < 10:
         raise HTTPException(status_code=400, detail="文件内容过短，无法体检")
 
     return await execute_inspection(
         db=db,
-        user=user,
-        document_name=body.document_name,
-        text=body.text,
+        user_id=user["user_id"],
+        document_name=document_name,
+        text=text,
         project_id=body.project_id,
-        application_scenario=body.application_scenario,
+        application_scenario=application_scenario,
         taboo_words_input=body.taboo_words,
+        record_id=body.record_id,
     )

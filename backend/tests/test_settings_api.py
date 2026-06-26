@@ -35,9 +35,8 @@ sys.modules["app.agents.inspector"] = fake_inspector_module
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
-from sqlalchemy import text  # noqa: E402
 
-from app.core.database import async_session, engine, init_db  # noqa: E402
+from app.core.database import async_session  # noqa: E402
 from main import app  # noqa: E402
 from app.models.knowledge import EngineeringSubcategory, KnowledgeDocument  # noqa: E402
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
@@ -253,9 +252,9 @@ async def test_inspection_upload_merges_saved_and_temporary_taboo_words(client: 
         captured["taboo_words"] = deps.taboo_words
         return SimpleNamespace(overall_risk="low", summary="", issues=[], regulation_refs=[])
 
-    import app.api.v1.inspection as inspection_router
+    from app.services import inspection_runner
 
-    monkeypatch.setattr(inspection_router, "run_inspection", fake_run_inspection)
+    monkeypatch.setattr(inspection_runner, "run_inspection", fake_run_inspection)
     response = await client.post(
         "/inspection/upload",
         headers=headers,

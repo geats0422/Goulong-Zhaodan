@@ -25,17 +25,15 @@ for mod_name in [
 
 os.environ["API_KEY_ENCRYPTION_SECRET"] = "test-secret-for-unit-tests"
 
-from fastapi import Depends, FastAPI
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from fastapi import Depends, FastAPI  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
-from app.core.agent_auth import get_api_key_user, require_api_scope
-from app.core.database import get_db_session
-from app.models import Base
-from app.models.api_keys import ApiKey
-from app.services.api_key_service import create_api_key
-from goulong_auth.models import User
+from app.core.agent_auth import get_api_key_user, require_api_scope  # noqa: E402
+from app.core.database import get_db_session  # noqa: E402
+from app.models.api_keys import ApiKey  # noqa: E402
+from app.services.api_key_service import create_api_key  # noqa: E402
+from goulong_auth.models import User  # noqa: E402
 
 
 @pytest_asyncio.fixture
