@@ -483,3 +483,19 @@ async def test_agent_inspect_short_text(client: AsyncClient):
 
     assert response.status_code == 400
     assert "过短" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_agent_inspect_with_mcp_inspect_template(client: AsyncClient):
+    """mcp_inspect 模板的 key 应能调用体检端点 — MCP 可用性核心验证。"""
+    jwt_headers = await register_user(client, "mcp_inspect_user")
+    api_headers = await create_agent_api_key(client, jwt_headers, scope_template="mcp_inspect")
+
+    response = await client.post(
+        "/api/v1/agent/inspect",
+        headers=api_headers,
+        json={"document_name": "招标文档.pdf", "text": "本项目公开招标，投标人须具备资质并提交投标文件。"},
+    )
+
+    assert response.status_code == 200
+    assert "overall_risk" in response.json()

@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.api_key_scopes import SCOPE_TEMPLATES_META
 from app.core.auth import get_current_user, hash_password, revoke_all_refresh_tokens, verify_password
 from app.core.config import settings
 from app.core.constants import ENGINEERING_CATEGORIES
@@ -39,31 +40,11 @@ MODEL_CATALOG = [
     {"model_name": "deepseek-ai/deepseek-v4-flash", "label": "DeepSeek V4 Flash", "tier": "快速响应",      "context": "64K"},
 ]
 
-SCOPE_TEMPLATES = [
-    {
-        "key": "mcp_readonly",
-        "label": "MCP 只读",
-        "description": "只读查询，适用于 Agent 上下文获取",
-        "scopes": ["profile:read", "inspection:read", "knowledge:read"],
-    },
-    {
-        "key": "cli_review",
-        "label": "CLI 审查",
-        "description": "查询 + AI 生成，适用于 CLI 工具",
-        "scopes": ["profile:read", "inspection:run", "inspection:read", "knowledge:read"],
-    },
-    {
-        "key": "agent_automation",
-        "label": "Agent 自动化",
-        "description": "完整业务自动化，含读写和 AI 生成",
-        "scopes": ["profile:read", "inspection:run", "inspection:read", "knowledge:read", "knowledge:write"],
-    },
-    {
-        "key": "advanced_custom",
-        "label": "高级自定义",
-        "description": "手动选择具权限范围",
-        "scopes": [],
-    },
+SCOPE_TEMPLATES_CATALOG: list[dict] = [
+    {"key": m.key, "label": m.label, "description": m.description, "scopes": list(m.scopes)}
+    for m in SCOPE_TEMPLATES_META
+] + [
+    {"key": "advanced_custom", "label": "高级自定义", "description": "手动选择权限范围", "scopes": []},
 ]
 
 
@@ -314,7 +295,7 @@ def _profile_response(db_user: User, profile: ZhaodanUserProfile, membership: Me
         model_base_url=settings.model_base_url,
         model_api_key_preview=preview,
         model_catalog=MODEL_CATALOG,
-        scope_templates=SCOPE_TEMPLATES,
+        scope_templates=SCOPE_TEMPLATES_CATALOG,
     )
 
 

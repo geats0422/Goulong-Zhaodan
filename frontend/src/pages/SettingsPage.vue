@@ -61,7 +61,7 @@ const confirmingKeyId = ref(null)
 const confirmAction = ref(null)
 const confirmMessage = ref('')
 const showApiKeyForm = ref(false)
-const newKeyForm = ref({ name: '', scope_template: 'mcp_readonly', expires_in_days: 90, custom_scopes: [] })
+const newKeyForm = ref({ name: '', scope_template: 'mcp_inspect', expires_in_days: 90, custom_scopes: [] })
 const newlyCreatedKey = ref(null)
 const showExpiryDropdown = ref(false)
 const expiryOptions = [
@@ -306,7 +306,7 @@ function cancelConfirm() {
 }
 
 function openCreateApiKey() {
-  newKeyForm.value = { name: '', scope_template: 'mcp_readonly', expires_in_days: 90, custom_scopes: [] }
+  newKeyForm.value = { name: '', scope_template: 'mcp_inspect', expires_in_days: 90, custom_scopes: [] }
   showApiKeyForm.value = true
   newlyCreatedKey.value = null
 }

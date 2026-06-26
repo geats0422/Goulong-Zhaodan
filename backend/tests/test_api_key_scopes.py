@@ -65,8 +65,18 @@ def test_scope_template_mcp_readonly():
     assert set(template) == {"profile:read", "inspection:read", "knowledge:read"}
 
 
-def test_scope_template_cli_inspection():
-    template = SCOPE_TEMPLATES["cli_inspection"]
+def test_scope_template_mcp_inspect():
+    template = SCOPE_TEMPLATES["mcp_inspect"]
+    assert set(template) == {
+        "profile:read",
+        "inspection:run",
+        "inspection:read",
+        "knowledge:read",
+    }
+
+
+def test_scope_template_cli_review():
+    template = SCOPE_TEMPLATES["cli_review"]
     assert set(template) == {
         "profile:read",
         "inspection:run",
@@ -102,6 +112,24 @@ def test_each_template_scope_is_in_all_scopes():
 def test_resolve_scopes_mcp_readonly():
     result = resolve_scopes("mcp_readonly")
     assert set(result) == {"profile:read", "inspection:read", "knowledge:read"}
+
+
+def test_resolve_scopes_mcp_inspect():
+    result = resolve_scopes("mcp_inspect")
+    assert set(result) == {"profile:read", "inspection:run", "inspection:read", "knowledge:read"}
+
+
+def test_resolve_scopes_cli_inspection_alias():
+    """历史名 cli_inspection 应作为 cli_review 别名解析，兼容旧数据。"""
+    result = resolve_scopes("cli_inspection")
+    assert set(result) == {"profile:read", "inspection:run", "inspection:read", "knowledge:read"}
+
+
+def test_resolve_scopes_advanced_custom_alias():
+    """前端 advanced_custom 应触发 custom 自定义路径。"""
+    user_scopes = ["profile:read", "inspection:read"]
+    result = resolve_scopes("advanced_custom", user_scopes=user_scopes)
+    assert result == user_scopes
 
 
 def test_resolve_scopes_custom_with_user_scopes():

@@ -371,7 +371,9 @@ async def test_overview_includes_scope_templates(client: AsyncClient):
     assert resp.status_code == 200
     scope_templates = resp.json()["profile"]["scope_templates"]
     assert isinstance(scope_templates, list)
-    assert len(scope_templates) == 4
+    assert len(scope_templates) == 5
+    template_keys = {t["key"] for t in scope_templates}
+    assert "mcp_inspect" in template_keys
     for template in scope_templates:
         assert "key" in template
         assert "label" in template
