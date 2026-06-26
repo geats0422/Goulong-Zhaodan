@@ -81,7 +81,8 @@ def test_ensure_storage_dir(tmp_path: Path) -> None:
     assert target.exists()
 
 
-def test_save_upload_file(tmp_path: Path) -> None:
+def test_save_upload_file(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("app.services.file_storage.STORAGE_ROOT", str(tmp_path))
     file_path = tmp_path / "sub" / "test.docx"
     content = b"hello world"
     result = save_upload_file(file_path, content)
@@ -102,23 +103,19 @@ def test_models_importable() -> None:
 
 @pytest.mark.asyncio
 async def test_tables_created() -> None:
-    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy import text
+    from app.core.database import engine
 
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async with engine.begin() as conn:
-        tables = await conn.run_sync(
-            lambda sync_conn: sync_conn.execute(
-                __import__("sqlalchemy").text(
-                    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-                )
-            ).fetchall(),
+    async with engine.connect() as conn:
+        result = await conn.execute(
+            text(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema IN ('public', 'goulong_auth') ORDER BY table_name"
+            )
         )
-    table_names = {row[0] for row in tables}
+        table_names = {row[0] for row in result.fetchall()}
     assert "engineering_subcategories" in table_names
     assert "knowledge_documents" in table_names
     assert "document_versions" in table_names
     assert "index_nodes" in table_names
-    await engine.dispose()
+    assert "users" in table_names

@@ -2,12 +2,27 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
 
-engine = create_async_engine(settings.database_url, echo=False)
+
+def _ensure_ssl_database_url(url: str) -> str:
+    if url.startswith("sqlite"):
+        return url
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query)
+    if "sslmode" not in qs and settings.environment == "production":
+        qs["sslmode"] = ["require"]
+        new_query = urlencode(qs, doseq=True)
+        return urlunparse(parsed._replace(query=new_query))
+    return url
+
+
+_db_url = _ensure_ssl_database_url(settings.database_url)
+engine = create_async_engine(_db_url, echo=False)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

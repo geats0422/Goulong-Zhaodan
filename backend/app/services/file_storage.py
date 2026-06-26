@@ -6,8 +6,17 @@ from pathlib import Path
 STORAGE_ROOT = "data/knowledge"
 
 
+def _validate_path_within_root(path: Path) -> Path:
+    resolved = path.resolve()
+    root = Path(STORAGE_ROOT).resolve()
+    if not str(resolved).startswith(str(root)):
+        raise ValueError("路径遍历攻击已阻止")
+    return resolved
+
+
 def safe_path_segment(value: str, fallback: str = "untitled", max_length: int = 100) -> str:
     normalized = re.sub(r"[^\w.\-]", "_", value).strip("._-")
+    normalized = normalized.replace("..", "_")
     result = normalized or fallback
     return result[:max_length]
 
@@ -27,6 +36,7 @@ def ensure_storage_dir(path: Path) -> Path:
 
 
 def save_upload_file(file_path: Path, content: bytes) -> Path:
+    _validate_path_within_root(file_path)
     ensure_storage_dir(file_path.parent)
     file_path.write_bytes(content)
     return file_path

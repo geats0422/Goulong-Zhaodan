@@ -25,22 +25,20 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E4
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from app.models import Base  # noqa: E402
-from app.models.knowledge import User  # noqa: E402
+from goulong_auth.models import User  # noqa: E402
 from app.models.api_keys import AgentJob, ApiKey  # noqa: E402
 
 
 @pytest_asyncio.fixture
 async def engine():
-    eng = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield eng
-    await eng.dispose()
+    from app.core.database import engine as global_engine
+    yield global_engine
 
 
 @pytest_asyncio.fixture
 def async_session_factory(engine):
-    return sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    from app.core.database import async_session
+    return async_session
 
 
 @pytest_asyncio.fixture
@@ -53,6 +51,7 @@ async def session(async_session_factory):
 async def user_id(session: AsyncSession) -> int:
     user = User(
         nickname="apikey_tester",
+        email="apikey_tester@test.com",
         hashed_password="fakehash",
     )
     session.add(user)
@@ -63,15 +62,15 @@ async def user_id(session: AsyncSession) -> int:
 
 @pytest.mark.asyncio
 async def test_tables_created(engine):
-    async with engine.begin() as conn:
-        tables = await conn.run_sync(
-            lambda sync_conn: sync_conn.execute(
-                __import__("sqlalchemy").text(
-                    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-                )
-            ).fetchall(),
+    from sqlalchemy import text
+    async with engine.connect() as conn:
+        result = await conn.execute(
+            text(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = 'public' ORDER BY table_name"
+            )
         )
-    table_names = {row[0] for row in tables}
+        table_names = {row[0] for row in result.fetchall()}
     assert "api_keys" in table_names
     assert "agent_jobs" in table_names
 
