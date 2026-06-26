@@ -50,7 +50,7 @@ This is a monorepo containing a frontend and backend. Agentic coding tools shoul
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Goulong-Zhaodan** (2582 symbols, 4450 relationships, 136 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Goulong-Zhaodan** (3893 symbols, 6661 relationships, 186 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -88,14 +88,16 @@ This project is indexed by GitNexus as **Goulong-Zhaodan** (2582 symbols, 4450 r
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-| Work in the Tests area (113 symbols) | `.claude/skills/generated/tests/SKILL.md` |
-| Work in the Routers area (91 symbols) | `.claude/skills/generated/routers/SKILL.md` |
-| Work in the Services area (67 symbols) | `.claude/skills/generated/services/SKILL.md` |
+| Work in the Tests area (291 symbols) | `.claude/skills/generated/tests/SKILL.md` |
+| Work in the V1 area (111 symbols) | `.claude/skills/generated/v1/SKILL.md` |
+| Work in the Services area (84 symbols) | `.claude/skills/generated/services/SKILL.md` |
+| Work in the Pages area (18 symbols) | `.claude/skills/generated/pages/SKILL.md` |
+| Work in the Prompts area (12 symbols) | `.claude/skills/generated/prompts/SKILL.md` |
 | Work in the Models area (11 symbols) | `.claude/skills/generated/models/SKILL.md` |
-| Work in the Prompts area (8 symbols) | `.claude/skills/generated/prompts/SKILL.md` |
-| Work in the Pages area (8 symbols) | `.claude/skills/generated/pages/SKILL.md` |
 | Work in the Agents area (7 symbols) | `.claude/skills/generated/agents/SKILL.md` |
-| Work in the Cluster_12 area (4 symbols) | `.claude/skills/generated/cluster-12/SKILL.md` |
-| Work in the Composables area (4 symbols) | `.claude/skills/generated/composables/SKILL.md` |
+| Work in the Composables area (5 symbols) | `.claude/skills/generated/composables/SKILL.md` |
+| Work in the Cluster_77 area (4 symbols) | `.claude/skills/generated/cluster-77/SKILL.md` |
+| Work in the Workers area (3 symbols) | `.claude/skills/generated/workers/SKILL.md` |
+| Work in the Scripts area (3 symbols) | `.claude/skills/generated/scripts/SKILL.md` |
 
 <!-- gitnexus:end -->
