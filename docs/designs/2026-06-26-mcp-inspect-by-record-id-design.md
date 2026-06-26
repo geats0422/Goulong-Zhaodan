@@ -1,0 +1,120 @@
+# MCP 体检：基于 record_id 与异步 Worker 的迭代设计（方案2）
+
+> 状态：**待实现**（后续迭代）。本文档承接方案1（同步纯文本体检），记录"复用 record_id"与"接通 arq 异步 worker"两条演进路径的设计。
+
+## 目标
+
+- 提供"先解析落库、再凭 record_id 体检"的两步能力，减少大文本重复传输，并保留可追溯的解析记录。
+- 接通现有但空壳化的 arq worker，让 `/api/v1/agent/jobs/*` 真正异步执行体检/解析，支撑批量与大文件场景。
+- 与方案1（`POST /api/v1/agent/inspect` 同步纯文本）互补：小文件/即时调用走同步，大文件/批量走异步。
+
+## 背景
+
+方案1（已实现，2026-06-26）新增 `POST /api/v1/agent/inspect`，MCP/Agent 客户端直接传入文档正文 `text`，同步返回完整审查报告。该方案契合 MCP 同步工具语义，但不适合：
+
+- 文档正文极大、需多次复检（重复传输成本高）
+- 批量体检、长耗时任务（同步 HTTP 易超时）
+- 需要保留解析中间产物、按记录回溯的场景
+
+以上场景正是方案2 要覆盖的。
+
+## 当前缺口（精确位置）
+
+| 缺口 | 位置 | 现状 |
+| --- | --- | --- |
+| enqueue 空壳 | `app/services/agent_job_service.py:12` `enqueue_job` 为 `pass` | 任务只入库 `queued`，不投递 arq |
+| runner 空壳 | `app/workers/tasks.py:13-22` `_run_inspect`/`_run_parse` 仅返回占位 dict | 不调用 `run_inspection` |
+| worker 无启动入口 | `app/workers/config.py` 定义了 `WorkerSettings`（arq 约定） | 无文档化启动命令、无进程守护 |
+| agent parse 不落库 | `app/api/v1/agent.py` `/jobs/parse` 仅建 job，不解析文档 | 前端 `/inspection/parse` 才是真解析落库链 |
+| scope 模板名不一致 | `settings.py:50` 用 `cli_review`，`api_key_scopes.py:23` 用 `cli_inspection` | 前后端需统一 |
+| auth 返回类型不一致 | `get_api_key_user` 返回原生 `uuid.UUID`，`get_current_user` 返回 `str` | 已通过 `_current_user_id` 加 `str()` 兜底，根因待统一 |
+
+## 设计
+
+### 方案2-A：基于 record_id 的两步体检（同步）
+
+两步走，文本只在第一步传输：
+
+```
+① POST /api/v1/agent/parse        （multipart 文件上传）
+   ← { record_id, document_name, document_type, document_type_label, text_preview }
+② POST /api/v1/agent/inspect      （body: { record_id, application_scenario?, taboo_words? }）
+   ← InspectionReportResponse
+```
+
+**实现要点：**
+
+1. 新增 `POST /api/v1/agent/parse`（scope: `inspection:run`）：
+   - 接收 `UploadFile`，复用 `inspection._read_inspection_upload_text` 做魔数校验 + 解析 + 清洗。
+   - 复用 `inspection._detect_document_type` 识别文档类型。
+   - 复用 `inspection._create_pending_inspection_record` 落库（`overall_risk="pending"`，`parsed_content=encrypt_text(text)`）。
+   - 返回 `record_id` 与基础元信息。
+2. 扩展 `POST /api/v1/agent/inspect` 的请求模型，支持二选一：
+   - `{ document_name, text, ... }`（方案1，已实现）
+   - `{ record_id, application_scenario?, taboo_words? }`（方案2-A，新增）
+   - 当传 `record_id` 时：校验归属 → `decrypt_text(record.parsed_content)` 取正文 → 复用 `execute_inspection(record_id=...)`（该函数已支持 `record_id` 更新既有记录）。
+3. 应用场景回退规则：`body.application_scenario or record.document_type`；若为 `unknown` 则回退 `bidding`（与前端 `inspect_session` 一致）。
+
+**注意：** `execute_inspection` 当前位于 `app/api/v1/inspection.py`（router 模块）。建议在本次迭代中将其下沉到 `app/services/inspection_runner.py`，由 inspection 与 agent 两个 router 共同引用，避免 router 间横向依赖。下沉时一并带走 `_load_user_taboo_words`、`_merge_unique_words`、`_sanitize_inspection_result_refs`、`_allowed_regulation_refs` 等纯逻辑助手；`_current_user_id` 留在 router 层。
+
+### 方案2-B：接通 arq 异步 Worker
+
+让 `/api/v1/agent/jobs/*` 真正异步执行：
+
+**实现要点：**
+
+1. 实现 `enqueue_job`（`agent_job_service.py`）：
+   ```python
+   from arq import create_pool
+   from app.core.redis import get_redis_settings
+
+   async def enqueue_job(task_name: str, job_id: str) -> None:
+       pool = await create_pool(get_redis_settings())
+       await pool.enqueue_job(task_name, job_id=job_id)
+   ```
+2. 实现 runner（`workers/tasks.py`）：
+   - `_run_inspect`：从 `AgentJob` 取 `user_id` + `input_payload` → 构造 `InspectionDeps`（含 `async_session` 取得的 db）→ 调 `run_inspection` → 清洗引用 → 更新 `InspectionRecord` → 返回 `result_payload`。
+   - `_run_parse`：复用 `_read_inspection_upload_text` + `_create_pending_inspection_record`，`result_payload` 返回 `record_id`。
+   - runner 内通过 `async_session()` 自管 db 生命周期，不依赖请求级 session。
+3. worker 启动命令固定为（写入 `backend/README` 或 `AGENTS.md`）：
+   ```
+   cd backend && uv run arq app.workers.config.WorkerSettings
+   ```
+4. `input_payload` 契约需明确（见下）。
+
+### `input_payload` 契约草案
+
+异步 job 的 `input_payload`（JSON）：
+
+| job_type | 字段 | 说明 |
+| --- | --- | --- |
+| `inspect` | `document_name`, `text`, `application_scenario`, `taboo_words`, `project_id` | 与方案1 同步端点一致；text 由客户端预解析 |
+| `inspect` | `record_id`（可选替代 text） | 复用已落库正文 |
+| `parse` | `file_ref`（暂定） | 文件存储句柄/路径，需先有文件存储层（见风险） |
+
+## 影响面与风险
+
+- **文件存储**：异步 parse 需要先把上传文件持久化（Redis/对象存储/临时盘）再交给 worker，因为 `UploadFile` 不能跨进程/跨请求复用。当前 `app/services/file_storage.py` 能力需评估是否够用。
+- **worker 与 web 进程解耦**：worker 需独立进程常驻，部署文档与进程守护（systemd/supervisor/Docker）需补齐。
+- **Redis 可用性**：arq 强依赖 Redis，需纳入健康检查与故障兜底（job 投递失败时 `create_job` 应标记 `failed` 而非卡在 `queued`）。
+- **权限**：parse/inspect-by-record 均需 `inspection:run`；只读 MCP key（`mcp_readonly`）仍只能查不能跑。
+- **测试**：异步链需 mock arq `enqueue_job` 与 `run_inspection`；worker runner 可单独单测（已有 `test_agent_worker_tasks.py`）。
+
+## 验收标准
+
+- 方案2-A：
+  - `POST /api/v1/agent/parse` 上传文件返回 `record_id`，且 `inspection_records` 表存在 `pending` 记录。
+  - `POST /api/v1/agent/inspect` 传 `record_id` 能返回报告，且更新同一记录而非新建。
+  - 跨用户 `record_id` 返回 404。
+- 方案2-B：
+  - `POST /api/v1/agent/jobs/inspect` 投递后，worker 进程能在 `job_timeout` 内将 job 从 `queued` → `running` → `succeeded`，`result_payload` 含审查结果。
+  - `enqueue_job` 失败时 job 标记 `failed`，不留孤儿 `queued`。
+  - `cd backend && uv run arq app.workers.config.WorkerSettings` 可稳定启动并消费任务。
+
+## 技术债清单（建议本次或下迭代一并清理）
+
+1. 统一 auth 依赖返回类型：`get_api_key_user` 与 `get_current_user` 的 `user_id` 统一为 `str` 或统一为 `uuid.UUID`，消除 `_current_user_id` 的 `str()` 兜底。
+2. 统一 scope 模板名：`cli_review` ↔ `cli_inspection` 二选一，前后端 + 测试同步。
+3. 将 `execute_inspection` 下沉到 `app/services/inspection_runner.py`，解除 router 间横向依赖。
+4. 清理 `app/tools/common.py` 对 `compliance_tool` 的错误 import（`base.py` 仅定义 `inspection_tool`）。
+5. 清理 `test_agent_api.py` 预先存在的未使用 import（ruff F401）。

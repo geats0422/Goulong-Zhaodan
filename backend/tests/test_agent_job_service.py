@@ -25,7 +25,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.models import Base
 from app.models.api_keys import ApiKey
-from app.models.knowledge import User
+from goulong_auth.models import User
 
 from app.services.agent_job_service import (
     create_job,
@@ -39,16 +39,14 @@ from app.services.agent_job_service import (
 
 @pytest_asyncio.fixture
 async def engine():
-    eng = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield eng
-    await eng.dispose()
+    from app.core.database import engine as global_engine
+    yield global_engine
 
 
 @pytest_asyncio.fixture
 def async_session_factory(engine):
-    return sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    from app.core.database import async_session
+    return async_session
 
 
 @pytest_asyncio.fixture
@@ -59,7 +57,7 @@ async def session(async_session_factory):
 
 @pytest_asyncio.fixture
 async def user_id(session: AsyncSession) -> int:
-    user = User(nickname="job_tester", hashed_password="fakehash")
+    user = User(nickname="job_tester", email="job_tester@test.com", hashed_password="fakehash")
     session.add(user)
     await session.commit()
     await session.refresh(user)
@@ -68,7 +66,7 @@ async def user_id(session: AsyncSession) -> int:
 
 @pytest_asyncio.fixture
 async def other_user_id(session: AsyncSession) -> int:
-    user = User(nickname="other_user", hashed_password="fakehash")
+    user = User(nickname="other_user", email="other_user@test.com", hashed_password="fakehash")
     session.add(user)
     await session.commit()
     await session.refresh(user)

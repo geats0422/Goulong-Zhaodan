@@ -39,35 +39,18 @@ from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
 
 VALID_PASSWORD = "TestPass123"
-SQLITE_URL = "sqlite+aiosqlite:///:memory:"
 
 
 @pytest_asyncio.fixture
 async def client():
-    import app.core.database as db_mod
+    from app.core.database import engine
     from app.core.rate_limit import register_limiter
-    from app.models import Base
 
     register_limiter.reset()
-
-    test_engine = create_async_engine(SQLITE_URL, echo=False)
-    test_session_factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
-
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    original_engine = db_mod.engine
-    original_session = db_mod.async_session
-    db_mod.engine = test_engine
-    db_mod.async_session = test_session_factory
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
-
-    db_mod.engine = original_engine
-    db_mod.async_session = original_session
-    await test_engine.dispose()
 
 
 from main import app  # noqa: E402
@@ -416,3 +399,87 @@ async def test_knowledge_search_no_scope(client: AsyncClient):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "insufficient_scope"
+
+
+@pytest.mark.asyncio
+async def test_agent_inspect_success(client: AsyncClient):
+    jwt_headers = await register_user(client, "inspect_sync_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+
+    response = await client.post(
+        "/api/v1/agent/inspect",
+        headers=api_headers,
+        json={
+            "document_name": "测试招标文件.pdf",
+            "text": "本项目为公开招标采购，投标人须具备相应资质，评标委员会依法组建。",
+            "application_scenario": "bidding",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["document_name"] == "测试招标文件.pdf"
+    assert data["overall_risk"] in ("low", "medium", "high", "critical")
+    assert "summary" in data
+    assert "issues" in data
+    assert "regulation_refs" in data
+
+
+@pytest.mark.asyncio
+async def test_agent_inspect_no_scope(client: AsyncClient):
+    jwt_headers = await register_user(client, "inspect_noscope_user")
+    api_headers = await create_agent_api_key(client, jwt_headers, scope_template="mcp_readonly")
+
+    response = await client.post(
+        "/api/v1/agent/inspect",
+        headers=api_headers,
+        json={"document_name": "doc.pdf", "text": "正文内容"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "insufficient_scope"
+
+
+@pytest.mark.asyncio
+async def test_agent_inspect_no_auth(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/agent/inspect",
+        json={"document_name": "doc.pdf", "text": "正文内容"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "invalid_api_key"
+
+
+@pytest.mark.asyncio
+async def test_agent_inspect_invalid_scenario(client: AsyncClient):
+    jwt_headers = await register_user(client, "inspect_bad_scenario_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+
+    response = await client.post(
+        "/api/v1/agent/inspect",
+        headers=api_headers,
+        json={
+            "document_name": "doc.pdf",
+            "text": "足够长的正文内容用于体检",
+            "application_scenario": "not_a_real_scenario",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "非法应用场景"
+
+
+@pytest.mark.asyncio
+async def test_agent_inspect_short_text(client: AsyncClient):
+    jwt_headers = await register_user(client, "inspect_short_text_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+
+    response = await client.post(
+        "/api/v1/agent/inspect",
+        headers=api_headers,
+        json={"document_name": "doc.pdf", "text": "短"},
+    )
+
+    assert response.status_code == 400
+    assert "过短" in response.json()["detail"]

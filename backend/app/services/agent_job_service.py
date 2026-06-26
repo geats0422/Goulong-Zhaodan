@@ -97,7 +97,7 @@ async def mark_job_succeeded(
     job_id: str,
     result_payload: dict | None = None,
 ) -> AgentJob | None:
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     job = await update_job_status(
         db,
         job_id,
@@ -117,7 +117,7 @@ async def mark_job_failed(
     job_id: str,
     error_message: str,
 ) -> AgentJob | None:
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     job = await update_job_status(
         db,
         job_id,

@@ -1,10 +1,11 @@
 """体检台 API 路由"""
 from __future__ import annotations
 
+import logging
 import tempfile
 import re
 import uuid as uuid_mod
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -19,11 +20,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.inspector import run_inspection
 from app.core.auth import get_current_user
 from app.core.constants import validate_application_scenario
+from app.core.data_encryption import decrypt_text, encrypt_text
 from app.core.database import get_db_session
 from app.core.deps import InspectionDeps
+from app.core.file_magic import validate_file_magic
 from app.models.knowledge import InspectionRecord, TabooWord
 from app.services.markdown_converter import ConversionError, convert_to_markdown
 from app.services.knowledge_retrieval import retrieve_regulation_base
+
+_logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/inspection", tags=["体检台"])
 MAX_INSPECTION_FILE_SIZE = 20 * 1024 * 1024
@@ -53,7 +58,7 @@ _inspection_sessions: dict[str, dict[str, Any]] = {}
 
 def _current_user_id(user: dict) -> uuid_mod.UUID:
     try:
-        return uuid_mod.UUID(user["user_id"])
+        return uuid_mod.UUID(str(user["user_id"]))
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=401, detail="Invalid user") from exc
 
@@ -106,7 +111,7 @@ def _create_inspection_session(
     created_at: datetime | None = None,
 ) -> dict[str, Any]:
     """创建并保存用户隔离的文件解析会话。"""
-    session_created_at = created_at or datetime.now()
+    session_created_at = created_at or datetime.now(timezone.utc)
     _cleanup_expired_inspection_sessions(now=session_created_at)
     session_id = uuid4().hex
     session = {
@@ -132,7 +137,7 @@ def _get_session_for_user(session_id: str, user_id: uuid_mod.UUID, now: datetime
     session = _inspection_sessions.get(session_id)
     if session is None or session.get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="解析会话不存在")
-    if _is_inspection_session_expired(session, now or datetime.now()):
+    if _is_inspection_session_expired(session, now or datetime.now(timezone.utc)):
         del _inspection_sessions[session_id]
         raise HTTPException(status_code=404, detail="解析会话不存在")
     return session
@@ -144,7 +149,7 @@ def _is_inspection_session_expired(session: dict[str, Any], now: datetime) -> bo
 
 def _cleanup_expired_inspection_sessions(now: datetime | None = None) -> int:
     """清理已超过 TTL 的解析会话，返回清理数量。"""
-    current_time = now or datetime.now()
+    current_time = now or datetime.now(timezone.utc)
     expired_session_ids = [
         session_id
         for session_id, session in _inspection_sessions.items()
@@ -200,11 +205,13 @@ async def _read_inspection_upload_text(file: UploadFile) -> tuple[str, bytes, st
         content = await file.read(MAX_INSPECTION_FILE_SIZE + 1)
         if len(content) > MAX_INSPECTION_FILE_SIZE:
             raise HTTPException(status_code=413, detail="文件大小超过 20MB 限制")
+        validate_file_magic(filename, content)
         text = _extract_inspection_text(filename, content)
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"无法读取文件: {exc}") from exc
+        _logger.exception("文件读取失败: %s", filename)
+        raise HTTPException(status_code=400, detail="文件无法解析") from exc
 
     if len(text) < 10:
         raise HTTPException(status_code=400, detail="文件内容过短，无法体检")
@@ -413,7 +420,7 @@ async def _create_pending_inspection_record(
         issues=[],
         regulation_refs=[],
         text_preview=text[:500],
-        parsed_content=text,
+        parsed_content=encrypt_text(text),
         quota_consumed=0,
     )
     db.add(record)
@@ -553,7 +560,7 @@ def _aggregate_history_stats(records: list[dict[str, Any]], days: int = 7) -> Hi
     )
 
 
-async def _execute_inspection(
+async def execute_inspection(
     *,
     db: AsyncSession,
     user: dict,
@@ -589,9 +596,10 @@ async def _execute_inspection(
     try:
         result = await run_inspection(text, deps)
     except Exception as exc:
+        _logger.exception("智能审查引擎异常")
         raise HTTPException(
             status_code=502,
-            detail=f"智能审查引擎不可用: {exc}",
+            detail="智能审查引擎不可用，请稍后重试",
         ) from exc
     _sanitize_inspection_result_refs(result, _allowed_regulation_refs(regulation_base, taboo_list))
 
@@ -611,7 +619,7 @@ async def _execute_inspection(
     record.issues = result.issues
     record.regulation_refs = result.regulation_refs
     record.text_preview = text[:500]
-    record.parsed_content = text
+    record.parsed_content = encrypt_text(text)
     record.quota_consumed = max(1, len(text) // 500)
     await db.commit()
     await db.refresh(record)
@@ -651,7 +659,7 @@ async def upload_and_inspect(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="非法应用场景") from exc
 
-    return await _execute_inspection(
+    return await execute_inspection(
         db=db,
         user=user,
         document_name=filename,
@@ -723,7 +731,7 @@ async def inspect_session(
     if effective_scenario == "unknown":
         effective_scenario = "bidding"
 
-    return await _execute_inspection(
+    return await execute_inspection(
         db=db,
         user=user,
         document_name=session["filename"],
@@ -755,7 +763,8 @@ async def list_records(
     if risk_level:
         conditions.append(InspectionRecord.overall_risk == risk_level)
     if keyword and keyword.strip():
-        conditions.append(InspectionRecord.document_name.ilike(f"%{keyword.strip()}%"))
+        escaped = keyword.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        conditions.append(InspectionRecord.document_name.ilike(f"%{escaped}%", escape="\\"))
 
     total = await db.scalar(select(func.count()).select_from(InspectionRecord).where(*conditions)) or 0
     total_pages = max(1, (total + page_size - 1) // page_size)
@@ -808,7 +817,7 @@ async def get_record(
             "document_type": record.document_type,
             "document_type_label": record.document_type_label,
             "text_preview": record.text_preview,
-            "parsed_content": record.parsed_content,
+            "parsed_content": decrypt_text(record.parsed_content),
             "created_at": record.created_at.isoformat(),
         }
     raise HTTPException(status_code=404, detail="记录不存在")
@@ -849,11 +858,13 @@ async def inspect_record(
     if not record.parsed_content.strip():
         raise HTTPException(status_code=400, detail="该记录缺少完整解析正文，请重新上传后审查")
 
-    return await _execute_inspection(
+    decrypted_text = decrypt_text(record.parsed_content)
+
+    return await execute_inspection(
         db=db,
         user=user,
         document_name=record.document_name,
-        text=record.parsed_content,
+        text=decrypted_text,
         project_id=body.project_id,
         application_scenario=record.document_type,
         taboo_words_input=body.taboo_words,

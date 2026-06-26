@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.agent_auth import get_api_key_user, require_api_scope
+from app.core.constants import validate_application_scenario
 from app.core.database import get_db_session
 from app.models import InspectionRecord
+from app.api.v1.inspection import InspectionReportResponse, execute_inspection
 from app.services.agent_job_service import create_job, get_job
 from app.services.knowledge_retrieval import retrieve_regulation_base
 
@@ -152,6 +154,11 @@ class KnowledgeSearchRequest(BaseModel):
     application_scenario: str = "bidding"
     limit: int = 10
 
+    @field_validator("limit")
+    @classmethod
+    def clamp_limit(cls, v: int) -> int:
+        return max(1, min(100, v))
+
 
 @router.post("/knowledge/search")
 async def search_knowledge(
@@ -164,4 +171,46 @@ async def search_knowledge(
         user_id=user["user_id"],
         application_scenario=body.application_scenario,
         limit=body.limit,
+    )
+
+
+class AgentInspectRequest(BaseModel):
+    document_name: str
+    text: str
+    application_scenario: str = "bidding"
+    taboo_words: str = ""
+    project_id: str = "default"
+
+    @field_validator("document_name")
+    @classmethod
+    def _validate_document_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value or len(value) > 200:
+            raise ValueError("document_name 长度须为 1-200 字符")
+        return value
+
+
+@router.post("/inspect", response_model=InspectionReportResponse)
+async def agent_inspect(
+    body: AgentInspectRequest,
+    user: dict = Depends(require_api_scope("inspection:run")),
+    db: AsyncSession = Depends(get_db_session),
+) -> InspectionReportResponse:
+    """同步体检：MCP / Agent 客户端直接传入文档正文，一次调用返回完整审查报告。"""
+    try:
+        validate_application_scenario(body.application_scenario)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="非法应用场景") from exc
+
+    if len(body.text.strip()) < 10:
+        raise HTTPException(status_code=400, detail="文件内容过短，无法体检")
+
+    return await execute_inspection(
+        db=db,
+        user=user,
+        document_name=body.document_name,
+        text=body.text,
+        project_id=body.project_id,
+        application_scenario=body.application_scenario,
+        taboo_words_input=body.taboo_words,
     )

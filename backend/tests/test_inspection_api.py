@@ -44,37 +44,16 @@ VALID_PASSWORD = "TestPass123"
 @pytest_asyncio.fixture
 async def client():
     assert_safe_database_for_cleanup()
-    await engine.dispose()
-    await init_db()
-    from core.rate_limit import register_limiter
+    from app.core.rate_limit import register_limiter
     register_limiter.reset()
     inspection_router._inspection_records.clear()
     inspection_router._inspection_sessions.clear()
-    async with async_session() as session:
-        await session.execute(text("UPDATE knowledge_documents SET current_version_id = NULL"))
-        for table in [
-            "inspection_records",
-            "refresh_tokens",
-            "api_keys",
-            "agent_jobs",
-            "knowledge_document_settings",
-            "taboo_words",
-            "user_profiles",
-            "index_nodes",
-            "document_versions",
-            "knowledge_documents",
-            "engineering_subcategories",
-            "users",
-        ]:
-            await session.execute(text(f"DELETE FROM {table}"))
-        await session.commit()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
     inspection_router._inspection_records.clear()
     inspection_router._inspection_sessions.clear()
-    await engine.dispose()
 
 
 async def register_and_auth(client: AsyncClient, username: str = "inspection_user") -> tuple[dict[str, str], str]:
@@ -713,6 +692,7 @@ async def test_session_inspect_explicit_scenario_overrides_detected(client: Asyn
 async def test_session_inspect_persists_record_for_paginated_desk_list(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
     headers, _ = await register_and_auth(client, "session_records_user")
     monkeypatch.setattr("app.api.v1.inspection.convert_to_markdown", lambda path: "甲方与乙方签署合同，约定服务范围与违约责任。")
+    monkeypatch.setattr("app.api.v1.inspection.validate_file_magic", lambda *a, **kw: None)
     parse_response = await client.post(
         "/inspection/parse",
         headers=headers,
@@ -778,6 +758,7 @@ async def test_pending_record_can_be_inspected_from_history(client: AsyncClient,
     headers, _ = await register_and_auth(client, "history_inspect_user")
     parsed_text = "甲方与乙方签署合同，约定服务范围与违约责任。"
     monkeypatch.setattr("app.api.v1.inspection.convert_to_markdown", lambda path: parsed_text)
+    monkeypatch.setattr("app.api.v1.inspection.validate_file_magic", lambda *a, **kw: None)
     parse_response = await client.post(
         "/inspection/parse",
         headers=headers,
@@ -825,6 +806,7 @@ async def test_pending_record_can_be_inspected_from_history(client: AsyncClient,
 async def test_record_report_pdf_uses_contract_name_filename(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
     headers, _ = await register_and_auth(client, "session_pdf_user")
     monkeypatch.setattr("app.api.v1.inspection.convert_to_markdown", lambda path: "甲方与乙方签署合同，约定服务范围与违约责任。")
+    monkeypatch.setattr("app.api.v1.inspection.validate_file_magic", lambda *a, **kw: None)
     parse_response = await client.post(
         "/inspection/parse",
         headers=headers,
