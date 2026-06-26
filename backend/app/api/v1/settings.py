@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.constants import ENGINEERING_CATEGORIES
 from app.core.database import get_db_session
 from app.core.password_rules import validate_password
+from app.core.pii_masking import mask_email, mask_phone
 from goulong_auth.models import Membership, User
 from app.models.knowledge import (
     EngineeringSubcategory,
@@ -123,7 +124,6 @@ class SettingsOverviewResponse(BaseModel):
 class ProfileUpdateRequest(BaseModel):
     nickname: str | None = None
     avatar_url: str | None = None
-    subscription_plan: str | None = None
     model_name: str | None = None
     burn_after_read: bool | None = None
     email: str | None = None
@@ -139,13 +139,21 @@ class ProfileUpdateRequest(BaseModel):
             raise ValueError("昵称长度须为 1-100 字符")
         return value
 
-    @field_validator("subscription_plan")
+    @field_validator("avatar_url")
     @classmethod
-    def validate_subscription_plan(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        if value not in PLAN_CATALOG:
-            raise ValueError("subscription_plan 必须在 PLAN_CATALOG 中")
+    def validate_avatar_url(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        from urllib.parse import urlparse
+        parsed = urlparse(value)
+        if parsed.scheme != "https":
+            raise ValueError("头像链接仅支持 HTTPS 协议")
+        hostname = parsed.hostname or ""
+        blocked = {"localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254", "::1"}
+        if hostname in blocked or hostname.startswith(("10.", "172.", "192.168.", "fc", "fd")):
+            raise ValueError("不允许使用内网地址作为头像链接")
+        if len(value) > 500:
+            raise ValueError("头像链接长度不能超过 500 字符")
         return value
 
     @field_validator("model_name")
@@ -285,13 +293,13 @@ async def _get_or_create_membership(db: AsyncSession, user_id: uuid.UUID) -> Mem
 
 def _profile_response(db_user: User, profile: ZhaodanUserProfile, membership: Membership) -> ProfileResponse:
     key = settings.model_api_key
-    preview = f"****-****-{key[-4:]}" if len(key) >= 4 else "****"
+    preview = f"****-****-{key[-4:]}" if len(key) >= 8 else "****"
     plan = PLAN_CATALOG.get(membership.plan, PLAN_CATALOG["free"])
     effective_model = profile.model_name or settings.model_name
     return ProfileResponse(
         nickname=db_user.nickname,
-        email=db_user.email,
-        phone=db_user.phone,
+        email=mask_email(db_user.email),
+        phone=mask_phone(db_user.phone),
         avatar_url=db_user.avatar_url,
         has_wechat=db_user.wechat_openid is not None,
         has_alipay=db_user.alipay_user_id is not None,
@@ -392,11 +400,6 @@ async def update_profile(
     if body.avatar_url is not None:
         db_user.avatar_url = body.avatar_url
 
-    if body.subscription_plan is not None and body.subscription_plan != membership.plan:
-        plan_cfg = PLAN_CATALOG[body.subscription_plan]
-        membership.plan = body.subscription_plan
-        membership.token_quota = plan_cfg["monthly_quota"] or 0
-
     if body.model_name is not None:
         profile.model_name = body.model_name
 
@@ -456,6 +459,9 @@ async def update_knowledge_document_setting(
     document = doc_result.scalar_one_or_none()
     if document is None:
         raise HTTPException(status_code=404, detail="文档不存在")
+
+    if document.owner_type == "user" and document.owner_user_id != user_id:
+        raise HTTPException(status_code=403, detail="无权操作此文档")
 
     setting_result = await db.execute(
         select(KnowledgeDocumentSetting).where(

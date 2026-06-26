@@ -38,35 +38,17 @@ from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
 
 VALID_PASSWORD = "TestPass123"
-SQLITE_URL = "sqlite+aiosqlite:///:memory:"
 
 
 @pytest_asyncio.fixture
 async def client():
-    import app.core.database as db_mod
     from app.core.rate_limit import register_limiter
-    from app.models import Base
 
     register_limiter.reset()
-
-    test_engine = create_async_engine(SQLITE_URL, echo=False)
-    test_session_factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
-
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    original_engine = db_mod.engine
-    original_session = db_mod.async_session
-    db_mod.engine = test_engine
-    db_mod.async_session = test_session_factory
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
-
-    db_mod.engine = original_engine
-    db_mod.async_session = original_session
-    await test_engine.dispose()
 
 
 from main import app  # noqa: E402

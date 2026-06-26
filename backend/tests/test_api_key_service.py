@@ -29,7 +29,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.models import Base
 from app.models.api_keys import ApiKey
-from app.models.knowledge import User
+from goulong_auth.models import User
 from app.services.api_key_service import (
     authenticate_api_key,
     create_api_key,
@@ -42,16 +42,14 @@ from app.services.api_key_service import (
 
 @pytest_asyncio.fixture
 async def engine():
-    eng = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield eng
-    await eng.dispose()
+    from app.core.database import engine as global_engine
+    yield global_engine
 
 
 @pytest_asyncio.fixture
 def session_factory(engine):
-    return sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    from app.core.database import async_session
+    return async_session
 
 
 @pytest_asyncio.fixture
@@ -62,7 +60,7 @@ async def db(session_factory):
 
 @pytest_asyncio.fixture
 async def user_id(db: AsyncSession) -> int:
-    user = User(nickname="service_tester", hashed_password="fakehash")
+    user = User(nickname="service_tester", email="service_tester@test.com", hashed_password="fakehash")
     db.add(user)
     await db.commit()
     await db.refresh(user)
@@ -71,7 +69,7 @@ async def user_id(db: AsyncSession) -> int:
 
 @pytest_asyncio.fixture
 async def other_user_id(db: AsyncSession) -> int:
-    user = User(nickname="other_tester", hashed_password="fakehash")
+    user = User(nickname="other_tester", email="other_tester@test.com", hashed_password="fakehash")
     db.add(user)
     await db.commit()
     await db.refresh(user)
@@ -215,7 +213,8 @@ async def test_get_api_key_secret(db: AsyncSession, user_id: int):
 
 @pytest.mark.asyncio
 async def test_get_api_key_secret_not_found(db: AsyncSession, user_id: int):
-    secret = await get_api_key_secret(db, 99999, user_id)
+    import uuid as _uuid
+    secret = await get_api_key_secret(db, _uuid.uuid4(), user_id)
     assert secret is None
 
 

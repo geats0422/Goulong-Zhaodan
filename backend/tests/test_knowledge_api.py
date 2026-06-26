@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import types
+import uuid
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -41,7 +42,7 @@ from main import app  # noqa: E402
 
 
 async def _override_user():
-    return {"user_id": "42", "api_key": "goulong-dev-key"}
+    return {"user_id": "00000000-0000-0000-0000-000000000042", "api_key": "goulong-dev-key"}
 
 
 @pytest.fixture
@@ -92,7 +93,7 @@ def _make_document(id=1, title="招标文件", subcategory_id=1, current_version
         current_version=None,
         subcategory=None,
         owner_type="user",
-        owner_user_id=42,
+        owner_user_id=uuid.UUID("00000000-0000-0000-0000-000000000042"),
         application_scenario="bidding",
         source_path=None,
         created_at=datetime(2025, 1, 1),
@@ -287,6 +288,7 @@ class TestUploadAndIngest:
         monkeypatch.setattr(knowledge_router, "save_upload_file", lambda path, content: path.write_bytes(content))
         monkeypatch.setattr(ingestion_mod, "convert_to_markdown", lambda path: "# 标题\n内容")
         monkeypatch.setattr(ingestion_mod, "build_index_nodes", AsyncMock(return_value=[]))
+        monkeypatch.setattr(knowledge_router, "validate_file_magic", lambda *a, **kw: None)
 
         response = client.post(
             "/api/v1/knowledge/upload",
@@ -306,7 +308,7 @@ class TestUploadAndIngest:
             if call.args[0].__class__.__name__ == "KnowledgeDocument"
         )
         assert created_doc.owner_type == "user"
-        assert created_doc.owner_user_id == 42
+        assert created_doc.owner_user_id == uuid.UUID("00000000-0000-0000-0000-000000000042")
         assert created_doc.application_scenario == "contract"
         existing_doc_query = str(mock_db.execute.call_args_list[1].args[0])
         assert "owner_type" in existing_doc_query

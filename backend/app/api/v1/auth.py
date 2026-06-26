@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -19,13 +20,17 @@ from app.core.auth import (
 )
 from app.core.config import settings
 from app.core.database import get_db_session
+from app.core.deps import get_client_ip
 from app.core.login_throttle import login_throttle
 from app.core.password_rules import validate_password
+from app.core.pii_masking import mask_email, mask_phone
 from app.core.rate_limit import register_limiter
 from goulong_auth.models import Membership, User
 from app.models.knowledge import ZhaodanUserProfile
 
 router = APIRouter(prefix="/auth", tags=["认证"])
+
+_logger = logging.getLogger(__name__)
 
 _REFRESH_COOKIE_NAME = "refresh_token"
 _REFRESH_COOKIE_MAX_AGE = 7 * 24 * 3600
@@ -63,6 +68,13 @@ class LoginRequest(BaseModel):
             raise ValueError("必须提供 email 或 phone")
         return self
 
+    @field_validator("password")
+    @classmethod
+    def validate_password_length(cls, v: str) -> str:
+        if len(v) > 128:
+            raise ValueError("密码长度不能超过 128 位")
+        return v
+
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
     response.set_cookie(
@@ -77,8 +89,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 
 @router.post("/register", status_code=201)
 async def register(body: RegisterRequest, response: Response, request: Request, db=Depends(get_db_session)):
-    ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-           or (request.client.host if request.client else "unknown"))
+    ip = get_client_ip(request)
     if register_limiter.is_limited(ip):
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
     register_limiter.record(ip)
@@ -87,11 +98,11 @@ async def register(body: RegisterRequest, response: Response, request: Request, 
     if body.email:
         result = await db.execute(select(User).where(User.email == body.email))
         if result.scalar_one_or_none() is not None:
-            raise HTTPException(status_code=400, detail="该邮箱已被注册")
+            raise HTTPException(status_code=400, detail="注册信息无效或已存在")
     if body.phone:
         result = await db.execute(select(User).where(User.phone == body.phone))
         if result.scalar_one_or_none() is not None:
-            raise HTTPException(status_code=400, detail="该手机号已被注册")
+            raise HTTPException(status_code=400, detail="注册信息无效或已存在")
 
     user = User(
         nickname=body.nickname,
@@ -124,24 +135,26 @@ async def register(body: RegisterRequest, response: Response, request: Request, 
 
     access_token = create_access_token(user.id)
     refresh_token, jti = create_refresh_token(user.id)
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+    expires_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(
         days=settings.refresh_token_expire_days,
     )
     await store_refresh_token(db, user.id, jti, expires_at)
     _set_refresh_cookie(response, refresh_token)
 
+    _logger.info("用户注册: user_id=%s ip=%s", user.id, ip)
+
     return {
         "id": user.id,
         "nickname": user.nickname,
-        "email": user.email,
-        "phone": user.phone,
+        "email": mask_email(user.email),
+        "phone": mask_phone(user.phone),
         "access_token": access_token,
-        "refresh_token": refresh_token,
     }
 
 
 @router.post("/login")
-async def login(body: LoginRequest, response: Response, db=Depends(get_db_session)):
+async def login(body: LoginRequest, response: Response, request: Request, db=Depends(get_db_session)):
+    ip = get_client_ip(request)
     throttle_key = body.email or body.phone
     wait = login_throttle.check(throttle_key)
     if wait > 0:
@@ -151,7 +164,6 @@ async def login(body: LoginRequest, response: Response, db=Depends(get_db_sessio
             headers={"Retry-After": str(wait)},
         )
 
-    # 按 email 或 phone 查找用户
     if body.email:
         result = await db.execute(select(User).where(User.email == body.email))
     else:
@@ -160,6 +172,7 @@ async def login(body: LoginRequest, response: Response, db=Depends(get_db_sessio
 
     if user is None or not verify_password(body.password, user.hashed_password):
         login_throttle.record_failure(throttle_key)
+        _logger.warning("登录失败: key=%s ip=%s", throttle_key, ip)
         raise HTTPException(status_code=401, detail="邮箱/手机号或密码错误")
 
     if not user.is_active:
@@ -169,19 +182,20 @@ async def login(body: LoginRequest, response: Response, db=Depends(get_db_sessio
 
     access_token = create_access_token(user.id)
     refresh_token, jti = create_refresh_token(user.id)
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+    expires_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(
         days=settings.refresh_token_expire_days,
     )
     await store_refresh_token(db, user.id, jti, expires_at)
     _set_refresh_cookie(response, refresh_token)
 
+    _logger.info("用户登录: user_id=%s ip=%s", user.id, ip)
+
     return {
         "id": user.id,
         "nickname": user.nickname,
-        "email": user.email,
-        "phone": user.phone,
+        "email": mask_email(user.email),
+        "phone": mask_phone(user.phone),
         "access_token": access_token,
-        "refresh_token": refresh_token,
     }
 
 
@@ -212,7 +226,7 @@ async def me(user: dict = Depends(get_current_user), db=Depends(get_db_session))
     return {
         "id": db_user.id,
         "nickname": db_user.nickname,
-        "email": db_user.email,
-        "phone": db_user.phone,
+        "email": mask_email(db_user.email),
+        "phone": mask_phone(db_user.phone),
         "is_active": db_user.is_active,
     }

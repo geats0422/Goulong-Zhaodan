@@ -17,37 +17,16 @@ from app.models.knowledge import (  # noqa: E402
     IndexNode,
     KnowledgeDocument,
     KnowledgeDocumentSetting,
-    User,
 )
+from goulong_auth.models import User  # noqa: E402
 from app.services.knowledge_retrieval import retrieve_regulation_base  # noqa: E402
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_db():
-    await engine.dispose()
-    await init_db()
     assert_safe_database_for_cleanup()
-    async with async_session() as session:
-        await session.execute(text("UPDATE knowledge_documents SET current_version_id = NULL"))
-        for table in [
-            "inspection_records",
-            "refresh_tokens",
-            "api_keys",
-            "agent_jobs",
-            "knowledge_document_settings",
-            "taboo_words",
-            "user_profiles",
-            "index_nodes",
-            "document_versions",
-            "knowledge_documents",
-            "engineering_subcategories",
-            "users",
-        ]:
-            await session.execute(text(f"DELETE FROM {table}"))
-        await session.commit()
     yield
-    await engine.dispose()
 
 
 async def _create_user(nickname: str = "retrieval_user") -> uuid.UUID:

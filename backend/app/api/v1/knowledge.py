@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select, func, or_
@@ -14,6 +16,7 @@ from app.core.constants import (
     ENGINEERING_CATEGORIES,
 )
 from app.core.database import get_db_session
+from app.core.file_magic import validate_file_magic
 from app.models.knowledge import (
     EngineeringSubcategory,
     KnowledgeDocument,
@@ -28,18 +31,18 @@ MAX_FILE_SIZE = 50 * 1024 * 1024
 router = APIRouter(prefix="/knowledge", tags=["知识库"])
 
 
-def _current_user_id(user: dict) -> int:
+def _current_user_id(user: dict) -> uuid.UUID:
     try:
-        return int(user["user_id"])
+        return uuid.UUID(user["user_id"])
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=401, detail="Invalid user") from exc
 
 
-def _is_document_visible(doc: KnowledgeDocument, user_id: int) -> bool:
+def _is_document_visible(doc: KnowledgeDocument, user_id: uuid.UUID) -> bool:
     return doc.owner_type == "system" or doc.owner_user_id == user_id
 
 
-def _visible_document_filter(user_id: int):
+def _visible_document_filter(user_id: uuid.UUID):
     return or_(
         KnowledgeDocument.owner_type == "system",
         KnowledgeDocument.owner_user_id == user_id,
@@ -344,6 +347,11 @@ async def upload_and_ingest(
         raise HTTPException(status_code=400, detail="文件内容为空")
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="文件大小超过 50MB 限制")
+
+    try:
+        validate_file_magic(filename, content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     storage_dir = build_storage_path(category, _safe_path_segment(sub.name, "subcategory"), safe_stem, version_number)
     original_path = storage_dir / safe_name

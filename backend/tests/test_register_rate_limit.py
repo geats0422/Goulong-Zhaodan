@@ -97,7 +97,7 @@ def test_register_duplicate_email_unified_message():
             asyncio.run(register(body, mock_response, mock_request, mock_db))
 
     assert exc_info.value.status_code == 400
-    assert "已被注册" in exc_info.value.detail
+    assert "已存在" in exc_info.value.detail
 
 
 def test_is_limited_cleans_expired_keys():

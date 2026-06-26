@@ -47,34 +47,13 @@ VALID_PASSWORD = "TestPass123"
 
 @pytest_asyncio.fixture
 async def client():
-    await engine.dispose()
-    await init_db()
     from app.core.rate_limit import register_limiter
     register_limiter.reset()
     assert_safe_database_for_cleanup()
-    async with async_session() as session:
-        await session.execute(text("UPDATE knowledge_documents SET current_version_id = NULL"))
-        for table in [
-            "refresh_tokens",
-            "api_keys",
-            "agent_jobs",
-            "inspection_records",
-            "knowledge_document_settings",
-            "taboo_words",
-            "user_profiles",
-            "index_nodes",
-            "document_versions",
-            "knowledge_documents",
-            "engineering_subcategories",
-            "users",
-        ]:
-            await session.execute(text(f"DELETE FROM {table}"))
-        await session.commit()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
-    await engine.dispose()
 
 
 async def register_and_auth(client: AsyncClient, username: str = "settings_user", password: str = VALID_PASSWORD):
@@ -92,7 +71,7 @@ async def create_document(title: str = "施工规范") -> int:
         sub = EngineeringSubcategory(category_key="traditional", name="房建")
         session.add(sub)
         await session.flush()
-        doc = KnowledgeDocument(title=title, subcategory_id=sub.id)
+        doc = KnowledgeDocument(title=title, subcategory_id=sub.id, owner_type="system")
         session.add(doc)
         await session.commit()
         await session.refresh(doc)
@@ -115,7 +94,7 @@ async def test_settings_overview_defaults(client: AsyncClient):
     assert data["profile"]["burn_after_read"] is True
     assert data["taboo_words"] == []
     docs = [doc for cat in data["knowledge"] for sub in cat["subcategories"] for doc in sub["documents"]]
-    assert {"id": doc_id, "title": "施工规范", "enabled": True, "owner_type": "user", "application_scenario": "bidding"} in docs
+    assert {"id": doc_id, "title": "施工规范", "enabled": True, "owner_type": "system", "application_scenario": "bidding"} in docs
 
 
 @pytest.mark.asyncio
@@ -176,7 +155,7 @@ async def test_password_change_revokes_refresh_tokens(client: AsyncClient):
         "password": "OldPass123",
     })
     access_token = reg.json()["access_token"]
-    refresh_token = reg.json()["refresh_token"]
+    refresh_token = reg.cookies.get("refresh_token")
     headers = {"Authorization": f"Bearer {access_token}"}
 
     client.cookies.set("refresh_token", refresh_token)
@@ -323,17 +302,13 @@ async def test_update_profile_nickname(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_update_profile_subscription_plan(client: AsyncClient):
+async def test_update_profile_subscription_plan_removed(client: AsyncClient):
     headers = await register_and_auth(client, "subplan_user")
 
     resp = await client.patch("/settings/profile", headers=headers, json={"subscription_plan": "team"})
     assert resp.status_code == 200
-    assert resp.json()["subscription_plan"] == "team"
-
     overview = await client.get("/settings/overview", headers=headers)
-    profile = overview.json()["profile"]
-    assert profile["monthly_quota"] == 3000
-    assert profile["subscription_label"] == "团队版"
+    assert overview.json()["profile"]["subscription_plan"] == "free"
 
 
 @pytest.mark.asyncio
@@ -361,10 +336,10 @@ async def test_update_profile_phone(client: AsyncClient):
 
     resp = await client.patch("/settings/profile", headers=headers, json={"phone": "13800138000"})
     assert resp.status_code == 200
-    assert resp.json()["phone"] == "13800138000"
+    assert resp.json()["phone"] == "138****8000"
 
     overview = await client.get("/settings/overview", headers=headers)
-    assert overview.json()["profile"]["phone"] == "13800138000"
+    assert overview.json()["profile"]["phone"] == "138****8000"
 
 
 @pytest.mark.asyncio
@@ -385,7 +360,7 @@ async def test_update_profile_email(client: AsyncClient):
 
     resp = await client.patch("/settings/profile", headers=headers, json={"email": "test@example.com"})
     assert resp.status_code == 200
-    assert resp.json()["email"] == "test@example.com"
+    assert resp.json()["email"] == "t***t@example.com"
 
 
 @pytest.mark.asyncio

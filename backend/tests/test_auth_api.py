@@ -45,37 +45,14 @@ VALID_PASSWORD = "TestPass123"
 
 @pytest_asyncio.fixture
 async def client():
-    await engine.dispose()
-    await init_db()
-    from app.core.database import async_session
     from app.core.rate_limit import register_limiter
-    from sqlalchemy import text
 
     assert_safe_database_for_cleanup()
     register_limiter.reset()
-    async with async_session() as session:
-        await session.execute(text("UPDATE knowledge_documents SET current_version_id = NULL"))
-        for table in [
-            "refresh_tokens",
-            "api_keys",
-            "agent_jobs",
-            "inspection_records",
-            "knowledge_document_settings",
-            "taboo_words",
-            "user_profiles",
-            "index_nodes",
-            "document_versions",
-            "knowledge_documents",
-            "engineering_subcategories",
-            "users",
-        ]:
-            await session.execute(text(f"DELETE FROM {table}"))
-        await session.commit()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
-    await engine.dispose()
 
 
 @pytest.mark.asyncio
@@ -88,9 +65,9 @@ async def test_register_success(client: AsyncClient):
     assert resp.status_code == 201
     data = resp.json()
     assert data["nickname"] == "testuser1"
-    assert data["email"] == "testuser1@example.com"
+    assert data["email"] == "t***1@example.com"
     assert "access_token" in data
-    assert "refresh_token" in data
+    assert "refresh_token" not in data
     assert "refresh_token" in resp.cookies
 
 
@@ -256,7 +233,7 @@ async def test_refresh_success(client: AsyncClient):
         "nickname": "refreshuser",
         "password": VALID_PASSWORD,
     })
-    refresh_token = reg.json()["refresh_token"]
+    refresh_token = reg.cookies.get("refresh_token")
     client.cookies.set("refresh_token", refresh_token)
 
     resp = await client.post("/auth/refresh")
