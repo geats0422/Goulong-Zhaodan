@@ -23,12 +23,12 @@ fake_inspector_module.run_inspection = _fake_run_inspection
 sys.modules["app.agents.inspector"] = fake_inspector_module
 
 from main import app  # noqa: E402
-from app.core.auth import get_current_user  # noqa: E402
+from app.core.auth import CurrentUserContext, get_current_user  # noqa: E402
 from app.api.v1 import inspection as inspection_router  # noqa: E402
 
 
 async def _override_user():
-    return {"user_id": "00000000-0000-0000-0000-000000000001", "is_active": True}
+    return CurrentUserContext(user_id=uuid.UUID("00000000-0000-0000-0000-000000000001"))
 
 
 client = TestClient(app)

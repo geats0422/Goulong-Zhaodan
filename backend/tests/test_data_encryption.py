@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import os
 
-from app.core.config import Settings
-
-_test_settings = Settings(data_encryption_key="test-encryption-key-for-unit-tests", environment="development")
+# 在导入 config 之前设置环境变量，确保 settings 实例化时读到 test key
 os.environ["DATA_ENCRYPTION_KEY"] = "test-encryption-key-for-unit-tests"
 os.environ["ENVIRONMENT"] = "development"
 
 from app.core import config as _config  # noqa: E402
-_config.settings = _test_settings
+# 仅修改字段值，不替换 settings 对象本身。
+# 直接 _config.settings = Settings(...) 会创建新实例，导致更早导入的模块
+# （如 email_service）仍持有旧 settings 引用，跨模块 monkeypatch 失效。
+_config.settings.data_encryption_key = "test-encryption-key-for-unit-tests"
+_config.settings.environment = "development"
 
 from app.core.data_encryption import decrypt_text, encrypt_text, safe_decrypt_text  # noqa: E402
 

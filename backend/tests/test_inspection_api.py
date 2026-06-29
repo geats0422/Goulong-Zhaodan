@@ -42,12 +42,18 @@ VALID_PASSWORD = "TestPass123"
 
 
 @pytest_asyncio.fixture
-async def client():
+async def client(monkeypatch):
     assert_safe_database_for_cleanup()
     from app.core.rate_limit import register_limiter
+    from app.services import email_service
     register_limiter.reset()
     inspection_router._inspection_records.clear()
     inspection_router._inspection_sessions.clear()
+
+    async def _always_true(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr(email_service, "verify_code", _always_true)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -61,6 +67,7 @@ async def register_and_auth(client: AsyncClient, username: str = "inspection_use
         "email": f"{username}@test.com",
         "nickname": username,
         "password": VALID_PASSWORD,
+        "email_code": "123456",
     })
     assert response.status_code == 201
     data = response.json()

@@ -36,13 +36,13 @@ async def _fake_run_inspection(*args, **kwargs):
 fake_inspector_module.run_inspection = _fake_run_inspection
 sys.modules["app.agents.inspector"] = fake_inspector_module
 
-from app.core.auth import get_current_user  # noqa: E402
+from app.core.auth import CurrentUserContext, get_current_user  # noqa: E402
 from app.core.database import get_db_session  # noqa: E402
 from main import app  # noqa: E402
 
 
 async def _override_user():
-    return {"user_id": "00000000-0000-0000-0000-000000000042", "api_key": "goulong-dev-key"}
+    return CurrentUserContext(user_id=uuid.UUID("00000000-0000-0000-0000-000000000042"))
 
 
 @pytest.fixture
@@ -284,8 +284,9 @@ class TestUploadAndIngest:
                 obj.id = 13
 
         mock_db.refresh.side_effect = assign_ids
-        monkeypatch.setattr(knowledge_router, "build_storage_path", lambda *args: tmp_path)
-        monkeypatch.setattr(knowledge_router, "save_upload_file", lambda path, content: path.write_bytes(content))
+        monkeypatch.setattr(knowledge_router, "build_storage_path", lambda *args: "test/dir")
+        monkeypatch.setattr(knowledge_router, "save_file", lambda path, content: None)
+        monkeypatch.setattr(ingestion_mod, "save_file", lambda path, content: None)
         monkeypatch.setattr(ingestion_mod, "convert_to_markdown", lambda path: "# 标题\n内容")
         monkeypatch.setattr(ingestion_mod, "build_index_nodes", AsyncMock(return_value=[]))
         monkeypatch.setattr(knowledge_router, "validate_file_magic", lambda *a, **kw: None)

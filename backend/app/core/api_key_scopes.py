@@ -35,22 +35,16 @@ SCOPE_TEMPLATES_META: list[ScopeTemplateMeta] = [
         scopes=["profile:read", "inspection:read", "knowledge:read"],
     ),
     ScopeTemplateMeta(
-        key="mcp_inspect",
-        label="MCP 体检",
-        description="能体检 + 查询，不可写知识库",
-        scopes=["profile:read", "inspection:run", "inspection:read", "knowledge:read"],
-    ),
-    ScopeTemplateMeta(
         key="cli_review",
         label="CLI 审查",
         description="查询 + AI 体检，适用于 CLI 工具",
         scopes=["profile:read", "inspection:run", "inspection:read", "knowledge:read"],
     ),
     ScopeTemplateMeta(
-        key="agent_automation",
-        label="Agent 自动化",
-        description="完整业务自动化，含读写与 AI 体检",
-        scopes=["profile:read", "inspection:run", "inspection:read", "knowledge:read", "knowledge:write"],
+        key="agent_full_access",
+        label="Agent 完整协作",
+        description="面向 Openclaw、Hermes、阿里悟空、workbuddy 等 Agent，含读写与 AI 生成",
+        scopes=["profile:read", "inspection:run", "inspection:read", "knowledge:read", "knowledge:write", "settings:write"],
     ),
 ]
 
@@ -58,6 +52,8 @@ SCOPE_TEMPLATES: dict[str, list[str]] = {m.key: list(m.scopes) for m in SCOPE_TE
 
 _TEMPLATE_ALIASES: dict[str, str] = {
     "cli_inspection": "cli_review",
+    "agent_automation": "agent_full_access",
+    "mcp_inspect": "agent_full_access",
 }
 
 _CUSTOM_TEMPLATES: frozenset[str] = frozenset({"custom", "advanced_custom"})

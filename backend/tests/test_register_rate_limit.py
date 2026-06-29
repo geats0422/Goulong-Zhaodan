@@ -85,13 +85,18 @@ def test_register_duplicate_email_unified_message():
 
     body = MagicMock()
     body.email = "dup@example.com"
+    body.email_code = "123456"
     body.phone = None
+    body.phone_code = None
     body.nickname = "dup_user"
     body.password = "TestPass123"
 
     mock_response = MagicMock()
 
-    with patch("app.api.v1.auth.register_limiter", limiter):
+    with patch("app.api.v1.auth.register_limiter", limiter), patch(
+        "app.api.v1.auth.email_service.verify_code",
+        AsyncMock(return_value=True),
+    ):
         with pytest.raises(HTTPException) as exc_info:
             import asyncio
             asyncio.run(register(body, mock_response, mock_request, mock_db))

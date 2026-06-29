@@ -25,6 +25,9 @@ TEST_DB_URL = os.environ.get(
 # Children first, parents last — respects FK constraints.
 _CLEANUP_TABLES = [
     "agent_jobs",
+    "deduction_orders",
+    "subscription_contracts",
+    "payment_orders",
     "goulong_auth.refresh_tokens",
     "goulong_auth.memberships",
     "api_keys",
@@ -82,10 +85,22 @@ def assert_safe_database_for_cleanup() -> None:
     raise RuntimeError(f"拒绝清理非测试数据库: {database_name}")
 
 
+@pytest_asyncio.fixture(autouse=True, scope="session")
+async def _ensure_schema():
+    """Session 开始时确保所有表存在（幂等，新模型自动建表）。"""
+    await _create_schema_and_tables(db_mod.engine)
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def _cleanup_before_test():
     """Clean up tables before each async test using the patched global engine."""
     await _cleanup_tables(db_mod.engine)
+
+
+@pytest.fixture(autouse=True)
+def _disable_turnstile(monkeypatch):
+    """测试环境禁用 Turnstile 人机验证（SECRET_KEY 置空 → 开发模式跳过）。"""
+    monkeypatch.setattr(settings, "turnstile_secret_key", "")
 
 
 @pytest.fixture

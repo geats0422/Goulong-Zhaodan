@@ -41,10 +41,16 @@ VALID_PASSWORD = "TestPass123"
 
 
 @pytest_asyncio.fixture
-async def client():
+async def client(monkeypatch):
     from app.core.rate_limit import register_limiter
+    from app.services import email_service
 
     register_limiter.reset()
+
+    async def _always_true(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr(email_service, "verify_code", _always_true)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -63,6 +69,7 @@ async def register_user(client: AsyncClient, username: str = "agent_user", passw
         "email": f"{username}@test.com",
         "nickname": username,
         "password": password,
+        "email_code": "123456",
     })
     assert response.status_code == 201
     return {"Authorization": f"Bearer {response.json()['access_token']}"}

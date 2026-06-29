@@ -65,16 +65,6 @@ def test_scope_template_mcp_readonly():
     assert set(template) == {"profile:read", "inspection:read", "knowledge:read"}
 
 
-def test_scope_template_mcp_inspect():
-    template = SCOPE_TEMPLATES["mcp_inspect"]
-    assert set(template) == {
-        "profile:read",
-        "inspection:run",
-        "inspection:read",
-        "knowledge:read",
-    }
-
-
 def test_scope_template_cli_review():
     template = SCOPE_TEMPLATES["cli_review"]
     assert set(template) == {
@@ -85,14 +75,15 @@ def test_scope_template_cli_review():
     }
 
 
-def test_scope_template_agent_automation():
-    template = SCOPE_TEMPLATES["agent_automation"]
+def test_scope_template_agent_full_access():
+    template = SCOPE_TEMPLATES["agent_full_access"]
     assert set(template) == {
         "profile:read",
         "inspection:run",
         "inspection:read",
         "knowledge:read",
         "knowledge:write",
+        "settings:write",
     }
 
 
@@ -115,8 +106,41 @@ def test_resolve_scopes_mcp_readonly():
 
 
 def test_resolve_scopes_mcp_inspect():
+    """历史 MCP 体检模板与 Agent 完整协作使用同一 API 格式，仅保留兼容解析。"""
     result = resolve_scopes("mcp_inspect")
-    assert set(result) == {"profile:read", "inspection:run", "inspection:read", "knowledge:read"}
+    assert set(result) == {
+        "profile:read",
+        "inspection:run",
+        "inspection:read",
+        "knowledge:read",
+        "knowledge:write",
+        "settings:write",
+    }
+
+
+def test_resolve_scopes_agent_full_access():
+    result = resolve_scopes("agent_full_access")
+    assert set(result) == {
+        "profile:read",
+        "inspection:run",
+        "inspection:read",
+        "knowledge:read",
+        "knowledge:write",
+        "settings:write",
+    }
+
+
+def test_resolve_scopes_agent_automation_alias():
+    """历史名 agent_automation 与 Agent 完整协作是同一模板，避免重复展示但保留兼容。"""
+    result = resolve_scopes("agent_automation")
+    assert set(result) == {
+        "profile:read",
+        "inspection:run",
+        "inspection:read",
+        "knowledge:read",
+        "knowledge:write",
+        "settings:write",
+    }
 
 
 def test_resolve_scopes_cli_inspection_alias():

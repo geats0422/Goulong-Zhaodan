@@ -25,7 +25,13 @@ from app.core.constants import (  # noqa: E402
     validate_file_type,
 )
 from app.models import DocumentVersion, EngineeringSubcategory, IndexNode, KnowledgeDocument  # noqa: E402
-from app.services.file_storage import build_storage_path, ensure_storage_dir, save_upload_file  # noqa: E402
+from app.services.file_storage import build_storage_path, ensure_storage_dir, save_file  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _force_local_storage(monkeypatch):
+    """强制本地存储模式，避免测试连接真实 OSS。"""
+    monkeypatch.setattr("app.services.file_storage.is_oss_enabled", lambda: False)
 
 
 def test_validate_category_valid() -> None:
@@ -66,7 +72,7 @@ def test_validate_file_type_invalid() -> None:
 
 def test_build_storage_path() -> None:
     path = build_storage_path("traditional", "房建", "招标文件", 1)
-    assert path == Path("data/knowledge") / "traditional" / "房建" / "招标文件" / "v1"
+    assert path == "traditional/房建/招标文件/v1"
 
 
 def test_build_storage_path_version() -> None:
@@ -81,13 +87,13 @@ def test_ensure_storage_dir(tmp_path: Path) -> None:
     assert target.exists()
 
 
-def test_save_upload_file(tmp_path: Path, monkeypatch) -> None:
+def test_save_file(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("app.services.file_storage.STORAGE_ROOT", str(tmp_path))
-    file_path = tmp_path / "sub" / "test.docx"
+    storage_path = "sub/test.docx"
     content = b"hello world"
-    result = save_upload_file(file_path, content)
-    assert result == file_path
-    assert file_path.read_bytes() == content
+    result = save_file(storage_path, content)
+    assert result == storage_path
+    assert (tmp_path / "sub" / "test.docx").read_bytes() == content
 
 
 def test_models_importable() -> None:

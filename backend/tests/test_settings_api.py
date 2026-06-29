@@ -45,10 +45,16 @@ VALID_PASSWORD = "TestPass123"
 
 
 @pytest_asyncio.fixture
-async def client():
+async def client(monkeypatch):
     from app.core.rate_limit import register_limiter
+    from app.services import email_service
     register_limiter.reset()
     assert_safe_database_for_cleanup()
+
+    async def _always_true(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr(email_service, "verify_code", _always_true)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -60,6 +66,7 @@ async def register_and_auth(client: AsyncClient, username: str = "settings_user"
         "email": f"{username}@test.com",
         "nickname": username,
         "password": password,
+        "email_code": "123456",
     })
     assert response.status_code == 201
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
@@ -152,6 +159,7 @@ async def test_password_change_revokes_refresh_tokens(client: AsyncClient):
         "email": "revoke_user@test.com",
         "nickname": "revoke_user",
         "password": "OldPass123",
+        "email_code": "123456",
     })
     access_token = reg.json()["access_token"]
     refresh_token = reg.cookies.get("refresh_token")
@@ -370,9 +378,12 @@ async def test_overview_includes_scope_templates(client: AsyncClient):
     assert resp.status_code == 200
     scope_templates = resp.json()["profile"]["scope_templates"]
     assert isinstance(scope_templates, list)
-    assert len(scope_templates) == 5
+    assert len(scope_templates) == 4
     template_keys = {t["key"] for t in scope_templates}
-    assert "mcp_inspect" in template_keys
+    assert "mcp_readonly" in template_keys
+    assert "mcp_inspect" not in template_keys
+    assert "agent_full_access" in template_keys
+    assert "agent_automation" not in template_keys
     for template in scope_templates:
         assert "key" in template
         assert "label" in template

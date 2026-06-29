@@ -18,6 +18,12 @@ from app.core.api_key_scopes import resolve_scopes
 from app.models.api_keys import ApiKey
 
 
+def _to_naive_utc(value: datetime.datetime | None) -> datetime.datetime | None:
+    if value is None or value.tzinfo is None:
+        return value
+    return value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+
+
 async def create_api_key(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -42,7 +48,7 @@ async def create_api_key(
         key_prefix=prefix,
         key_hash=key_hash,
         encrypted_key=encrypted,
-        expires_at=expires_at,
+        expires_at=_to_naive_utc(expires_at),
     )
     db.add(api_key)
     await db.commit()
@@ -91,6 +97,8 @@ async def update_api_key(
 
     for field, value in kwargs.items():
         if hasattr(api_key, field):
+            if field == "expires_at":
+                value = _to_naive_utc(value)
             setattr(api_key, field, value)
     await db.commit()
     await db.refresh(api_key)

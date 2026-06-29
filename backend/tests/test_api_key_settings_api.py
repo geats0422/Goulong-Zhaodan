@@ -41,10 +41,16 @@ VALID_PASSWORD = "TestPass123"
 
 
 @pytest_asyncio.fixture
-async def client():
+async def client(monkeypatch):
     from app.core.rate_limit import register_limiter
+    from app.services import email_service
 
     register_limiter.reset()
+
+    async def _always_true(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr(email_service, "verify_code", _always_true)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -59,6 +65,7 @@ async def register_and_auth(client: AsyncClient, username: str = "apikey_user", 
         "email": f"{username}@test.com",
         "nickname": username,
         "password": password,
+        "email_code": "123456",
     })
     assert response.status_code == 201
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
@@ -105,6 +112,26 @@ async def test_create_api_key_response_has_full_key(client: AsyncClient):
     assert "full_key" in data
     assert data["full_key"].startswith("glzd_live_")
     assert len(data["full_key"]) > 20
+
+
+@pytest.mark.asyncio
+async def test_create_api_key_accepts_timezone_aware_expires_at(client: AsyncClient):
+    """前端 toISOString() 会提交带 Z 时区的 expires_at，后端应归一化后可落库。"""
+    headers = await register_and_auth(client, "aware_expiry_user")
+
+    response = await client.post(
+        "/settings/api-keys",
+        headers=headers,
+        json={
+            "name": "带时区 Key",
+            "client_type": "agent",
+            "scope_template": "mcp_readonly",
+            "expires_at": "2026-09-25T01:28:11.709Z",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["expires_at"].startswith("2026-09-25T01:28:11")
 
 
 @pytest.mark.asyncio

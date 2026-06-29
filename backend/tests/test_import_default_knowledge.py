@@ -181,7 +181,7 @@ class TestImportSingleFile:
         with patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest:
             mock_ingest.return_value = (10, None)
 
-            with patch("scripts.import_default_knowledge.save_upload_file"):
+            with patch("scripts.import_default_knowledge.save_file"):
                 result = await import_single_file(mock_db, fake_file, "bidding")
 
         assert result["status"] == "success"
