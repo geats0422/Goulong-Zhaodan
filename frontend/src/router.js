@@ -4,6 +4,7 @@ import SolutionPage from './pages/SolutionPage.vue'
 import SecurityPage from './pages/SecurityPage.vue'
 import CasesPage from './pages/CasesPage.vue'
 import PricingPage from './pages/PricingPage.vue'
+import DeveloperDocsPage from './pages/DeveloperDocsPage.vue'
 import DashboardPage from './pages/DashboardPage.vue'
 import KnowledgeBasePage from './pages/KnowledgeBasePage.vue'
 import HistoryPage from './pages/HistoryPage.vue'
@@ -13,7 +14,7 @@ import LoginPage from './pages/LoginPage.vue'
 import RegisterPage from './pages/RegisterPage.vue'
 import { useAuth } from './composables/useAuth.js'
 
-const publicPaths = ['/', '/login', '/register', '/solution', '/security', '/cases', '/pricing']
+const publicPaths = ['/', '/login', '/register', '/solution', '/security', '/cases', '/pricing', '/docs']
 
 const router = createRouter({
   history: createWebHistory(),
@@ -23,6 +24,7 @@ const router = createRouter({
     { path: '/security', component: SecurityPage },
     { path: '/cases', component: CasesPage },
     { path: '/pricing', component: PricingPage },
+    { path: '/docs', component: DeveloperDocsPage },
     { path: '/login', component: LoginPage },
     { path: '/register', component: RegisterPage },
     { path: '/dashboard', component: DashboardPage },
