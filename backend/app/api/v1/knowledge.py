@@ -8,7 +8,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.auth import get_current_user
+from app.core.auth import CurrentUserContext, get_current_user
 from app.core.constants import (
     validate_application_scenario,
     validate_category,
@@ -23,7 +23,7 @@ from app.models.knowledge import (
     DocumentVersion,
     IndexNode,
 )
-from app.services.file_storage import build_storage_path, save_upload_file, safe_path_segment
+from app.services.file_storage import build_storage_path, save_file, safe_path_segment
 from app.services.knowledge_ingestion import ingest_document_content
 
 MAX_FILE_SIZE = 50 * 1024 * 1024
@@ -33,7 +33,7 @@ router = APIRouter(prefix="/knowledge", tags=["知识库"])
 
 def _current_user_id(user: dict) -> uuid.UUID:
     try:
-        return uuid.UUID(user["user_id"])
+        return user.user_id
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=401, detail="Invalid user") from exc
 
@@ -137,8 +137,8 @@ class OverviewResponse(BaseModel):
 
 @router.get("/overview", response_model=OverviewResponse)
 async def get_knowledge_overview(
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ):
     user_id = _current_user_id(user)
     categories: list[OverviewCategory] = []
@@ -252,8 +252,8 @@ def _build_node_tree(nodes: list[IndexNode]) -> list[NodeItem]:
 @router.get("/subcategories", response_model=SubcategoryListResponse)
 async def list_subcategories(
     category: str,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ):
     try:
         category_label = validate_category(category)
@@ -279,8 +279,8 @@ async def upload_and_ingest(
     application_scenario: str = Form("bidding"),
     subcategory_id: int | None = Form(None),
     subcategory_name: str | None = Form(None),
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ):
     filename = file.filename or "unknown"
     try:
@@ -354,13 +354,13 @@ async def upload_and_ingest(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     storage_dir = build_storage_path(category, _safe_path_segment(sub.name, "subcategory"), safe_stem, version_number)
-    original_path = storage_dir / safe_name
+    original_storage_path = f"{storage_dir}/{safe_name}"
 
     version = DocumentVersion(
         document_id=document.id,
         version_number=version_number,
         display_name=display_name,
-        original_file_path=str(original_path),
+        original_file_path=original_storage_path,
         status="pending",
         file_size_bytes=file_size,
         file_type=ext,
@@ -369,10 +369,10 @@ async def upload_and_ingest(
     await db.flush()
     await db.refresh(version)
 
-    save_upload_file(original_path, content)
+    save_file(original_storage_path, content)
 
     node_count, error_msg = await ingest_document_content(
-        db, document, version, str(original_path), safe_stem,
+        db, document, version, original_storage_path, safe_stem, original_content=content,
     )
     await db.commit()
     await db.refresh(version)
@@ -394,8 +394,8 @@ async def upload_and_ingest(
 @router.get("/documents", response_model=DocumentListResponse)
 async def list_documents(
     subcategory_id: int,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ):
     user_id = _current_user_id(user)
     result = await db.execute(
@@ -437,8 +437,8 @@ async def list_documents(
 async def get_document_nodes(
     document_id: int,
     version_number: int | None = None,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ):
     user_id = _current_user_id(user)
     result = await db.execute(

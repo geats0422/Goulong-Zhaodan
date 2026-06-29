@@ -15,9 +15,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import desc, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_user
+from app.core.auth import CurrentUserContext, get_current_user
 from app.core.constants import validate_application_scenario
 from app.core.data_encryption import decrypt_text
 from app.core.database import get_db_session
@@ -54,7 +53,7 @@ _inspection_sessions: dict[str, dict[str, Any]] = {}
 
 def _current_user_id(user: dict) -> uuid_mod.UUID:
     try:
-        return uuid_mod.UUID(str(user["user_id"]))
+        return user.user_id
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=401, detail="Invalid user") from exc
 
@@ -466,8 +465,8 @@ async def upload_and_inspect(
     project_id: str = Form(default="default"),
     application_scenario: str = Form(default="bidding"),
     taboo_words: str = Form(default=""),
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> InspectionReportResponse:
     """
     上传文档并执行智能体检。
@@ -495,8 +494,8 @@ async def upload_and_inspect(
 @router.post("/parse", response_model=InspectionParseResponse)
 async def parse_inspection_file(
     file: UploadFile = File(..., description="待解析的工程文档"),
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> InspectionParseResponse:
     """上传并解析文档基础信息，创建后续体检使用的会话。"""
     filename, content_bytes, text = await _read_inspection_upload_text(file)
@@ -541,8 +540,8 @@ async def parse_inspection_file(
 async def inspect_session(
     session_id: str,
     body: InspectionSessionInspectRequest,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> InspectionReportResponse:
     """基于已解析的会话执行智能体检。"""
     user_id = _current_user_id(user)
@@ -572,8 +571,8 @@ async def list_records(
     keyword: str | None = None,
     page: int = 1,
     page_size: int = 10,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> InspectionRecordListResponse:
     """获取体检记录列表（支持按项目和风险等级筛选）"""
     user_id = _current_user_id(user)
@@ -621,8 +620,8 @@ async def list_records(
 @router.get("/records/{record_id}")
 async def get_record(
     record_id: int,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> dict[str, Any]:
     """获取单条体检记录详情"""
     user_id = _current_user_id(user)
@@ -648,8 +647,8 @@ async def get_record(
 @router.get("/records/{record_id}/report.pdf")
 async def download_record_report_pdf(
     record_id: int,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> Response:
     """下载单条体检记录的 PDF 审查报告。"""
     user_id = _current_user_id(user)
@@ -669,8 +668,8 @@ async def download_record_report_pdf(
 async def inspect_record(
     record_id: int,
     body: InspectionSessionInspectRequest,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> InspectionReportResponse:
     """基于已解析但未审查的记录执行智能体检。"""
     user_id = _current_user_id(user)
@@ -697,8 +696,8 @@ async def inspect_record(
 @router.delete("/records/{record_id}", status_code=204)
 async def delete_record(
     record_id: int,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> Response:
     """删除单条体检记录。"""
     user_id = _current_user_id(user)
@@ -715,7 +714,7 @@ async def delete_record(
 async def get_history_stats(
     project_id: str = "default",
     range: str = "7d",
-    user: dict = Depends(get_current_user),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> HistoryStatsResponse:
     """获取历史统计（MVP: 近7天，按天聚合）。"""
     if range != "7d":
@@ -733,8 +732,8 @@ async def get_history_stats(
 @router.post("/records/{record_id}/burn")
 async def burn_record_content(
     record_id: int,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ):
     user_id = _current_user_id(user)
     result = await db.execute(

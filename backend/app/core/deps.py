@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import Request
+from fastapi import Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.database import get_db_session
 
 
 @dataclass
@@ -31,3 +33,6 @@ def get_client_ip(request: Request) -> str:
     if request.client:
         return request.client.host
     return "unknown"
+
+
+DbSession = Annotated[AsyncSession, Depends(get_db_session)]

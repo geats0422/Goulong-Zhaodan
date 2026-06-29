@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import datetime
 import uuid
+from dataclasses import dataclass
+from typing import Annotated
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select, update
 
 
@@ -72,7 +74,15 @@ async def revoke_all_refresh_tokens(db, user_id: uuid.UUID) -> None:
     await db.commit()
 
 
-async def get_current_user(request: Request) -> dict:
+@dataclass
+class CurrentUserContext:
+    """当前登录用户上下文（从 JWT 解析，不含 DB 查询，保持高性能）。"""
+
+    user_id: uuid.UUID
+    is_active: bool = True
+
+
+async def get_current_user(request: Request) -> CurrentUserContext:
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -80,7 +90,10 @@ async def get_current_user(request: Request) -> dict:
     token = auth_header[7:]
     payload = decode_token(token, "access")
 
-    return {
-        "user_id": payload["user_id"],
-        "is_active": payload.get("is_active", True),
-    }
+    return CurrentUserContext(
+        user_id=uuid.UUID(payload["user_id"]),
+        is_active=payload.get("is_active", True),
+    )
+
+
+CurrentUser = Annotated[CurrentUserContext, Depends(get_current_user)]

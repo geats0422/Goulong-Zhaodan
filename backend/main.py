@@ -10,11 +10,14 @@ from fastapi.responses import JSONResponse, Response
 
 from app.core.config import assert_production_security, settings
 from app.core.database import init_db
+from app.core.redis_client import close_redis
 from app.api.v1.inspection import router as inspection_router
 from app.api.v1.knowledge import router as knowledge_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.agent import router as agent_router
 from app.api.v1.settings import router as settings_router
+from app.api.v1.payments import router as payment_router
+from app.api.v1.subscriptions import router as subscription_router
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     assert_production_security()
     yield
+    await close_redis()
 
 
 app = FastAPI(
@@ -54,9 +58,10 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: blob:; "
+        "frame-src https://challenges.cloudflare.com; "
         "connect-src 'self';"
     )
     if request.url.scheme == "https":
@@ -82,6 +87,8 @@ app.include_router(knowledge_router, prefix="/api/v1")
 app.include_router(auth_router)
 app.include_router(settings_router)
 app.include_router(agent_router)
+app.include_router(payment_router)
+app.include_router(subscription_router)
 
 
 @app.exception_handler(Exception)

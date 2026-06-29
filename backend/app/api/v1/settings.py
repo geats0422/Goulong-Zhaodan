@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.api_key_scopes import SCOPE_TEMPLATES_META
-from app.core.auth import get_current_user, hash_password, revoke_all_refresh_tokens, verify_password
+from app.core.auth import CurrentUserContext, get_current_user, hash_password, revoke_all_refresh_tokens, verify_password
 from app.core.config import settings
 from app.core.constants import ENGINEERING_CATEGORIES
 from app.core.database import get_db_session
@@ -221,7 +221,7 @@ class TabooWordUpdateRequest(TabooWordCreateRequest):
 
 def _current_user_id(user: dict) -> uuid.UUID:
     try:
-        return uuid.UUID(user["user_id"])
+        return user.user_id
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=401, detail="Invalid user") from exc
 
@@ -346,8 +346,8 @@ async def _build_knowledge(db: AsyncSession, user_id: uuid.UUID) -> list[Setting
 
 @router.get("/overview", response_model=SettingsOverviewResponse)
 async def get_settings_overview(
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> SettingsOverviewResponse:
     user_id = _current_user_id(user)
     db_user = await _get_user(db, user_id)
@@ -367,8 +367,8 @@ async def get_settings_overview(
 @router.patch("/profile", response_model=ProfileResponse)
 async def update_profile(
     body: ProfileUpdateRequest,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> ProfileResponse:
     user_id = _current_user_id(user)
     db_user = await _get_user(db, user_id)
@@ -414,8 +414,8 @@ async def update_profile(
 @router.post("/password")
 async def update_password(
     body: PasswordUpdateRequest,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> dict[str, bool]:
     user_id = _current_user_id(user)
     db_user = await _get_user(db, user_id)
@@ -432,8 +432,8 @@ async def update_password(
 async def update_knowledge_document_setting(
     document_id: int,
     body: KnowledgeDocumentToggleRequest,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> SettingsDocument:
     user_id = _current_user_id(user)
     doc_result = await db.execute(select(KnowledgeDocument).where(KnowledgeDocument.id == document_id))
@@ -464,8 +464,8 @@ async def update_knowledge_document_setting(
 @router.post("/taboo-words", response_model=TabooWordResponse, status_code=201)
 async def create_taboo_word(
     body: TabooWordCreateRequest,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> TabooWordResponse:
     user_id = _current_user_id(user)
     result = await db.execute(select(TabooWord).where(TabooWord.user_id == user_id, TabooWord.word == body.word))
@@ -483,8 +483,8 @@ async def create_taboo_word(
 async def update_taboo_word(
     word_id: int,
     body: TabooWordUpdateRequest,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> TabooWordResponse:
     user_id = _current_user_id(user)
     result = await db.execute(select(TabooWord).where(TabooWord.id == word_id, TabooWord.user_id == user_id))
@@ -513,8 +513,8 @@ async def update_taboo_word(
 @router.delete("/taboo-words/{word_id}", status_code=204)
 async def delete_taboo_word(
     word_id: int,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> None:
     user_id = _current_user_id(user)
     result = await db.execute(select(TabooWord).where(TabooWord.id == word_id, TabooWord.user_id == user_id))
@@ -582,8 +582,8 @@ def _api_key_response(api_key) -> ApiKeyResponse:
 
 @router.get("/api-keys", response_model=list[ApiKeyResponse])
 async def list_api_keys_route(
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> list[ApiKeyResponse]:
     from app.services.api_key_service import list_api_keys
 
@@ -595,8 +595,8 @@ async def list_api_keys_route(
 @router.post("/api-keys", response_model=CreateApiKeyResponse, status_code=201)
 async def create_api_key_route(
     body: CreateApiKeyRequest,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> CreateApiKeyResponse:
     from app.services.api_key_service import create_api_key
 
@@ -631,8 +631,8 @@ async def create_api_key_route(
 @router.get("/api-keys/{key_id}/secret", response_model=ApiKeySecretResponse)
 async def get_api_key_secret_route(
     key_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> ApiKeySecretResponse:
     from app.services.api_key_service import get_api_key_secret
 
@@ -647,8 +647,8 @@ async def get_api_key_secret_route(
 async def update_api_key_route(
     key_id: uuid.UUID,
     body: UpdateApiKeyRequest,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> ApiKeyResponse:
     from app.services.api_key_service import update_api_key
 
@@ -670,8 +670,8 @@ async def update_api_key_route(
 @router.delete("/api-keys/{key_id}")
 async def revoke_api_key_route(
     key_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db_session),
-    user: dict = Depends(get_current_user),
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
 ) -> dict:
     from app.services.api_key_service import revoke_api_key
 
