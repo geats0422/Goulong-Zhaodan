@@ -18,6 +18,7 @@ from app.api.v1.agent import router as agent_router
 from app.api.v1.settings import router as settings_router
 from app.api.v1.payments import router as payment_router
 from app.api.v1.subscriptions import router as subscription_router
+from app.api.v1.wechat_callback import router as wechat_callback_router
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ app.include_router(settings_router)
 app.include_router(agent_router)
 app.include_router(payment_router)
 app.include_router(subscription_router)
+app.include_router(wechat_callback_router)
 
 
 @app.exception_handler(Exception)
