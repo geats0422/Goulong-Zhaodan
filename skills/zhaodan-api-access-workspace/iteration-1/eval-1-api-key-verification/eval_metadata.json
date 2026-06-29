@@ -1,0 +1,6 @@
+{
+  "eval_id": 1,
+  "eval_name": "eval-1-api-key-verification",
+  "prompt": "我在 workbuddy 里配置了照胆 API Key，先帮我确认这个 key 能不能用，以及接下来能调用哪些能力。",
+  "assertions": []
+}

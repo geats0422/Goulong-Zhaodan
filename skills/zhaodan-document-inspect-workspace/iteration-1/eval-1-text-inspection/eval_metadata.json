@@ -1,0 +1,6 @@
+{
+  "eval_id": 1,
+  "eval_name": "eval-1-text-inspection",
+  "prompt": "用照胆帮我审查这段招标文件文字，输出风险等级、问题清单和修改建议。",
+  "assertions": []
+}

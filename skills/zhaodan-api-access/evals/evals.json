@@ -1,0 +1,17 @@
+{
+  "skill_name": "zhaodan-api-access",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我在 workbuddy 里配置了照胆 API Key，先帮我确认这个 key 能不能用，以及接下来能调用哪些能力。",
+      "expected_output": "The agent should use the access-check workflow, avoid printing secrets, call or recommend zhaodan_me, and summarize scopes plus next steps.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Openclaw 调用照胆返回 403，我不知道缺哪个权限，帮我判断应该创建什么权限的 key。",
+      "expected_output": "The agent should map 403 to missing scope, describe required scopes by capability, and recommend presets or custom scopes without suggesting destructive permissions.",
+      "files": []
+    }
+  ]
+}

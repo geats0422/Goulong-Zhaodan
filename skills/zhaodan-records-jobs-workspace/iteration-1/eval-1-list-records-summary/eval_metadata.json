@@ -1,0 +1,6 @@
+{
+  "eval_id": 1,
+  "eval_name": "eval-1-list-records-summary",
+  "prompt": "帮我列出照胆最近的体检记录，选风险最高的一条做摘要。",
+  "assertions": []
+}

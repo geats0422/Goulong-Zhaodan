@@ -1,0 +1,6 @@
+{
+  "eval_id": 2,
+  "eval_name": "eval-2-file-parse-then-inspect",
+  "prompt": "我有一个 docx 合同文件，先解析再用 record_id 复检，不要重复上传两次。",
+  "assertions": []
+}

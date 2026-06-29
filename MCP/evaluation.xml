@@ -1,0 +1,42 @@
+<evaluation>
+   <qa_pair>
+      <question>调用 zhaodan_me 确认当前 API Key 身份。返回的 JSON 中有哪些顶层字段？请按字母序以英文逗号分隔，只写字段名。</question>
+      <answer>api_key_id, scopes, user_id</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>用 zhaodan_search_knowledge 检索时，application_scenario 参数只接受哪两个值？请用英文逗号分隔。</question>
+      <answer>bidding, contract</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>用 zhaodan_inspect_text 审查文档时，text 参数最少需要多少个字符？请只回答数字。</question>
+      <answer>10</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>zhaodan_search_knowledge 的 limit 参数允许的最小值和最大值分别是多少？请用英文逗号分隔，格式为"最小值, 最大值"。</question>
+      <answer>1, 100</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>调用 zhaodan_get_record 查询一个确定不存在的记录 ID（例如 999999），后端返回的错误 detail 文本是什么？只回答 detail 字符串本身。</question>
+      <answer>record_not_found</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>调用 zhaodan_get_job_status 查询一个确定不存在的任务 ID（例如 "nonexistent_job_12345"），后端返回的错误 detail 文本是什么？只回答 detail 字符串本身。</question>
+      <answer>job_not_found</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>调用 zhaodan_search_knowledge 成功后，返回的 JSON 中用于存放检索到的法规片段数组的键名是什么？只回答键名。</question>
+      <answer>snippets</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>zhaodan_inspect_text 的 document_name 参数允许的最大长度是多少个字符？请只回答数字。</question>
+      <answer>200</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>zhaodan_parse_file 上传本地文件时，单个文件的大小上限是多少 MB？请只回答数字。</question>
+      <answer>20</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>调用 zhaodan_get_record 成功获取一条已审查记录的详情后，返回 JSON 中表示整体风险等级的字段名是什么？只回答字段名。</question>
+      <answer>overall_risk</answer>
+   </qa_pair>
+</evaluation>

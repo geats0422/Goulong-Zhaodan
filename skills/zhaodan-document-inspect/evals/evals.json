@@ -1,0 +1,17 @@
+{
+  "skill_name": "zhaodan-document-inspect",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "用照胆帮我审查这段招标文件文字，输出风险等级、问题清单和修改建议。",
+      "expected_output": "The agent should choose inspect-text flow, require inspection:run, and format the inspection report clearly.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "我有一个 docx 合同文件，先解析再用 record_id 复检，不要重复上传两次。",
+      "expected_output": "The agent should parse the file, use returned record_id for inspection, and avoid duplicate upload.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "skill_name": "zhaodan-knowledge-search",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我先查一下招标文件里限制外地企业投标有没有法规依据，最好给我来源。",
+      "expected_output": "The agent should search Zhaodan knowledge with bidding scenario, cite snippets/sources, and avoid unsupported legal claims.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "合同审查前，先从照胆知识库找一下违约责任和单方解除条款相关依据。",
+      "expected_output": "The agent should use contract scenario, retrieve knowledge snippets, and summarize evidence for downstream review.",
+      "files": []
+    }
+  ]
+}

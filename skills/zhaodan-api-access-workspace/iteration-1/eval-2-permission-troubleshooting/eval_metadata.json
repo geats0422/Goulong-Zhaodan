@@ -1,0 +1,6 @@
+{
+  "eval_id": 2,
+  "eval_name": "eval-2-permission-troubleshooting",
+  "prompt": "Openclaw 调用照胆返回 403，我不知道缺哪个权限，帮我判断应该创建什么权限的 key。",
+  "assertions": []
+}

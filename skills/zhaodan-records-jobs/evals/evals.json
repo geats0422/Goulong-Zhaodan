@@ -1,0 +1,17 @@
+{
+  "skill_name": "zhaodan-records-jobs",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我列出照胆最近的体检记录，选风险最高的一条做摘要。",
+      "expected_output": "The agent should list records, identify records by returned risk fields, and summarize without inventing data.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "这个异步体检 job_id 一直没结果，帮我查状态并告诉我下一步怎么办。",
+      "expected_output": "The agent should poll job status, report status/progress/message/error, and recommend next action based on returned state.",
+      "files": []
+    }
+  ]
+}
