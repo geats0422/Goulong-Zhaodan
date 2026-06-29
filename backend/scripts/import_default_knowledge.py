@@ -18,7 +18,7 @@ from app.models.knowledge import (
     EngineeringSubcategory,
     KnowledgeDocument,
 )
-from app.services.file_storage import build_storage_path, save_upload_file, safe_path_segment
+from app.services.file_storage import build_storage_path, save_file, safe_path_segment
 from app.services.knowledge_ingestion import ingest_document_content
 
 logger = logging.getLogger(__name__)
@@ -123,13 +123,13 @@ async def import_single_file(db: AsyncSession, file_path: Path, application_scen
             "traditional", _safe_path_segment(sub.name), safe_stem, 1,
         )
         safe_name = _safe_path_segment(file_path.name)
-        original_path = storage_dir / safe_name
+        original_storage_path = f"{storage_dir}/{safe_name}"
 
         version = DocumentVersion(
             document_id=document.id,
             version_number=1,
             display_name=file_path.name,
-            original_file_path=str(original_path),
+            original_file_path=original_storage_path,
             status="pending",
             file_size_bytes=file_size,
             file_type=ext,
@@ -138,10 +138,10 @@ async def import_single_file(db: AsyncSession, file_path: Path, application_scen
         await db.flush()
         await db.refresh(version)
 
-        save_upload_file(original_path, content)
+        save_file(original_storage_path, content)
 
         node_count, error_msg = await ingest_document_content(
-            db, document, version, str(original_path), safe_stem,
+            db, document, version, original_storage_path, safe_stem, original_content=content,
         )
         await db.flush()
 

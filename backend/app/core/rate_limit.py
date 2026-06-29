@@ -31,3 +31,4 @@ class IPRateLimiter:
 
 
 register_limiter = IPRateLimiter(max_requests=5, window_seconds=3600)
+send_code_limiter = IPRateLimiter(max_requests=10, window_seconds=3600)

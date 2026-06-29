@@ -22,7 +22,17 @@ def _ensure_ssl_database_url(url: str) -> str:
 
 
 _db_url = _ensure_ssl_database_url(settings.database_url)
-engine = create_async_engine(_db_url, echo=False)
+
+# 连接池参数（仅对支持连接池的后端生效，如 PostgreSQL/asyncpg；SQLite 跳过）
+_engine_kwargs: dict = {"echo": False}
+if not settings.database_url.startswith("sqlite"):
+    _engine_kwargs.update(
+        pool_size=10,
+        max_overflow=20,
+        pool_recycle=1800,  # 30 分钟回收，规避 RDS wait_timeout 导致的断连
+        pool_pre_ping=True,  # 取连接前探测，避免使用已被服务端关闭的连接
+    )
+engine = create_async_engine(_db_url, **_engine_kwargs)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
