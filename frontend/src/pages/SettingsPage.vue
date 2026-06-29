@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
 import {
+  API_KEY_SCOPES,
   MODEL_CATALOG,
   POWER_PACKS,
   SCOPE_TEMPLATES,
@@ -61,7 +62,7 @@ const confirmingKeyId = ref(null)
 const confirmAction = ref(null)
 const confirmMessage = ref('')
 const showApiKeyForm = ref(false)
-const newKeyForm = ref({ name: '', scope_template: 'mcp_inspect', expires_in_days: 90, custom_scopes: [] })
+const newKeyForm = ref({ name: '', scope_template: 'mcp_readonly', expires_in_days: 90, custom_scopes: [] })
 const newlyCreatedKey = ref(null)
 const showExpiryDropdown = ref(false)
 const expiryOptions = [
@@ -78,6 +79,12 @@ const editingTabooId = ref(null)
 const quotaPercent = computed(() => {
   if (!profile.value?.monthly_quota) return 0
   return Math.min(100, (profile.value.quota_used / profile.value.monthly_quota) * 100)
+})
+
+const canSubmitApiKey = computed(() => {
+  if (saving.value) return false
+  if (newKeyForm.value.scope_template !== 'advanced_custom') return true
+  return newKeyForm.value.custom_scopes.length > 0
 })
 
 async function loadSettings() {
@@ -253,13 +260,50 @@ async function handleEyeClick(keyId) {
 
 async function handleCopyClick(keyId) {
   if (secretCache.value[keyId]) {
-    await navigator.clipboard.writeText(secretCache.value[keyId])
-    message.value = '已复制到剪贴板'
+    await copyApiKey(secretCache.value[keyId])
     return
   }
-  confirmAction.value = 'copy'
-  confirmingKeyId.value = keyId
-  confirmMessage.value = '复制密钥前需显示完整内容，确认显示并复制？'
+  try {
+    const data = await getApiKeySecret(keyId)
+    secretCache.value[keyId] = data.full_key
+    await copyApiKey(data.full_key)
+    await loadApiKeys()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '复制失败'
+  }
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return
+    } catch {
+      // 降级到 execCommand，兼容非 HTTPS、本地调试或剪贴板权限受限场景。
+    }
+  }
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const ok = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (!ok) {
+    throw new Error('浏览器拒绝写入剪贴板')
+  }
+}
+
+async function copyApiKey(fullKey) {
+  try {
+    await copyTextToClipboard(fullKey)
+    error.value = ''
+    message.value = '已复制到剪贴板'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '复制失败，请手动选中复制'
+  }
 }
 
 async function handleRevokeClick(keyId) {
@@ -290,8 +334,7 @@ async function confirmAction2() {
     const data = await getApiKeySecret(id)
     secretCache.value[id] = data.full_key
     if (action === 'copy') {
-      await navigator.clipboard.writeText(data.full_key)
-      message.value = '已复制到剪贴板'
+      await copyApiKey(data.full_key)
     }
     await loadApiKeys()
   } catch (err) {
@@ -306,7 +349,7 @@ function cancelConfirm() {
 }
 
 function openCreateApiKey() {
-  newKeyForm.value = { name: '', scope_template: 'mcp_inspect', expires_in_days: 90, custom_scopes: [] }
+  newKeyForm.value = { name: '', scope_template: 'mcp_readonly', expires_in_days: 90, custom_scopes: [] }
   showApiKeyForm.value = true
   newlyCreatedKey.value = null
 }
@@ -316,14 +359,19 @@ function cancelCreateApiKey() {
 }
 
 async function submitCreateApiKey() {
+  if (newKeyForm.value.scope_template === 'advanced_custom' && !newKeyForm.value.custom_scopes.length) {
+    error.value = '请至少选择一个自定义权限'
+    return
+  }
   saving.value = true
   message.value = ''
   try {
     const payload = {
       name: newKeyForm.value.name,
+      client_type: 'agent',
       scope_template: newKeyForm.value.scope_template,
     }
-    if (newKeyForm.value.scope_template === 'advanced_custom' && newKeyForm.value.custom_scopes.length) {
+    if (newKeyForm.value.scope_template === 'advanced_custom') {
       payload.scopes = newKeyForm.value.custom_scopes
     }
     if (newKeyForm.value.expires_in_days) {
@@ -688,49 +736,13 @@ onMounted(() => {
           </header>
           <p class="security-hint">用于 Agent / MCP / CLI 调用。后端记录 last_viewed_at、last_used_at。</p>
 
-          <form v-if="showApiKeyForm" class="apikey-form" @submit.prevent="submitCreateApiKey">
-            <label class="form-row">
-              <span>密钥名称 <em>*</em></span>
-              <input v-model="newKeyForm.name" class="form-input" required maxlength="100" placeholder="如：我的 CLI 工具" />
-            </label>
-            <div class="form-row">
-              <span>权限模板</span>
-              <div class="scope-template-grid">
-                <label v-for="tpl in SCOPE_TEMPLATES" :key="tpl.key" class="scope-template-card" :class="{ selected: newKeyForm.scope_template === tpl.key }">
-                  <input v-model="newKeyForm.scope_template" type="radio" :value="tpl.key" />
-                  <div>
-                    <strong>{{ tpl.label }}</strong>
-                    <span>{{ tpl.description }}</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-            <div class="form-row">
-              <span>有效期</span>
-              <div class="custom-select" :class="{ open: showExpiryDropdown }" tabindex="0" @focusout="showExpiryDropdown = false">
-                <button type="button" class="custom-select-trigger" @click="showExpiryDropdown = !showExpiryDropdown">
-                  <span>{{ expiryOptions.find(o => o.value === newKeyForm.expires_in_days)?.label || '选择有效期' }}</span>
-                  <span class="material-symbols-outlined custom-select-arrow">expand_more</span>
-                </button>
-                <ul v-if="showExpiryDropdown" class="custom-select-options">
-                  <li v-for="opt in expiryOptions" :key="opt.value" :class="{ active: newKeyForm.expires_in_days === opt.value }" @click="newKeyForm.expires_in_days = opt.value; showExpiryDropdown = false">
-                    {{ opt.label }}
-                    <span v-if="opt.recommended" class="option-badge">推荐</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-            <div class="form-actions">
-              <button class="primary-btn" type="submit" :disabled="saving">创建</button>
-              <button class="ghost-btn" type="button" @click="cancelCreateApiKey">取消</button>
-            </div>
-          </form>
-
           <div v-if="newlyCreatedKey" class="apikey-new-key">
             <p class="apikey-new-hint">请立即复制完整密钥，关闭后将无法再次查看：</p>
             <div class="apikey-new-row">
-              <code>{{ newlyCreatedKey.full_key }}</code>
-              <button class="primary-btn" type="button" @click="navigator.clipboard.writeText(newlyCreatedKey.full_key); message = '已复制'">复制</button>
+              <button class="apikey-secret-text" type="button" title="点击复制完整 API Key" @click="copyApiKey(newlyCreatedKey.full_key)">
+                <code>{{ newlyCreatedKey.full_key }}</code>
+              </button>
+              <button class="primary-btn" type="button" @click="copyApiKey(newlyCreatedKey.full_key)">复制</button>
               <button class="ghost-btn" type="button" @click="newlyCreatedKey = null">关闭</button>
             </div>
           </div>
@@ -760,6 +772,72 @@ onMounted(() => {
             </div>
           </div>
         </article>
+
+        <div v-if="showApiKeyForm" class="modal-overlay" @click.self="cancelCreateApiKey">
+          <form class="modal-card modal-card-lg" @submit.prevent="submitCreateApiKey">
+            <header class="modal-header">
+              <div>
+                <span class="card-ref">REF.API-MODAL</span>
+                <h3>创建 API Key</h3>
+                <p class="modal-subtitle">用于 Agent / MCP / CLI 调用。完整密钥只会在创建后显示一次。</p>
+              </div>
+              <button class="icon-btn" type="button" @click="cancelCreateApiKey">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </header>
+            <div class="modal-body apikey-form">
+              <label class="form-row">
+                <span>密钥名称 <em>*</em></span>
+                <input v-model="newKeyForm.name" class="form-input" required maxlength="100" placeholder="如：我的 CLI 工具" />
+              </label>
+              <div class="form-row">
+                <span>权限模板</span>
+                <div class="scope-template-grid">
+                  <label v-for="tpl in SCOPE_TEMPLATES" :key="tpl.key" class="scope-template-card" :class="{ selected: newKeyForm.scope_template === tpl.key }">
+                    <input v-model="newKeyForm.scope_template" type="radio" :value="tpl.key" />
+                    <div>
+                      <strong>{{ tpl.label }}</strong>
+                      <span>{{ tpl.description }}</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              <div v-if="newKeyForm.scope_template === 'advanced_custom'" class="form-row">
+                <span>自定义权限 <em>*</em></span>
+                <div class="custom-scope-grid">
+                  <label v-for="scope in API_KEY_SCOPES" :key="scope.key" class="custom-scope-card" :class="{ selected: newKeyForm.custom_scopes.includes(scope.key) }">
+                    <input v-model="newKeyForm.custom_scopes" type="checkbox" :value="scope.key" />
+                    <div>
+                      <strong>{{ scope.label }}</strong>
+                      <code>{{ scope.key }}</code>
+                      <span>{{ scope.description }}</span>
+                    </div>
+                  </label>
+                </div>
+                <p class="form-hint">不包含删除记录等破坏性权限；创建后的 API Key 可按权限用于 MCP、CLI 或 Agent。</p>
+              </div>
+              <div class="form-row">
+                <span>有效期</span>
+                <div class="custom-select" :class="{ open: showExpiryDropdown }" tabindex="0" @focusout="showExpiryDropdown = false">
+                  <button type="button" class="custom-select-trigger" @click="showExpiryDropdown = !showExpiryDropdown">
+                    <span>{{ expiryOptions.find(o => o.value === newKeyForm.expires_in_days)?.label || '选择有效期' }}</span>
+                    <span class="material-symbols-outlined custom-select-arrow">expand_more</span>
+                  </button>
+                  <ul v-if="showExpiryDropdown" class="custom-select-options">
+                    <li v-for="opt in expiryOptions" :key="opt.value" :class="{ active: newKeyForm.expires_in_days === opt.value }" @click="newKeyForm.expires_in_days = opt.value; showExpiryDropdown = false">
+                      {{ opt.label }}
+                      <span v-if="opt.recommended" class="option-badge">推荐</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <footer class="modal-footer">
+              <button class="ghost-btn" type="button" @click="cancelCreateApiKey">取消</button>
+              <button class="primary-btn" type="submit" :disabled="!canSubmitApiKey">创建</button>
+            </footer>
+          </form>
+        </div>
 
         <div v-if="confirmingKeyId" class="modal-overlay" @click.self="cancelConfirm">
           <div class="modal-card modal-card-sm">
@@ -1009,11 +1087,19 @@ onMounted(() => {
 .scope-template-card strong { display: block; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; }
 .scope-template-card span { color: #99907c; font-size: 12px; }
 .scope-template-card.selected { border-color: #d4af37; background: rgba(212, 175, 55, 0.05); box-shadow: 0 0 12px rgba(212, 175, 55, 0.15); }
+.custom-scope-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 8px; }
+.custom-scope-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid #353534; background: #0A0A0A; cursor: pointer; transition: all 200ms; border-radius: 0.25rem; }
+.custom-scope-card input { margin-top: 4px; }
+.custom-scope-card strong { display: block; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; }
+.custom-scope-card code { display: block; margin: 3px 0; color: #f2ca50; font-family: "JetBrains Mono", monospace; font-size: 11px; }
+.custom-scope-card span { color: #99907c; font-size: 12px; }
+.custom-scope-card.selected { border-color: #d4af37; background: rgba(212, 175, 55, 0.05); box-shadow: 0 0 12px rgba(212, 175, 55, 0.15); }
 
 .apikey-new-key { margin-top: 16px; padding: 16px; border: 1px solid rgba(74, 222, 128, 0.35); background: rgba(52, 211, 153, 0.05); }
 .apikey-new-hint { color: #d0c5af; font-size: 13px; margin: 0 0 12px; }
 .apikey-new-row { display: flex; align-items: center; gap: 8px; }
-.apikey-new-row code { flex: 1; padding: 10px 14px; background: #0A0A0A; color: #34d399; font-family: "JetBrains Mono", monospace; font-size: 12px; word-break: break-all; border: 1px solid rgba(74, 222, 128, 0.3); }
+.apikey-secret-text { flex: 1; border: 0; padding: 0; background: transparent; cursor: copy; text-align: left; }
+.apikey-new-row code { display: block; width: 100%; padding: 10px 14px; background: #0A0A0A; color: #34d399; font-family: "JetBrains Mono", monospace; font-size: 12px; word-break: break-all; border: 1px solid rgba(74, 222, 128, 0.3); }
 
 .apikey-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
 .apikey-row { display: grid; grid-template-columns: 1fr 1fr auto; align-items: center; gap: 16px; padding: 14px 16px; border: 1px solid #353534; background: #1c1b1b; }
@@ -1043,7 +1129,7 @@ onMounted(() => {
 .taboo-list button:hover { color: #ffb4ab; }
 
 @media (max-width: 900px) {
-  .power-pack-grid, .upgrade-grid, .model-card-grid, .scope-template-grid, .apikey-row, .knowledge-grid { grid-template-columns: 1fr; }
+  .power-pack-grid, .upgrade-grid, .model-card-grid, .scope-template-grid, .custom-scope-grid, .apikey-row, .knowledge-grid { grid-template-columns: 1fr; }
   .identity-row { grid-template-columns: 1fr; gap: 4px; }
   .third-party-row { grid-template-columns: 1fr; }
 }

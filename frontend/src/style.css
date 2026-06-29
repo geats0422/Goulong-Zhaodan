@@ -3060,6 +3060,166 @@ p {
   color: #735c00;
 }
 
+[data-theme="light"] .settings-state,
+[data-theme="light"] .settings-error,
+[data-theme="light"] .settings-message,
+[data-theme="light"] .empty-state,
+[data-theme="light"] .modal-card,
+[data-theme="light"] .switch-row,
+[data-theme="light"] .third-party-row,
+[data-theme="light"] .power-pack-card,
+[data-theme="light"] .upgrade-card,
+[data-theme="light"] .model-card,
+[data-theme="light"] .model-info-bar,
+[data-theme="light"] .scope-template-card,
+[data-theme="light"] .custom-scope-card,
+[data-theme="light"] .apikey-row,
+[data-theme="light"] .knowledge-sub,
+[data-theme="light"] .taboo-list span {
+  border-color: rgba(155, 116, 22, 0.24) !important;
+  background: rgba(255, 250, 240, 0.86) !important;
+  color: #1f1a12 !important;
+}
+
+[data-theme="light"] .settings-error,
+[data-theme="light"] .form-error {
+  border-color: rgba(143, 44, 36, 0.3) !important;
+  background: rgba(147, 0, 10, 0.08) !important;
+  color: #8f2c24 !important;
+}
+
+[data-theme="light"] .settings-message,
+[data-theme="light"] .apikey-new-key {
+  border-color: rgba(20, 120, 83, 0.3) !important;
+  background: rgba(20, 120, 83, 0.08) !important;
+  color: #0f6b4b !important;
+}
+
+[data-theme="light"] .modal-overlay {
+  background: rgba(31, 26, 18, 0.62) !important;
+}
+
+[data-theme="light"] .modal-card {
+  box-shadow: 0 24px 72px rgba(88, 65, 15, 0.28), 0 0 18px rgba(155, 116, 22, 0.12) !important;
+}
+
+[data-theme="light"] .modal-header,
+[data-theme="light"] .modal-footer,
+[data-theme="light"] .identity-row,
+[data-theme="light"] .billing-quota-bar {
+  border-color: rgba(155, 116, 22, 0.24) !important;
+}
+
+[data-theme="light"] .modal-header h3,
+[data-theme="light"] .card-header-main h2,
+[data-theme="light"] .billing-tier-head h2,
+[data-theme="light"] .pack-name,
+[data-theme="light"] .upgrade-name,
+[data-theme="light"] .model-card-title,
+[data-theme="light"] .scope-template-card strong,
+[data-theme="light"] .custom-scope-card strong,
+[data-theme="light"] .apikey-row-meta strong,
+[data-theme="light"] .knowledge-sub-name,
+[data-theme="light"] .third-party-name,
+[data-theme="light"] .identity-value {
+  color: #1f1a12 !important;
+}
+
+[data-theme="light"] .modal-subtitle,
+[data-theme="light"] .card-ref,
+[data-theme="light"] .security-hint,
+[data-theme="light"] .form-row > span,
+[data-theme="light"] .form-hint,
+[data-theme="light"] .account-status-label,
+[data-theme="light"] .identity-label,
+[data-theme="light"] .identity-muted,
+[data-theme="light"] .third-party-status,
+[data-theme="light"] .billing-tier-hint,
+[data-theme="light"] .quota-bar-label,
+[data-theme="light"] .pack-unit,
+[data-theme="light"] .pack-features li,
+[data-theme="light"] .upgrade-features li,
+[data-theme="light"] .model-card-context,
+[data-theme="light"] .scope-template-card span,
+[data-theme="light"] .custom-scope-card span,
+[data-theme="light"] .apikey-detail,
+[data-theme="light"] .apikey-row-prefix code,
+[data-theme="light"] .doc-toggle,
+[data-theme="light"] .taboo-list small {
+  color: #66563a !important;
+}
+
+[data-theme="light"] .form-input,
+[data-theme="light"] .edit-input,
+[data-theme="light"] .taboo-input input {
+  border-color: rgba(155, 116, 22, 0.3) !important;
+  background: rgba(255, 250, 240, 0.92) !important;
+  color: #1f1a12 !important;
+}
+
+[data-theme="light"] .apikey-new-row code {
+  border-color: rgba(20, 120, 83, 0.3) !important;
+  background: rgba(255, 250, 240, 0.92) !important;
+  color: #0f6b4b !important;
+}
+
+[data-theme="light"] .scope-template-card.selected,
+[data-theme="light"] .custom-scope-card.selected,
+[data-theme="light"] .model-card.selected,
+[data-theme="light"] .upgrade-card.selected,
+[data-theme="light"] .power-pack-card.recommended {
+  border-color: rgba(155, 116, 22, 0.62) !important;
+  background: linear-gradient(180deg, rgba(155, 116, 22, 0.12), rgba(255, 250, 240, 0.9)) !important;
+  box-shadow: inset 0 0 0 1px rgba(155, 116, 22, 0.08), 0 0 16px rgba(155, 116, 22, 0.12) !important;
+}
+
+[data-theme="light"] .ghost-btn,
+[data-theme="light"] .icon-btn,
+[data-theme="light"] .modal-link,
+[data-theme="light"] .section-title,
+[data-theme="light"] .model-card-tier,
+[data-theme="light"] .custom-scope-card code,
+[data-theme="light"] .quota-bar-value,
+[data-theme="light"] .switch-label {
+  color: #9b7416 !important;
+}
+
+[data-theme="light"] .ghost-btn {
+  border-color: rgba(155, 116, 22, 0.42) !important;
+  background: rgba(255, 250, 240, 0.74) !important;
+}
+
+[data-theme="light"] .ghost-btn:hover,
+[data-theme="light"] .icon-btn:hover {
+  background: rgba(155, 116, 22, 0.12) !important;
+  color: #735c00 !important;
+}
+
+[data-theme="light"] .switch-track {
+  background: rgba(155, 116, 22, 0.24) !important;
+}
+
+[data-theme="light"] .switch-track::after {
+  background: #fffaf0 !important;
+}
+
+[data-theme="light"] .switch.active .switch-track {
+  background: #147853 !important;
+  box-shadow: 0 0 12px rgba(20, 120, 83, 0.22) !important;
+}
+
+[data-theme="light"] .custom-select-options,
+[data-theme="light"] .custom-select-options li {
+  background: #fffaf0 !important;
+  color: #1f1a12 !important;
+}
+
+[data-theme="light"] .custom-select-options li:hover,
+[data-theme="light"] .custom-select-options li.active {
+  background: rgba(155, 116, 22, 0.1) !important;
+  color: #735c00 !important;
+}
+
 /* === Login & Register pages — 浅色主题覆盖 === */
 body[data-theme="light"] .login-page,
 body[data-theme="light"] .register-page {

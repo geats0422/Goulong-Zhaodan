@@ -6,7 +6,10 @@ async function parseResponse(response) {
   if (response.status === 204) return null
   const data = await response.json()
   if (!response.ok) {
-    throw new Error(data.detail || '请求失败')
+    const detail = Array.isArray(data.detail)
+      ? data.detail.map(item => item.msg || JSON.stringify(item)).join('；')
+      : data.detail
+    throw new Error(detail || '请求失败')
   }
   return data
 }

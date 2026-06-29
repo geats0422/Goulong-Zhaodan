@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 import { useTheme } from '../composables/useTheme.js'
+import TurnstileWidget from '../components/auth/TurnstileWidget.vue'
 
-const { login } = useAuth()
+const { login, sendSmsCode, loginByCode } = useAuth()
 const router = useRouter()
 const { theme, toggleTheme } = useTheme()
 
@@ -18,6 +19,7 @@ const phone = ref('')
 const smsCode = ref('')
 const smsCountdown = ref(0)
 const smsSending = ref(false)
+const turnstileRef = ref(null)
 
 const showPassword = ref(false)
 const agreedToTerms = ref(false)
@@ -35,25 +37,56 @@ const canSubmitPassword = computed(() =>
 )
 const canSubmitSms = computed(() => phoneValid.value && smsCode.value.length === 6)
 
+let smsTimer = null
+
+function startCountdown() {
+  smsCountdown.value = 60
+  smsTimer = setInterval(() => {
+    smsCountdown.value -= 1
+    if (smsCountdown.value <= 0) {
+      clearInterval(smsTimer)
+      smsTimer = null
+    }
+  }, 1000)
+}
+
+onUnmounted(() => {
+  if (smsTimer) clearInterval(smsTimer)
+})
+
 async function startSmsCountdown() {
-  if (!phoneValid.value || smsSending.value) return
+  if (!phoneValid.value || smsSending.value || smsCountdown.value > 0) return
   smsSending.value = true
   error.value = ''
   try {
-    await new Promise((resolve, reject) => {
-      setTimeout(() => {
-        error.value = '短信验证服务暂未上线，请使用账号密码登录'
-        reject(new Error('sms_not_available'))
-      }, 600)
-    })
-  } catch {
+    await sendSmsCode(phone.value, 'login', turnstileRef.value?.token || '')
+    startCountdown()
+  } catch (e) {
+    error.value = e.message
   } finally {
     smsSending.value = false
   }
 }
 
 async function handleSmsLogin() {
-  error.value = '短信验证服务暂未上线，请使用账号密码登录'
+  error.value = ''
+  if (!canSubmitSms.value) {
+    error.value = '请输入有效的手机号和验证码'
+    return
+  }
+  if (!agreedToTerms.value) {
+    error.value = '请先勾选同意《服务条款》与《隐私政策》'
+    return
+  }
+  loading.value = true
+  try {
+    await loginByCode({ phone: phone.value, code: smsCode.value })
+    await router.push('/dashboard')
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    loading.value = false
+  }
 }
 
 async function handlePasswordLogin() {
@@ -176,6 +209,8 @@ function gotoRegister() {
               </button>
             </div>
           </label>
+
+          <TurnstileWidget ref="turnstileRef" />
 
           <button type="submit" class="primary-btn primary-btn-block" :disabled="!canSubmitSms">
             立即登录

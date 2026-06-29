@@ -1,17 +1,19 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 import { useTheme } from '../composables/useTheme.js'
+import TurnstileWidget from '../components/auth/TurnstileWidget.vue'
 
-const { register } = useAuth()
+const { register, sendSmsCode, sendEmailCode } = useAuth()
 const router = useRouter()
 const { theme, toggleTheme } = useTheme()
 
 const nickname = ref('')
 const phone = ref('')
-const smsCode = ref('')
+const phoneCode = ref('')
 const email = ref('')
+const emailCode = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const error = ref('')
@@ -20,8 +22,11 @@ const agreedToTerms = ref(false)
 
 const showPassword = ref(false)
 const showConfirm = ref(false)
-const smsCountdown = ref(0)
-const smsSending = ref(false)
+const phoneCountdown = ref(0)
+const phoneSending = ref(false)
+const emailCountdown = ref(0)
+const emailSending = ref(false)
+const turnstileRef = ref(null)
 
 const WEAK_PASSWORDS = new Set([
   'password', 'password1', 'password12', 'password123', 'password1234',
@@ -57,27 +62,74 @@ const showRules = computed(() => password.value.length > 0)
 const passwordValid = computed(() => passwordStrength.value === passwordRules.value.length)
 const confirmValid = computed(() => confirmPassword.value.length > 0 && confirmPassword.value === password.value)
 
+const phoneCodeValid = computed(() => phoneCode.value.length === 6)
+const emailCodeValid = computed(() => emailCode.value.length === 6)
+
 const canRegister = computed(() =>
   nicknameValid.value &&
-  (emailValid.value || phoneValid.value) &&
+  phoneValid.value && phoneCodeValid.value &&
+  (emailValid.value ? emailCodeValid.value : true) &&
   passwordValid.value && confirmValid.value && agreedToTerms.value
 )
 
+let phoneTimer = null
+let emailTimer = null
+
+function startTimer(countdownRef, timerKey) {
+  countdownRef.value = 60
+  const timer = setInterval(() => {
+    countdownRef.value -= 1
+    if (countdownRef.value <= 0) {
+      clearInterval(timer)
+      if (timerKey === 'phone') phoneTimer = null
+      else emailTimer = null
+    }
+  }, 1000)
+  if (timerKey === 'phone') phoneTimer = timer
+  else emailTimer = timer
+}
+
+onUnmounted(() => {
+  if (phoneTimer) clearInterval(phoneTimer)
+  if (emailTimer) clearInterval(emailTimer)
+})
+
 async function startSmsCountdown() {
-  if (!phoneValid.value || smsSending.value) return
-  smsSending.value = true
+  if (!phoneValid.value || phoneSending.value || phoneCountdown.value > 0) return
+  phoneSending.value = true
   error.value = ''
-  setTimeout(() => {
-    error.value = '短信验证服务暂未上线，请使用账号密码登录'
-    smsSending.value = false
-  }, 600)
+  try {
+    await sendSmsCode(phone.value, 'login', turnstileRef.value?.token || '')
+    startTimer(phoneCountdown, 'phone')
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    phoneSending.value = false
+  }
+}
+
+async function startEmailCountdown() {
+  if (!emailValid.value || emailSending.value || emailCountdown.value > 0) return
+  emailSending.value = true
+  error.value = ''
+  try {
+    await sendEmailCode(email.value, turnstileRef.value?.token || '')
+    startTimer(emailCountdown, 'email')
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    emailSending.value = false
+  }
 }
 
 async function handleRegister() {
   error.value = ''
   if (!canRegister.value) {
     if (!nicknameValid.value) error.value = '请输入有效的昵称（2-30 位）'
-    else if (!emailValid.value && !phoneValid.value) error.value = '邮箱和手机号至少填写一项'
+    else if (!phoneValid.value) error.value = '请输入有效的手机号'
+    else if (!phoneCodeValid.value) error.value = '请先获取并输入手机验证码'
+    else if (email.value && !emailValid.value) error.value = '邮箱格式不正确'
+    else if (emailValid.value && !emailCodeValid.value) error.value = '请先获取并输入邮箱验证码'
     else if (!passwordValid.value) error.value = '密码不符合要求'
     else if (!confirmValid.value) error.value = '两次输入的密码不一致'
     else error.value = '请检查所有字段并勾选同意条款'
@@ -86,10 +138,13 @@ async function handleRegister() {
   loading.value = true
   try {
     await register({
+      phone: phone.value,
+      phoneCode: phoneCode.value,
       email: emailValid.value ? email.value : undefined,
-      phone: phoneValid.value ? phone.value : undefined,
+      emailCode: emailValid.value ? emailCode.value : undefined,
       nickname: nickname.value,
       password: password.value,
+      turnstileToken: turnstileRef.value?.token || '',
     })
     await router.push('/dashboard')
   } catch (e) {
@@ -130,7 +185,7 @@ function gotoLogin() {
         <header class="form-header">
           <span class="form-ref">REF.AUTH-002</span>
           <h1>创建账户</h1>
-          <p class="form-sub">完成以下 4 项，开启智能合规之旅</p>
+          <p class="form-sub">手机号验证后设置密码，开启智能合规之旅</p>
         </header>
 
         <div v-if="error" class="alert alert-error">{{ error }}</div>
@@ -163,10 +218,10 @@ function gotoLogin() {
           </label>
 
           <label class="field">
-            <span>验证码</span>
+            <span>手机验证码</span>
             <div class="sms-input">
               <input
-                v-model="smsCode"
+                v-model="phoneCode"
                 type="text"
                 inputmode="numeric"
                 maxlength="6"
@@ -175,22 +230,43 @@ function gotoLogin() {
               <button
                 type="button"
                 class="sms-btn"
-                :disabled="!phoneValid || smsCountdown > 0 || smsSending"
+                :disabled="!phoneValid || phoneCountdown > 0 || phoneSending"
                 @click="startSmsCountdown"
               >
-                {{ smsSending ? '发送中…' : (smsCountdown > 0 ? `${smsCountdown}s` : '获取验证码') }}
+                {{ phoneSending ? '发送中…' : (phoneCountdown > 0 ? `${phoneCountdown}s` : '获取验证码') }}
               </button>
             </div>
           </label>
 
           <label class="field">
-            <span>邮箱</span>
+            <span>邮箱（选填）</span>
             <input
               v-model="email"
               type="email"
-              placeholder="用于登录与接收重要通知"
+              placeholder="填写邮箱需完成邮箱验证"
               :class="{ invalid: email && !emailValid }"
             />
+          </label>
+
+          <label v-if="emailValid" class="field">
+            <span>邮箱验证码</span>
+            <div class="sms-input">
+              <input
+                v-model="emailCode"
+                type="text"
+                inputmode="numeric"
+                maxlength="6"
+                placeholder="请输入邮箱验证码"
+              />
+              <button
+                type="button"
+                class="sms-btn"
+                :disabled="emailCountdown > 0 || emailSending"
+                @click="startEmailCountdown"
+              >
+                {{ emailSending ? '发送中…' : (emailCountdown > 0 ? `${emailCountdown}s` : '获取验证码') }}
+              </button>
+            </div>
           </label>
 
           <label class="field">
@@ -230,6 +306,8 @@ function gotoLogin() {
               </button>
             </div>
           </label>
+
+          <TurnstileWidget ref="turnstileRef" />
 
           <button type="submit" class="primary-btn primary-btn-block" :disabled="!canRegister || loading">
             {{ loading ? '处理中…' : '立即注册' }}

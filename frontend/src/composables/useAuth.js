@@ -49,6 +49,21 @@ async function fetchWithAuth(url, options = {}) {
   return response
 }
 
+async function readError(response) {
+  try {
+    return await response.json()
+  } catch {
+    return { detail: `请求失败（HTTP ${response.status}）` }
+  }
+}
+
+function saveSession(data) {
+  _accessToken = data.access_token
+  currentUser.value = { id: data.id, nickname: data.nickname, email: data.email, phone: data.phone }
+  sessionStorage.setItem(ACCESS_TOKEN_KEY, _accessToken)
+  sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser.value))
+}
+
 async function login(identity, password) {
   // 自动判断 identity 是 email 还是 phone
   const body = identity.includes('@')
@@ -68,17 +83,72 @@ async function login(identity, password) {
   }
 
   const data = await response.json()
-  _accessToken = data.access_token
-  currentUser.value = { id: data.id, nickname: data.nickname, email: data.email, phone: data.phone }
-  sessionStorage.setItem(ACCESS_TOKEN_KEY, _accessToken)
-  sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser.value))
+  saveSession(data)
   return data
 }
 
-async function register({ email, phone, nickname, password }) {
-  const body = { nickname, password }
-  if (email) body.email = email
+async function loginByCode({ phone, email, code }) {
+  const body = { code }
   if (phone) body.phone = phone
+  if (email) body.email = email
+
+  const response = await fetch('/auth/login/code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const data = await readError(response)
+    throw new Error(data.detail || '验证码登录失败')
+  }
+
+  const data = await response.json()
+  saveSession(data)
+  return data
+}
+
+async function sendSmsCode(phone, scene = 'login', turnstileToken = '') {
+  const response = await fetch('/auth/send-sms-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone, scene, turnstile_token: turnstileToken }),
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const data = await readError(response)
+    throw new Error(data.detail || '验证码发送失败')
+  }
+  return response.json()
+}
+
+async function sendEmailCode(email, turnstileToken = '') {
+  const response = await fetch('/auth/send-email-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, turnstile_token: turnstileToken }),
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const data = await readError(response)
+    throw new Error(data.detail || '验证码发送失败')
+  }
+  return response.json()
+}
+
+async function register({ email, phone, nickname, password, phoneCode, emailCode, turnstileToken }) {
+  const body = { nickname, password, turnstile_token: turnstileToken || '' }
+  if (phone) {
+    body.phone = phone
+    body.phone_code = phoneCode
+  }
+  if (email) {
+    body.email = email
+    body.email_code = emailCode
+  }
 
   const response = await fetch('/auth/register', {
     method: 'POST',
@@ -93,10 +163,7 @@ async function register({ email, phone, nickname, password }) {
   }
 
   const data = await response.json()
-  _accessToken = data.access_token
-  currentUser.value = { id: data.id, nickname: data.nickname, email: data.email, phone: data.phone }
-  sessionStorage.setItem(ACCESS_TOKEN_KEY, _accessToken)
-  sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser.value))
+  saveSession(data)
   return data
 }
 
@@ -118,14 +185,6 @@ function logout() {
   window.location.href = '/login'
 }
 
-async function readError(response) {
-  try {
-    return await response.json()
-  } catch {
-    return { detail: `请求失败（HTTP ${response.status}）` }
-  }
-}
-
 export function useAuth() {
   return {
     currentUser,
@@ -133,6 +192,9 @@ export function useAuth() {
     getAuthHeaders,
     fetchWithAuth,
     login,
+    loginByCode,
+    sendSmsCode,
+    sendEmailCode,
     register,
     refreshToken,
     logout,
