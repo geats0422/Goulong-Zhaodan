@@ -5,6 +5,7 @@ inspection.py 与 agent.py 共同引用；workers/tasks.py 的异步 runner 也�
 """
 from __future__ import annotations
 
+import datetime
 import logging
 import uuid
 from typing import Any
@@ -18,6 +19,7 @@ from app.agents.inspector import run_inspection
 from app.core.data_encryption import encrypt_text
 from app.core.deps import InspectionDeps
 from app.models.knowledge import InspectionRecord, TabooWord
+from goulong_auth.models import Membership
 from app.services.knowledge_retrieval import retrieve_regulation_base
 
 _logger = logging.getLogger(__name__)
@@ -148,6 +150,27 @@ async def execute_inspection(
     record_id: int | None = None,
 ) -> InspectionReportResponse:
     """公共审查执行：加载违禁词 → 召回知识库 → 运行 Agent → 保存记录 → 返回报告。"""
+
+    # ── 额度检查：体检前校验剩余配额和订阅有效期 ──
+    result_mem = await db.execute(
+        select(Membership).where(
+            Membership.user_id == user_id,
+            Membership.product == "zhaodan",
+            Membership.status == "active",
+        )
+    )
+    membership = result_mem.scalar_one_or_none()
+    if membership is not None:
+        if (membership.token_used or 0) >= (membership.token_quota or 0):
+            raise HTTPException(status_code=403, detail="额度已用完，请购买额度包或升级订阅")
+        if membership.expires_at is not None:
+            now_naive = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            expires = membership.expires_at
+            if hasattr(expires, "tzinfo") and expires.tzinfo is not None:
+                expires = expires.replace(tzinfo=None)
+            if expires < now_naive:
+                raise HTTPException(status_code=403, detail="订阅已过期，请续费")
+
     saved_taboo_words = await load_user_taboo_words(db, user_id)
     temporary_taboo_words = [w.strip() for w in taboo_words_input.split(",") if w.strip()]
     taboo_list = merge_unique_words(saved_taboo_words, temporary_taboo_words)
@@ -195,6 +218,11 @@ async def execute_inspection(
     record.text_preview = text[:500]
     record.parsed_content = encrypt_text(text)
     record.quota_consumed = max(1, len(text) // 500)
+
+    # ── 扣减用户配额 ──
+    if membership is not None:
+        membership.token_used = (membership.token_used or 0) + record.quota_consumed
+
     await db.commit()
     await db.refresh(record)
     append_history_record(record)
