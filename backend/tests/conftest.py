@@ -24,21 +24,21 @@ TEST_DB_URL = os.environ.get(
 
 # Children first, parents last — respects FK constraints.
 _CLEANUP_TABLES = [
-    "agent_jobs",
-    "deduction_orders",
-    "subscription_contracts",
-    "payment_orders",
+    "zhaodan.agent_jobs",
+    "zhaodan.deduction_orders",
+    "zhaodan.subscription_contracts",
+    "zhaodan.payment_orders",
     "goulong_auth.refresh_tokens",
     "goulong_auth.memberships",
-    "api_keys",
-    "inspection_records",
-    "knowledge_document_settings",
-    "taboo_words",
-    "user_profiles",
-    "index_nodes",
-    "document_versions",
-    "knowledge_documents",
-    "engineering_subcategories",
+    "zhaodan.api_keys",
+    "zhaodan.inspection_records",
+    "zhaodan.knowledge_document_settings",
+    "zhaodan.taboo_words",
+    "zhaodan.user_profiles",
+    "zhaodan.index_nodes",
+    "zhaodan.document_versions",
+    "zhaodan.knowledge_documents",
+    "zhaodan.engineering_subcategories",
     "goulong_auth.users",
 ]
 
@@ -60,6 +60,7 @@ async def _create_schema_and_tables(engine: AsyncEngine) -> None:
 
     async with engine.begin() as conn:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS goulong_auth"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS zhaodan"))
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(AuthBase.metadata.create_all)
 
@@ -67,7 +68,7 @@ async def _create_schema_and_tables(engine: AsyncEngine) -> None:
 async def _cleanup_tables(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
         # Break circular FK: knowledge_documents.current_version_id -> document_versions.id
-        await conn.execute(text("UPDATE knowledge_documents SET current_version_id = NULL"))
+        await conn.execute(text("UPDATE zhaodan.knowledge_documents SET current_version_id = NULL"))
         for table in _CLEANUP_TABLES:
             await conn.execute(text(f"DELETE FROM {table}"))
 

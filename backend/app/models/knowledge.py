@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import uuid
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, JSON, MetaData, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -13,7 +13,7 @@ def _utcnow() -> datetime.datetime:
 
 
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(schema="zhaodan")
 
 
 from goulong_auth.base import AuthBase  # noqa: E402

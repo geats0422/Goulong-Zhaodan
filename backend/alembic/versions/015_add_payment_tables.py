@@ -18,6 +18,8 @@ down_revision: str | None = "014"
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
 
+SCHEMA = "zhaodan"
+
 
 def upgrade() -> None:
     op.create_table(
@@ -40,9 +42,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["goulong_auth.users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("out_trade_no"),
+        schema=SCHEMA,
     )
-    op.create_index("ix_payment_orders_user_id", "payment_orders", ["user_id"])
-    op.create_index("ix_payment_orders_out_trade_no", "payment_orders", ["out_trade_no"])
+    op.create_index("ix_payment_orders_user_id", "payment_orders", ["user_id"], schema=SCHEMA)
+    op.create_index("ix_payment_orders_out_trade_no", "payment_orders", ["out_trade_no"], schema=SCHEMA)
 
     op.create_table(
         "subscription_contracts",
@@ -64,9 +67,10 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("contract_code"),
         sa.UniqueConstraint("contract_id"),
+        schema=SCHEMA,
     )
-    op.create_index("ix_subscription_contracts_user_id", "subscription_contracts", ["user_id"])
-    op.create_index("ix_subscription_contracts_contract_code", "subscription_contracts", ["contract_code"])
+    op.create_index("ix_subscription_contracts_user_id", "subscription_contracts", ["user_id"], schema=SCHEMA)
+    op.create_index("ix_subscription_contracts_contract_code", "subscription_contracts", ["contract_code"], schema=SCHEMA)
 
     op.create_table(
         "deduction_orders",
@@ -85,16 +89,17 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["goulong_auth.users.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["contract_id"], ["subscription_contracts.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["contract_id"], [f"{SCHEMA}.subscription_contracts.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("out_trade_no"),
+        schema=SCHEMA,
     )
-    op.create_index("ix_deduction_orders_user_id", "deduction_orders", ["user_id"])
-    op.create_index("ix_deduction_orders_contract_id", "deduction_orders", ["contract_id"])
-    op.create_index("ix_deduction_orders_out_trade_no", "deduction_orders", ["out_trade_no"])
+    op.create_index("ix_deduction_orders_user_id", "deduction_orders", ["user_id"], schema=SCHEMA)
+    op.create_index("ix_deduction_orders_contract_id", "deduction_orders", ["contract_id"], schema=SCHEMA)
+    op.create_index("ix_deduction_orders_out_trade_no", "deduction_orders", ["out_trade_no"], schema=SCHEMA)
 
 
 def downgrade() -> None:
-    op.drop_table("deduction_orders")
-    op.drop_table("subscription_contracts")
-    op.drop_table("payment_orders")
+    op.drop_table("deduction_orders", schema=SCHEMA)
+    op.drop_table("subscription_contracts", schema=SCHEMA)
+    op.drop_table("payment_orders", schema=SCHEMA)

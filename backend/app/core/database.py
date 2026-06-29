@@ -55,5 +55,9 @@ async def init_db() -> None:
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     async with engine.begin() as conn:
+        if not settings.database_url.startswith("sqlite"):
+            from sqlalchemy import text as sa_text
+            await conn.execute(sa_text("CREATE SCHEMA IF NOT EXISTS goulong_auth"))
+            await conn.execute(sa_text("CREATE SCHEMA IF NOT EXISTS zhaodan"))
         await conn.run_sync(AuthBase.metadata.create_all)
         await conn.run_sync(Base.metadata.create_all)
