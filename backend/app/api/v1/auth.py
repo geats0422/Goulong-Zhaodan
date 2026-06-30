@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import logging
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, field_validator, model_validator
@@ -69,7 +70,7 @@ class RegisterRequest(BaseModel):
 
 class SendSmsCodeRequest(BaseModel):
     phone: str
-    scene: str = "login"
+    scene: Literal["login", "register", "forgot_password"] = "login"
     turnstile_token: str = ""
 
 
@@ -106,6 +107,20 @@ class LoginRequest(BaseModel):
     def validate_password_length(cls, v: str) -> str:
         if len(v) > 128:
             raise ValueError("密码长度不能超过 128 位")
+        return v
+
+
+class ResetPasswordRequest(BaseModel):
+    phone: str
+    code: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        errors = validate_password(v)
+        if errors:
+            raise ValueError("; ".join(errors))
         return v
 
 
@@ -326,6 +341,30 @@ async def login_by_code(
         "phone": mask_phone(user.phone),
         "access_token": access_token,
     }
+
+
+@router.post("/reset-password")
+async def reset_password(body: ResetPasswordRequest, request: Request, db=Depends(get_db_session)):
+    """忘记密码重置（手机号 + 短信验证码 + 新密码）。
+
+    前端先调用 /auth/send-sms-code（scene=forgot_password）获取验证码，
+    再调用本端点完成重置。验证码校验通过后更新密码哈希。
+    """
+    ip = get_client_ip(request)
+    if not await sms_service.verify_code(body.phone, body.code):
+        raise HTTPException(status_code=401, detail="验证码错误或已过期")
+
+    result = await db.execute(select(User).where(User.phone == body.phone))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="该手机号未注册")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="账号已被停用")
+
+    user.hashed_password = hash_password(body.new_password)
+    await db.commit()
+    _logger.info("密码重置成功: user_id=%s ip=%s", user.id, ip)
+    return {"message": "密码重置成功"}
 
 
 @router.post("/refresh")

@@ -504,3 +504,82 @@ async def test_login_by_code_wrong_code(real_client: AsyncClient):
 async def test_login_by_code_missing_identity(real_client: AsyncClient):
     resp = await real_client.post("/auth/login/code", json={"code": EMAIL_CODE})
     assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# 忘记密码重置 /auth/reset-password
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_reset_password_success(client: AsyncClient):
+    """手机号注册用户 → 重置密码 → 旧密码登录失败、新密码登录成功。"""
+    phone = "13600136000"
+    await client.post("/auth/register", json={
+        "phone": phone,
+        "nickname": "resetuser",
+        "password": VALID_PASSWORD,
+        "phone_code": PHONE_CODE,
+    })
+    new_password = "NewPass456"
+    resp = await client.post("/auth/reset-password", json={
+        "phone": phone,
+        "code": PHONE_CODE,
+        "new_password": new_password,
+    })
+    assert resp.status_code == 200
+    assert resp.json() == {"message": "密码重置成功"}
+
+    resp_old = await client.post("/auth/login", json={"phone": phone, "password": VALID_PASSWORD})
+    assert resp_old.status_code == 401
+    resp_new = await client.post("/auth/login", json={"phone": phone, "password": new_password})
+    assert resp_new.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_reset_password_wrong_code(real_client: AsyncClient):
+    """验证码错误 → 401（真实 Redis 校验）。"""
+    phone = "13500135000"
+    await _preset_code(f"SMS:code:{phone}", PHONE_CODE)
+    await real_client.post("/auth/register", json={
+        "phone": phone,
+        "nickname": "wrongreset",
+        "password": VALID_PASSWORD,
+        "phone_code": PHONE_CODE,
+    })
+    await _preset_code(f"SMS:code:{phone}", PHONE_CODE)
+    resp = await real_client.post("/auth/reset-password", json={
+        "phone": phone,
+        "code": "000000",
+        "new_password": "NewPass456",
+    })
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_reset_password_nonexistent_phone(client: AsyncClient):
+    """未注册手机号 → 404。"""
+    resp = await client.post("/auth/reset-password", json={
+        "phone": "13800000000",
+        "code": PHONE_CODE,
+        "new_password": "NewPass456",
+    })
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_reset_password_weak_password(client: AsyncClient):
+    """新密码不符合强度 → 422。"""
+    phone = "13400134000"
+    await client.post("/auth/register", json={
+        "phone": phone,
+        "nickname": "weakreset",
+        "password": VALID_PASSWORD,
+        "phone_code": PHONE_CODE,
+    })
+    resp = await client.post("/auth/reset-password", json={
+        "phone": phone,
+        "code": PHONE_CODE,
+        "new_password": "weak",
+    })
+    assert resp.status_code == 422
