@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     # 阿里云短信（Dysmsapi）
     aliyun_sms_sign_name: str = "句龙·照胆"
     aliyun_sms_template_login: str = ""
+    aliyun_sms_template_register: str = ""
+    aliyun_sms_template_forgot_password: str = ""
     aliyun_sms_endpoint: str = "dysmsapi.aliyuncs.com"
     sms_fixed_code: str = ""
 

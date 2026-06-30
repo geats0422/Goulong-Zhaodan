@@ -34,7 +34,8 @@ PHONE_PATTERN = re.compile(r"^1[3-9]\d{9}$")
 DEFAULT_SCENE = "login"
 SCENE_TEMPLATES: dict[str, str] = {
     "login": settings.aliyun_sms_template_login,
-    "register": settings.aliyun_sms_template_login,
+    "register": settings.aliyun_sms_template_register,
+    "forgot_password": settings.aliyun_sms_template_forgot_password,
 }
 
 
