@@ -118,7 +118,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #ffe088, var(--gold) 58%, #735c00);
-  color: var(--bg);
+  color: var(--text);
   box-shadow: 0 0 16px rgba(212, 175, 55, 0.28);
 }
 

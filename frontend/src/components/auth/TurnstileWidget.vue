@@ -1,5 +1,10 @@
 <template>
-  <div ref="container" class="turnstile-widget"></div>
+  <div class="turnstile-shell" :class="{ 'has-error': hasError }">
+    <div ref="container" class="turnstile-widget"></div>
+    <p v-if="statusMessage" class="turnstile-status" role="status">
+      {{ statusMessage }}
+    </p>
+  </div>
 </template>
 
 <script setup>
@@ -11,6 +16,8 @@ const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render
 const container = ref(null)
 const widgetId = ref(null)
 const token = ref('')
+const statusMessage = ref('正在载入人机验证…')
+const hasError = ref(false)
 
 let scriptLoadPromise = null
 
@@ -23,7 +30,10 @@ function loadScript() {
     script.async = true
     script.defer = true
     script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Turnstile script load failed'))
+    script.onerror = () => {
+      scriptLoadPromise = null
+      reject(new Error('Turnstile script load failed'))
+    }
     document.head.appendChild(script)
   })
   return scriptLoadPromise
@@ -36,8 +46,19 @@ function renderWidget() {
     theme: 'dark',
     callback: (val) => { token.value = val },
     'expired-callback': () => { token.value = '' },
-    'error-callback': () => { token.value = '' },
+    'error-callback': () => {
+      token.value = ''
+      hasError.value = true
+      statusMessage.value = '人机验证加载异常，请刷新页面后重试'
+    },
   })
+  if (widgetId.value === undefined || widgetId.value === null) {
+    hasError.value = true
+    statusMessage.value = '人机验证加载异常，请刷新页面后重试'
+    return
+  }
+  hasError.value = false
+  statusMessage.value = ''
 }
 
 function reset() {
@@ -54,6 +75,8 @@ onMounted(async () => {
     await loadScript()
     renderWidget()
   } catch (e) {
+    hasError.value = true
+    statusMessage.value = '人机验证无法加载，请检查网络后刷新页面'
     console.error('Turnstile init failed:', e)
   }
 })
@@ -66,9 +89,36 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.turnstile-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
 .turnstile-widget {
   min-height: 65px;
   display: flex;
   justify-content: center;
+}
+
+.turnstile-status {
+  margin: 0;
+  color: #d0c5af;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.turnstile-shell.has-error .turnstile-status {
+  color: #ffb4a8;
+}
+
+[data-theme="light"] .turnstile-status {
+  color: #66563a;
+}
+
+[data-theme="light"] .turnstile-shell.has-error .turnstile-status {
+  color: #8f2c24;
 }
 </style>

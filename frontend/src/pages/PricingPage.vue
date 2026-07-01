@@ -259,4 +259,22 @@ function onPaid() {
 .addon-card .btn {
   margin-top: auto;
 }
+
+[data-theme="light"] .addon-card {
+  background: rgba(255, 250, 240, 0.86);
+  border-color: rgba(155, 116, 22, 0.22);
+}
+
+[data-theme="light"] .addon-name {
+  color: #1f1a12;
+}
+
+[data-theme="light"] .addon-price {
+  color: #9b7416;
+}
+
+[data-theme="light"] .addon-quota,
+[data-theme="light"] .addon-desc {
+  color: #66563a;
+}
 </style>

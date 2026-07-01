@@ -842,6 +842,43 @@ function gotoRegister() {
   color: #9b7416;
 }
 
+.login-page[data-theme="light"] .brand-sub,
+.login-page[data-theme="light"] .brand-footer,
+.login-page[data-theme="light"] .form-hint,
+.login-page[data-theme="light"] .field > span,
+.login-page[data-theme="light"] .terms-row,
+.login-page[data-theme="light"] .form-footer,
+.login-page[data-theme="light"] .oauth-divider,
+.login-page[data-theme="light"] .oauth-btn,
+.login-page[data-theme="light"] .tab-bar button {
+  color: #66563a;
+}
+
+.login-page[data-theme="light"] .field input::placeholder {
+  color: #7a6a4d;
+  opacity: 0.8;
+}
+
+.login-page[data-theme="light"] .sms-btn:disabled {
+  color: #99907c;
+}
+
+.login-page[data-theme="light"] .primary-btn {
+  border-color: #9b7416;
+  background: #9b7416;
+  color: #fffaf0;
+}
+
+.login-page[data-theme="light"] .primary-btn:hover:not(:disabled) {
+  background: #735c00;
+  border-color: #735c00;
+  box-shadow: 0 0 18px rgba(155, 116, 22, 0.25);
+}
+
+.login-page[data-theme="light"] .primary-btn:disabled {
+  opacity: 0.5;
+}
+
 @media (max-width: 720px) {
   .login-canvas {
     grid-template-columns: 1fr;

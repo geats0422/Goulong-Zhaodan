@@ -824,6 +824,40 @@ function gotoLogin() {
   color: #9b7416;
 }
 
+.register-page[data-theme="light"] .brand-sub,
+.register-page[data-theme="light"] .brand-footer,
+.register-page[data-theme="light"] .form-sub,
+.register-page[data-theme="light"] .field > span,
+.register-page[data-theme="light"] .terms-row,
+.register-page[data-theme="light"] .form-footer {
+  color: #66563a;
+}
+
+.register-page[data-theme="light"] .field input::placeholder {
+  color: #7a6a4d;
+  opacity: 0.8;
+}
+
+.register-page[data-theme="light"] .sms-btn:disabled {
+  color: #99907c;
+}
+
+.register-page[data-theme="light"] .primary-btn {
+  border-color: #9b7416;
+  background: #9b7416;
+  color: #fffaf0;
+}
+
+.register-page[data-theme="light"] .primary-btn:hover:not(:disabled) {
+  background: #735c00;
+  border-color: #735c00;
+  box-shadow: 0 0 18px rgba(155, 116, 22, 0.25);
+}
+
+.register-page[data-theme="light"] .primary-btn:disabled {
+  opacity: 0.5;
+}
+
 @media (max-width: 720px) {
   .register-canvas {
     grid-template-columns: 1fr;
