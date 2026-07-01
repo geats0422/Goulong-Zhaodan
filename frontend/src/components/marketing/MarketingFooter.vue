@@ -10,6 +10,9 @@
         <a href="/solution">技术文档</a>
       </p>
     </div>
+    <div class="marketing-footer-icp">
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">浙ICP备2026045389号-1</a>
+    </div>
   </footer>
 </template>
 
@@ -40,6 +43,27 @@
 
 .marketing-footer a:hover {
   color: var(--gold);
+}
+
+.marketing-footer-icp {
+  width: min(1200px, calc(100% - 40px));
+  margin: 0 auto;
+  padding-bottom: 16px;
+  text-align: center;
+}
+
+.marketing-footer-icp a {
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  opacity: 0.7;
+}
+
+.marketing-footer-icp a:hover {
+  color: var(--gold);
+  opacity: 1;
 }
 
 @media (max-width: 760px) {
