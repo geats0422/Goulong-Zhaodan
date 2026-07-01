@@ -54,7 +54,7 @@ _USER_FK_TABLES = [
     ),
     (
         "inspection_records",
-        "inspection_records_user_id_fkey",
+        "fk_inspection_records_user_id_users",
         "ix_inspection_records_user_created",
         ["user_id", "created_at"],
         "user_id",
