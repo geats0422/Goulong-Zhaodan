@@ -55,7 +55,7 @@ onBeforeUnmount(() => {
         <a href="/security">数据安全</a>
         <a href="/cases">客户案例</a>
         <a href="/pricing">版本与定价</a>
-        <a href="/docs">开发文档</a>
+        <a href="/about">关于我们</a>
       </div>
 
       <div class="marketing-actions">

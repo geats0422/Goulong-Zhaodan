@@ -5,11 +5,11 @@
         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">杭州焕羽格致智能科技有限公司 · 浙ICP备2026045389号-1</a>
       </p>
       <p>
-        <a href="/security">隐私政策</a>
+        <a href="/privacy">隐私政策</a>
         <span>·</span>
-        <a href="/pricing">服务条款</a>
+        <a href="/terms">服务条款</a>
         <span>·</span>
-        <a href="/solution">技术文档</a>
+        <a href="/docs">技术文档</a>
         <span>·</span>
         <a href="mailto:business@goulong-ai.cn">商务合作</a>
       </p>
