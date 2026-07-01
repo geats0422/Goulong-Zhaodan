@@ -30,6 +30,7 @@ from app.services.inspection_runner import (
     execute_inspection,
 )
 from app.services.markdown_converter import ConversionError, convert_to_markdown
+from app.services.report_pdf import render_report_pdf
 
 _logger = logging.getLogger(__name__)
 
@@ -354,62 +355,6 @@ def _strip_document_extension(document_name: str) -> str:
     return document_name
 
 
-def _pdf_hex_text(value: str) -> str:
-    return value.encode("utf-16-be", errors="replace").hex().upper()
-
-
-def _build_pdf_report(record: InspectionRecord) -> bytes:
-    title = f"{_strip_document_extension(record.document_name)}审查报告"
-    lines = [
-        title,
-        f"文件名称: {record.document_name}",
-        f"审查类型: {record.document_type_label}",
-        f"风险等级: {record.overall_risk}",
-        f"摘要: {record.summary}",
-        f"引用依据: {', '.join(record.regulation_refs or []) or '无'}",
-        "问题列表:",
-    ]
-    if record.issues:
-        for idx, issue in enumerate(record.issues, start=1):
-            lines.append(f"{idx}. {issue.get('title', '未命名问题')} - {issue.get('severity', 'unknown')}")
-            if issue.get("suggestion"):
-                lines.append(f"   建议: {issue['suggestion']}")
-    else:
-        lines.append("未发现明确风险。")
-
-    text_ops = ["BT", "/F1 12 Tf", "50 780 Td"]
-    for index, line in enumerate(lines):
-        if index:
-            text_ops.append("0 -22 Td")
-        text_ops.append(f"<{_pdf_hex_text(line)}> Tj")
-    text_ops.append("ET")
-    stream = "\n".join(text_ops).encode("ascii")
-    objects = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 6 0 R >>",
-        b"<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light /Encoding /UniGB-UCS2-H /DescendantFonts [5 0 R] >>",
-        b"<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 2 >> >>",
-        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
-    ]
-    pdf = bytearray(b"%PDF-1.4\n")
-    offsets = [0]
-    for index, obj in enumerate(objects, start=1):
-        offsets.append(len(pdf))
-        pdf.extend(f"{index} 0 obj\n".encode())
-        pdf.extend(obj)
-        pdf.extend(b"\nendobj\n")
-    xref_offset = len(pdf)
-    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode())
-    pdf.extend(b"0000000000 65535 f \n")
-    for offset in offsets[1:]:
-        pdf.extend(f"{offset:010d} 00000 n \n".encode())
-    pdf.extend(
-        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF".encode()
-    )
-    return bytes(pdf)
-
-
 def _aggregate_history_stats(records: list[dict[str, Any]], days: int = 7) -> HistoryStatsResponse:
     buckets = {
         d.isoformat(): {"total_docs": 0, "hit_docs": 0, "quota_consumed": 0}
@@ -658,7 +603,7 @@ async def download_record_report_pdf(
 
     filename = f"{_strip_document_extension(record.document_name)}审查报告.pdf"
     return Response(
-        content=_build_pdf_report(record),
+        content=render_report_pdf(record),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
     )

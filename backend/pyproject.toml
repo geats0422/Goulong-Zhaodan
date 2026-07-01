@@ -23,6 +23,7 @@ dependencies = [
     "alibabacloud-dysmsapi20170525==4.5.1",
     "alibabacloud-dm20151123>=1.11.0",
     "oss2>=2.19.0",
+    "weasyprint>=63.0",
 ]
 
 [tool.uv.sources]
