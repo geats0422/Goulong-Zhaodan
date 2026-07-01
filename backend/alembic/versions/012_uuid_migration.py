@@ -75,7 +75,7 @@ _USER_FK_TABLES = [
     ),
     (
         "knowledge_documents",
-        None,
+        "fk_knowledge_documents_owner_user_id_users",
         None,
         None,
         "owner_user_id",
