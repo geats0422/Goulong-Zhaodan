@@ -71,8 +71,8 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
-        <a class="btn btn-ghost" href="/dashboard">登录</a>
-        <a class="btn btn-primary" href="/pricing.html">开始体验</a>
+        <a class="btn btn-ghost" href="/login">登录</a>
+        <a class="btn btn-primary" href="/register">注册</a>
       </div>
     </div>
   </nav>
