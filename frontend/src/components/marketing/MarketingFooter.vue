@@ -5,6 +5,8 @@
         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">杭州焕羽格致智能科技有限公司 · 浙ICP备2026045389号-1</a>
       </p>
       <p>
+        <a href="/help">帮助中心</a>
+        <span>·</span>
         <a href="/privacy">隐私政策</a>
         <span>·</span>
         <a href="/terms">服务条款</a>
