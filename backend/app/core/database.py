@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
@@ -9,39 +10,40 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import settings
 
 
-def _ensure_ssl_database_url(url: str) -> str:
-    """生产环境自动加 SSL。asyncpg 0.30+ 不接受 sslmode 作为 connect kwargs，只能放 URL query。
+def _is_production() -> bool:
+    return settings.environment == "production"
 
-    用 `ssl=true`（不是 sslmode=require），让 SQLAlchemy 不把它当 connect 参数。
-    """
+
+def _strip_ssl_from_url(url: str) -> str:
+    """从 DATABASE_URL 里移除 ssl/sslmode query 参数（改用 connect_args 传 SSL）。"""
     if url.startswith("sqlite"):
         return url
     parsed = urlparse(url)
     qs = parse_qs(parsed.query)
-    if "ssl" not in qs and "sslmode" not in qs and settings.environment == "production":
-        # 用 ssl=true 而非 sslmode=require — 避免 asyncpg 0.30+ 的 connect() TypeError
-        qs["ssl"] = ["true"]
-        new_query = urlencode(qs, doseq=True)
-        return urlunparse(parsed._replace(query=new_query))
-    # 如果已带 sslmode=xxx（用户在 DATABASE_URL 里显式设了），删掉避免冲突
-    if "sslmode" in qs:
-        del qs["sslmode"]
+    changed = False
+    for key in ("sslmode", "ssl"):
+        if key in qs:
+            del qs[key]
+            changed = True
+    if changed:
         new_query = urlencode(qs, doseq=True)
         return urlunparse(parsed._replace(query=new_query))
     return url
 
 
-_db_url = _ensure_ssl_database_url(settings.database_url)
+_db_url = _strip_ssl_from_url(settings.database_url)
 
-# 连接池参数（仅对支持连接池的后端生效，如 PostgreSQL/asyncpg；SQLite 跳过）
 _engine_kwargs: dict = {"echo": False}
 if not settings.database_url.startswith("sqlite"):
     _engine_kwargs.update(
         pool_size=10,
         max_overflow=20,
-        pool_recycle=1800,  # 30 分钟回收，规避 RDS wait_timeout 导致的断连
-        pool_pre_ping=True,  # 取连接前探测，避免使用已被服务端关闭的连接
+        pool_recycle=1800,
+        pool_pre_ping=True,
     )
+    if _is_production():
+        _engine_kwargs["connect_args"] = {"ssl": "require"}
+
 engine = create_async_engine(_db_url, **_engine_kwargs)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
