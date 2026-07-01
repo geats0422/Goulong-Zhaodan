@@ -18,7 +18,7 @@ depends_on: Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TABLE goulong_auth.users ADD COLUMN password_changed_at TIMESTAMP WITH TIME ZONE NULL")
+    op.execute("ALTER TABLE goulong_auth.users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP WITH TIME ZONE NULL")
 
 
 def downgrade() -> None:
