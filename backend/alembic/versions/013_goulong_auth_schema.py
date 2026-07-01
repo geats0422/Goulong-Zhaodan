@@ -21,14 +21,34 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+
     # 1. 创建 goulong_auth schema
     op.execute("CREATE SCHEMA IF NOT EXISTS goulong_auth")
 
-    # 2. 将 users 表移入 goulong_auth schema
-    op.execute("ALTER TABLE users SET SCHEMA goulong_auth")
+    # 2. 检查 goulong_auth.users 是否已存在（文衡/goulong-auth 先迁移时创建）
+    auth_users_exists = bind.execute(
+        sa.text("SELECT 1 FROM information_schema.tables WHERE table_schema='goulong_auth' AND table_name='users'")
+    ).scalar() is not None
 
-    # 3. 将 refresh_tokens 表移入 goulong_auth schema
-    op.execute("ALTER TABLE refresh_tokens SET SCHEMA goulong_auth")
+    if auth_users_exists:
+        # goulong_auth.users 已存在，删除本地 public.users / public.refresh_tokens
+        # 先删所有指向 public.users 的 FK
+        for _t, _c in [
+            ("user_profiles", "user_id"), ("api_keys", "user_id"),
+            ("refresh_tokens", "user_id"), ("knowledge_document_settings", "user_id"),
+            ("inspection_records", "user_id"), ("taboo_words", "user_id"),
+            ("agent_jobs", "user_id"), ("knowledge_documents", "owner_user_id"),
+        ]:
+            op.execute(f"ALTER TABLE {_t} DROP CONSTRAINT IF EXISTS {_t}_{_c}_fkey")
+        op.execute("ALTER TABLE agent_jobs DROP CONSTRAINT IF EXISTS agent_jobs_api_key_id_fkey")
+        op.execute("DROP TABLE IF EXISTS refresh_tokens")
+        op.execute("DROP TABLE IF EXISTS users")
+    else:
+        # 2. 将 users 表移入 goulong_auth schema
+        op.execute("ALTER TABLE users SET SCHEMA goulong_auth")
+        # 3. 将 refresh_tokens 表移入 goulong_auth schema
+        op.execute("ALTER TABLE refresh_tokens SET SCHEMA goulong_auth")
 
     # 4. 创建 memberships 表（在 goulong_auth schema）
     op.execute("""
@@ -49,17 +69,20 @@ def upgrade() -> None:
     """)
 
     # 5. 迁移数据：user_profiles 的订阅/配额 → memberships
-    op.execute("""
-        INSERT INTO goulong_auth.memberships (user_id, product, plan, status, token_quota, token_used, started_at)
-        SELECT user_id, 'zhaodan',
-               COALESCE(subscription_plan, 'free'),
-               'active',
-               COALESCE(monthly_quota, 50),
-               COALESCE(quota_used, 0),
-               COALESCE(created_at, now())
-        FROM user_profiles
-        ON CONFLICT (user_id, product) DO NOTHING
-    """)
+    #    仅当本地 users 表还存在（非共享 schema 场景）时执行，
+    #    否则 user_profiles.user_id 与 goulong_auth.users 不匹配会 FK 报错
+    if not auth_users_exists:
+        op.execute("""
+            INSERT INTO goulong_auth.memberships (user_id, product, plan, status, token_quota, token_used, started_at)
+            SELECT user_id, 'zhaodan',
+                   COALESCE(subscription_plan, 'free'),
+                   'active',
+                   COALESCE(monthly_quota, 50),
+                   COALESCE(quota_used, 0),
+                   COALESCE(created_at, now())
+            FROM user_profiles
+            ON CONFLICT (user_id, product) DO NOTHING
+        """)
 
     # 6. 改造 user_profiles：移除订阅/配额相关列
     op.execute("ALTER TABLE user_profiles DROP COLUMN IF EXISTS subscription_plan")
