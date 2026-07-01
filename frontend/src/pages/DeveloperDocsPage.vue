@@ -40,10 +40,98 @@ const apiEndpoints = [
 ]
 
 const scopeTemplates = [
-  { name: 'mcp_readonly', desc: '只读 Agent', scopes: 'knowledge:read + inspection:read' },
-  { name: 'cli_review', desc: 'CLI 体检', scopes: 'inspection:run + knowledge:read' },
-  { name: 'mcp_inspect', desc: 'MCP 体检（推荐）', scopes: 'inspection:run + knowledge:read' },
-  { name: 'agent_automation', desc: 'Agent 自动化', scopes: '全权限（不含删除）' },
+  { name: 'mcp_readonly', desc: '只读查询（MCP / 查询类）', scopes: 'profile:read · inspection:read · knowledge:read' },
+  { name: 'cli_review', desc: '查询 + AI 体检（CLI）', scopes: 'profile:read · inspection:run · inspection:read · knowledge:read' },
+  { name: 'agent_full_access', desc: 'Agent 完整协作（推荐）', scopes: '上述全部 + knowledge:write · settings:write' },
+  { name: 'custom', desc: '高级自定义', scopes: '按需勾选（不含 records:delete）' },
+]
+
+const skills = [
+  { ref: 'REF.GL-S01', name: 'zhaodan-api-access', desc: '连接照胆、验证 API Key、选择调用方式（MCP / CLI / HTTP）。第一个调用的 skill，后续能力都依赖它先建立连接。', first: true },
+  { ref: 'REF.GL-S02', name: 'zhaodan-knowledge-search', desc: '法规与知识库检索，返回精确 snippets 与 sources。' },
+  { ref: 'REF.GL-S03', name: 'zhaodan-document-inspect', desc: '文档体检：文本审查、文件解析、基于 record_id 复用解析。' },
+  { ref: 'REF.GL-S04', name: 'zhaodan-records-jobs', desc: '体检记录查询与异步 job 创建/轮询。' },
+]
+
+const agentGuides = [
+  {
+    ref: 'REF.GL-A01',
+    name: 'Claude Code',
+    method: 'MCP + Skill',
+    desc: 'Anthropic 官方命令行 Agent，原生支持 MCP Server 与 skill 加载，是照胆的最佳搭档。',
+    config: `# 方式一：MCP（~/.claude/mcp.json 或项目 .mcp.json）
+{
+  "mcpServers": {
+    "goulong-zhaodan": {
+      "command": "node",
+      "args": ["<仓库>/MCP/dist/index.js"],
+      "env": {
+        "ZHAODAN_API_KEY": "glk_xxx",
+        "ZHAODAN_API_BASE_URL": "http://localhost:8000"
+      }
+    }
+  }
+}
+
+# 方式二：Skill（复制 skills/zhaodan-* 到 ~/.claude/skills/）
+# Claude Code 启动后会自动发现并按需调用`,
+  },
+  {
+    ref: 'REF.GL-A02',
+    name: 'Cursor',
+    method: 'MCP',
+    desc: 'AI 代码编辑器，通过 MCP 配置接入照胆的体检与检索能力。',
+    config: `# Cursor Settings → MCP → Add New MCP Server
+{
+  "mcpServers": {
+    "goulong-zhaodan": {
+      "command": "node",
+      "args": ["<仓库>/MCP/dist/index.js"],
+      "env": {
+        "ZHAODAN_API_KEY": "glk_xxx",
+        "ZHAODAN_API_BASE_URL": "http://localhost:8000"
+      }
+    }
+  }
+}`,
+  },
+  {
+    ref: 'REF.GL-A03',
+    name: 'Codex CLI',
+    method: 'MCP',
+    desc: 'OpenAI 开源命令行 Agent（codex），支持 MCP Server，可用照胆做提交前审查。',
+    config: `# ~/.codex/config.toml（或 codex --mcp-config 指定）
+[mcp_servers.goulong-zhaodan]
+command = "node"
+args = ["<仓库>/MCP/dist/index.js"]
+env = { ZHAODAN_API_KEY = "glk_xxx", ZHAODAN_API_BASE_URL = "http://localhost:8000" }`,
+  },
+  {
+    ref: 'REF.GL-A04',
+    name: 'opencode',
+    method: 'Skill',
+    desc: '通过 skill 文件接入。将 skills/zhaodan-* 复制或软链到 .opencode/skills/ 或 ~/.config/opencode/skills/。',
+    config: `# 软链照胆 skill 到 opencode 技能目录
+ln -s "<仓库>/skills/zhaodan-api-access"    ~/.config/opencode/skills/
+ln -s "<仓库>/skills/zhaodan-document-inspect" ~/.config/opencode/skills/
+ln -s "<仓库>/skills/zhaodan-knowledge-search" ~/.config/opencode/skills/
+ln -s "<仓库>/skills/zhaodan-records-jobs"     ~/.config/opencode/skills/
+
+# 或在 opencode 配置里设置 ZHAODAN_API_KEY 环境变量`,
+  },
+  {
+    ref: 'REF.GL-A05',
+    name: '其他 Agent / 通用 HTTP',
+    method: 'REST API',
+    desc: '任何能发送 HTTP 请求的 Agent（含自研 Agent、n8n、Dify 等），直接调用 /api/v1/agent/* 端点即可。',
+    config: `# 通用 HTTP 调用（任意语言/平台）
+GET /api/v1/agent/me
+Host: localhost:8000
+Authorization: Bearer glk_xxx
+
+# 推荐：先用 zhaodan-api-access skill 的逻辑建立连接，
+# 再按需调用 knowledge/search、inspect、jobs 等端点。`,
+  },
 ]
 </script>
 
@@ -56,12 +144,12 @@ const scopeTemplates = [
           <nav class="case-breadcrumb" aria-label="面包屑">
             <a href="/">首页</a>
             <span>/</span>
-            <span>开发文档</span>
+            <span>技术文档</span>
           </nav>
           <div class="gold-rule"></div>
           <p class="eyebrow">DEVELOPER DOCUMENTATION</p>
           <h1>2A 接入指南</h1>
-          <p class="lead">照胆已具备 ToB + ToA 双轨能力：RESTful API 面向后端集成，MCP Server 面向 AI Agent，CLI 面向开发者自动化。</p>
+          <p class="lead">照胆已具备 ToB + ToA 双轨能力：RESTful API 面向后端集成，MCP Server 面向 AI Agent，CLI 面向开发者自动化，Skill 面向 opencode / Claude Code 等支持技能加载的 Agent。</p>
         </div>
       </header>
 
@@ -81,6 +169,15 @@ const scopeTemplates = [
               <a href="#mcp" class="docs-nav-link">MCP Server</a>
               <a href="#cli" class="docs-nav-link">CLI 工具</a>
               <a href="#api" class="docs-nav-link">HTTP API</a>
+              <a href="#skill" class="docs-nav-link">Skill 调用</a>
+            </div>
+            <div class="docs-nav-section">
+              <h4 class="docs-nav-title">Agent 接入</h4>
+              <a href="#agent-claude" class="docs-nav-link">Claude Code</a>
+              <a href="#agent-cursor" class="docs-nav-link">Cursor</a>
+              <a href="#agent-codex" class="docs-nav-link">Codex CLI</a>
+              <a href="#agent-opencode" class="docs-nav-link">opencode</a>
+              <a href="#agent-http" class="docs-nav-link">通用 HTTP</a>
             </div>
             <div class="docs-nav-section">
               <h4 class="docs-nav-title">参考</h4>
@@ -327,6 +424,82 @@ npm link</code></pre>
   "project_id": "default"
 }</code></pre>
             </div>
+          </article>
+
+          <hr class="docs-divider" />
+
+          <!-- Skill 调用 -->
+          <article id="skill" class="docs-article">
+            <div class="docs-article-meta">
+              <span class="ref-label">REF.GL-DOCS-SKILL</span>
+              <span class="docs-meta-tag">SKILL</span>
+            </div>
+            <h2>Skill 调用</h2>
+            <p>照胆在 <code>skills/</code> 目录提供 4 个 SKILL.md 技能文件，供 opencode、Claude Code 等支持 skill 加载的 Agent 使用。Skill 会告诉 Agent「何时调用照胆、如何连接、调用哪个工具」，是最高层级的接入方式。</p>
+
+            <div class="docs-callout">
+              <span class="material-symbols-outlined">hub</span>
+              <div>
+                <h3>Skill 与 MCP / CLI 的关系</h3>
+                <p>Skill 是「能力声明」——Agent 读完后自行决定调用 MCP 工具、CLI 命令还是 HTTP API。MCP 是「工具协议」，CLI 是「命令入口」。三者共享同一套 API Key 与权限体系。</p>
+              </div>
+            </div>
+
+            <h3>技能清单（4 个）</h3>
+            <div class="docs-feature-grid">
+              <div v-for="s in skills" :key="s.name" class="scope-card">
+                <span class="ref-label">{{ s.ref }}</span>
+                <h4>{{ s.name }}<span v-if="s.first" class="docs-badge">首先调用</span></h4>
+                <p class="scope-card-desc">{{ s.desc }}</p>
+              </div>
+            </div>
+
+            <h3>推荐调用流程</h3>
+            <ol class="docs-step-list">
+              <li><span class="docs-step-num">01</span><code>zhaodan-api-access</code>：验证 API Key、确认 scopes、选择调用方式（MCP / CLI / HTTP）</li>
+              <li><span class="docs-step-num">02</span>按需调用：检索用 <code>knowledge-search</code>、体检用 <code>document-inspect</code>、查记录用 <code>records-jobs</code></li>
+            </ol>
+
+            <h3>如何加载 Skill</h3>
+            <div class="docs-code-block">
+              <div class="docs-code-header">
+                <span class="docs-code-tag">Shell</span>
+              </div>
+              <pre><code># opencode：软链到技能目录
+ln -s "&lt;仓库&gt;/skills/zhaodan-api-access" ~/.config/opencode/skills/
+
+# Claude Code：软链到技能目录
+ln -s "&lt;仓库&gt;/skills/zhaodan-api-access" ~/.claude/skills/
+
+# 或直接把整个 skills/ 目录复制到对应位置</code></pre>
+            </div>
+            <p>加载后，当用户提到「审查材料包」「查法规」「体检记录」等意图时，Agent 会自动触发对应 skill。</p>
+          </article>
+
+          <hr class="docs-divider" />
+
+          <!-- Agent 接入指南 -->
+          <article id="agents" class="docs-article">
+            <div class="docs-article-meta">
+              <span class="ref-label">REF.GL-DOCS-AGENT</span>
+              <span class="docs-meta-tag">AGENT ECOSYSTEM</span>
+            </div>
+            <h2>Agent 接入指南</h2>
+            <p>照胆支持所有主流 AI Agent。按 Agent 支持的方式接入：MCP 优先，其次 Skill，最后退回 HTTP。三种方式共享同一套 API Key。</p>
+
+            <section v-for="(g, i) in agentGuides" :key="g.name" :id="['agent-claude','agent-cursor','agent-codex','agent-opencode','agent-http'][i]" class="docs-agent-block">
+              <div class="docs-agent-head">
+                <h3>{{ g.name }}</h3>
+                <span class="docs-method-chip">{{ g.method }}</span>
+              </div>
+              <p class="scope-card-desc">{{ g.desc }}</p>
+              <div class="docs-code-block">
+                <div class="docs-code-header">
+                  <span class="docs-code-tag">{{ g.name }} 配置</span>
+                </div>
+                <pre><code>{{ g.config }}</code></pre>
+              </div>
+            </section>
           </article>
 
           <hr class="docs-divider" />
@@ -808,6 +981,51 @@ npm link</code></pre>
 .docs-security-item p {
   margin: 0;
   font-size: 13px;
+}
+
+/* Skill / Agent 章节扩展 */
+.docs-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font: 600 10px/1.4 "JetBrains Mono", monospace;
+  color: var(--text);
+  background: color-mix(in srgb, var(--gold) 70%, transparent);
+  letter-spacing: 0.06em;
+}
+
+.scope-card .ref-label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.docs-agent-block {
+  padding: 24px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 30%, transparent);
+}
+
+.docs-agent-block:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.docs-agent-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.docs-agent-head h3 {
+  margin: 0;
+}
+
+.docs-method-chip {
+  padding: 3px 10px;
+  font: 600 10px/1.4 "JetBrains Mono", monospace;
+  color: var(--gold);
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  letter-spacing: 0.06em;
 }
 
 /* 响应式 */
