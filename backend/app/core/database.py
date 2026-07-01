@@ -10,12 +10,22 @@ from app.core.config import settings
 
 
 def _ensure_ssl_database_url(url: str) -> str:
+    """生产环境自动加 SSL。asyncpg 0.30+ 不接受 sslmode 作为 connect kwargs，只能放 URL query。
+
+    用 `ssl=true`（不是 sslmode=require），让 SQLAlchemy 不把它当 connect 参数。
+    """
     if url.startswith("sqlite"):
         return url
     parsed = urlparse(url)
     qs = parse_qs(parsed.query)
-    if "sslmode" not in qs and settings.environment == "production":
-        qs["sslmode"] = ["require"]
+    if "ssl" not in qs and "sslmode" not in qs and settings.environment == "production":
+        # 用 ssl=true 而非 sslmode=require — 避免 asyncpg 0.30+ 的 connect() TypeError
+        qs["ssl"] = ["true"]
+        new_query = urlencode(qs, doseq=True)
+        return urlunparse(parsed._replace(query=new_query))
+    # 如果已带 sslmode=xxx（用户在 DATABASE_URL 里显式设了），删掉避免冲突
+    if "sslmode" in qs:
+        del qs["sslmode"]
         new_query = urlencode(qs, doseq=True)
         return urlunparse(parsed._replace(query=new_query))
     return url
