@@ -86,7 +86,7 @@ import MarketingShell from '../components/marketing/MarketingShell.vue'
           <p style="max-width: 60ch; margin: 14px auto 0; color: var(--muted);">早期试用期间，我们为深度合作团队提供专属支持与功能调优。</p>
           <div class="hero-cta" style="justify-content: center; margin-top: 28px;">
             <a href="/register" class="btn btn-primary">立即注册体验</a>
-            <a href="/solution" class="btn btn-ghost">了解解决方案</a>
+            <a href="mailto:business@goulong-ai.cn" class="btn btn-ghost">联系商务合作</a>
           </div>
         </div>
       </section>

@@ -10,6 +10,8 @@
         <a href="/pricing">服务条款</a>
         <span>·</span>
         <a href="/solution">技术文档</a>
+        <span>·</span>
+        <a href="mailto:business@goulong-ai.cn">商务合作</a>
       </p>
     </div>
   </footer>
