@@ -42,7 +42,7 @@ if not settings.database_url.startswith("sqlite"):
         pool_pre_ping=True,
     )
     if _is_production():
-        _engine_kwargs["connect_args"] = {"ssl": "require"}
+        _engine_kwargs["connect_args"] = {"ssl": "prefer"}
 
 engine = create_async_engine(_db_url, **_engine_kwargs)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
