@@ -36,8 +36,13 @@ const statistics = readFileSync(resolve(root, 'src/pages/StatisticsPage.vue'), '
 const settings = readFileSync(resolve(root, 'src/pages/SettingsPage.vue'), 'utf8')
 const appTopNav = readFileSync(resolve(root, 'src/components/app/AppTopNav.vue'), 'utf8')
 const theme = readFileSync(resolve(root, 'src/theme.js'), 'utf8')
-const staticLandingPages = ['pricing.html', 'solution.html', 'security.html', 'cases.html']
-const staticLandingContent = staticLandingPages.map((file) => [
+const routedLandingPages = [
+  'src/pages/PricingPage.vue',
+  'src/pages/SolutionPage.vue',
+  'src/pages/SecurityPage.vue',
+  'src/pages/CasesPage.vue',
+]
+const routedLandingContent = routedLandingPages.map((file) => [
   file,
   readFileSync(resolve(root, file), 'utf8'),
 ])
@@ -54,10 +59,18 @@ if (!viteConfig.includes("'/api'") && !viteConfig.includes('"/api"')) {
   throw new Error('Vite dev server must proxy /api requests to the backend')
 }
 
-for (const unsafeProxy of ["'/knowledge'", "'/settings'", "'/inspection'"]) {
-  if (viteConfig.includes(unsafeProxy)) {
-    throw new Error(`Vite proxy must not hijack frontend route prefix ${unsafeProxy}`)
+for (const routeProxy of ["'/settings'", "'/inspection'"]) {
+  const proxyStart = viteConfig.indexOf(routeProxy)
+  if (proxyStart !== -1) {
+    const proxyBlock = viteConfig.slice(proxyStart, viteConfig.indexOf('      },', proxyStart))
+    if (!proxyBlock.includes('bypassHtmlNavigation')) {
+      throw new Error(`Vite proxy for frontend route prefix ${routeProxy} must bypass HTML navigation`)
+    }
   }
+}
+
+if (viteConfig.includes("'/knowledge'")) {
+  throw new Error("Vite proxy must not hijack frontend route prefix '/knowledge'")
 }
 
 if (!app.includes('<RouterView')) {
@@ -104,16 +117,16 @@ if (appTopNav.includes("{ label: '历史'")) {
   throw new Error('AppTopNav must rename 历史 to 数据统计')
 }
 
-if (!history.includes('审查档案库') || !history.includes('A区数据中心项目招标文件_v2.pdf') || !history.includes('案卷已物理销毁')) {
-  throw new Error('History page must restore the Stitch archive table sections')
+if (!history.includes('审查档案库') || !history.includes('暂无审查档案') || !history.includes('下载报告') || !history.includes('删除')) {
+  throw new Error('History page must provide the inspection archive table sections')
 }
 
 if (!history.includes('AppTopNav') || !appTopNav.includes('/history') || !appTopNav.includes('体检台')) {
   throw new Error('History page must be the 体检台 list entry and use shared AppTopNav')
 }
 
-if (!history.includes('active="inspection"') || !history.includes('/inspection-desk') || !history.includes('查看报告')) {
-  throw new Error('History list must highlight 体检台 and link records to inspection details')
+if (!history.includes('active="inspection"') || !history.includes('viewRecord(record)') || !history.includes('查看报告')) {
+  throw new Error('History list must highlight 体检台 and open inspection report details')
 }
 
 if (!statistics.includes('AppTopNav') || !statistics.includes('active="statistics"') || !statistics.includes('数据统计') || !statistics.includes('额度消耗') || !statistics.includes('上传文档数') || !statistics.includes('违禁词出现率') || !statistics.includes('体检趋势')) {
@@ -124,8 +137,8 @@ if (appTopNav.includes('实验室')) {
   throw new Error('AppTopNav must not include the 实验室 navigation item')
 }
 
-if (!settings.includes('系统配置与个人设置') || !settings.includes('令鉴与配额') || !settings.includes('数据安全锁')) {
-  throw new Error('Settings page must provide the MVP personal settings sections')
+if (!settings.includes('系统配置与个人设置') || !settings.includes('账单与订阅管理') || !settings.includes('数据安全锁') || !settings.includes('开发者 API Key')) {
+  throw new Error('Settings page must provide account, billing, security, and developer settings sections')
 }
 
 if (!settings.includes('AppTopNav') || !appTopNav.includes('/settings') || !appTopNav.includes('设置')) {
@@ -220,13 +233,9 @@ for (const legacyFile of [
   }
 }
 
-for (const [file, content] of staticLandingContent) {
-  if (!content.includes('句龙 · 照胆')) {
-    throw new Error(`${file} must use product name 句龙 · 照胆`)
-  }
-
-  if (!content.includes('href="/"')) {
-    throw new Error(`${file} brand/breadcrumb should link back to the Vue marketing home page at /`)
+for (const [file, content] of routedLandingContent) {
+  if (!content.includes('MarketingShell')) {
+    throw new Error(`${file} must use the shared Vue marketing shell`)
   }
 }
 

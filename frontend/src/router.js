@@ -10,6 +10,7 @@ import PrivacyPage from './pages/PrivacyPage.vue'
 import TermsPage from './pages/TermsPage.vue'
 import HelpPage from './pages/HelpPage.vue'
 import DashboardPage from './pages/DashboardPage.vue'
+import InspectionDeskPage from './pages/InspectionDeskPage.vue'
 import KnowledgeBasePage from './pages/KnowledgeBasePage.vue'
 import HistoryPage from './pages/HistoryPage.vue'
 import StatisticsPage from './pages/StatisticsPage.vue'
@@ -36,6 +37,7 @@ const router = createRouter({
     { path: '/login', component: LoginPage },
     { path: '/register', component: RegisterPage },
     { path: '/dashboard', component: DashboardPage },
+    { path: '/inspection-desk', component: InspectionDeskPage },
     { path: '/knowledge-base', component: KnowledgeBasePage },
     { path: '/history', component: HistoryPage },
     { path: '/statistics', component: StatisticsPage },

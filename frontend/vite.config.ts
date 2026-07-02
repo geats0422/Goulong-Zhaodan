@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+function bypassHtmlNavigation(req: { headers: { accept?: string } }) {
+  if (req.headers.accept?.includes('text/html')) return '/index.html'
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
@@ -15,12 +19,14 @@ export default defineConfig({
       '/settings': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        bypass: bypassHtmlNavigation,
       },
       '/inspection': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        bypass: bypassHtmlNavigation,
       },
-      '/api/v1': {
+      '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },

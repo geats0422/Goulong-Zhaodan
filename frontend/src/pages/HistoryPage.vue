@@ -224,7 +224,7 @@ onMounted(() => loadRecords(1))
                   <span class="material-symbols-outlined">policy</span>审查
                 </button>
                 <button type="button" @click="viewRecord(record)">
-                  <span class="material-symbols-outlined">visibility</span>查看
+                  <span class="material-symbols-outlined">visibility</span>查看报告
                 </button>
                 <button type="button" @click="exportRecord(record)">
                   <span class="material-symbols-outlined">download</span>下载报告
