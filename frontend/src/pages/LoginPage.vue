@@ -64,6 +64,7 @@ async function startSmsCountdown() {
   } catch (e) {
     error.value = e.message
   } finally {
+    turnstileRef.value?.reset?.()
     smsSending.value = false
   }
 }

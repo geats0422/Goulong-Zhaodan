@@ -104,6 +104,7 @@ async function startSmsCountdown() {
   } catch (e) {
     error.value = e.message
   } finally {
+    turnstileRef.value?.reset?.()
     phoneSending.value = false
   }
 }
@@ -118,6 +119,7 @@ async function startEmailCountdown() {
   } catch (e) {
     error.value = e.message
   } finally {
+    turnstileRef.value?.reset?.()
     emailSending.value = false
   }
 }
