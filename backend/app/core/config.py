@@ -16,8 +16,6 @@ class Settings(BaseSettings):
     model_base_url: str = "https://api.openai.com/v1"
     model_name: str = "gpt-4o"
 
-    api_key: str = "goulong-dev-key"
-
     jwt_secret_key: str = "goulong-jwt-dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
@@ -104,7 +102,6 @@ settings = Settings()
 _INSECURE_DEFAULTS = {
     "jwt_secret_key": "goulong-jwt-dev-secret-change-in-production",
     "api_key_encryption_secret": "dev-encryption-secret-change-in-production",
-    "api_key": "goulong-dev-key",
 }
 if settings.environment != "production":
     for attr, default in _INSECURE_DEFAULTS.items():
@@ -131,7 +128,6 @@ def assert_production_security() -> None:
     defaults = {
         "jwt_secret_key": "goulong-jwt-dev-secret-change-in-production",
         "api_key_encryption_secret": "dev-encryption-secret-change-in-production",
-        "api_key": "goulong-dev-key",
     }
     for attr, default in defaults.items():
         if getattr(settings, attr) == default:
