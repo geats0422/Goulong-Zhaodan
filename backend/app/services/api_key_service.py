@@ -67,8 +67,8 @@ async def list_api_keys(db: AsyncSession, user_id: uuid.UUID) -> list[ApiKey]:
     with db.no_autoflush:
         for key in keys:
             db.expunge(key)
-            key.encrypted_key = None
-            key.key_hash = None
+            key.encrypted_key = None  # type: ignore[assignment]
+            key.key_hash = None  # type: ignore[assignment]
     return keys
 
 

@@ -47,6 +47,12 @@ temp/
 # Data directories (不忽略 frontend/src/data/，但忽略运行时数据)
 /data/
 backend/data/
+knowledge-base/**
+!knowledge-base/.gitkeep
+!knowledge-base/system/
+!knowledge-base/system/.gitkeep
+!knowledge-base/system/legal-regulations/
+!knowledge-base/system/legal-regulations/.gitkeep
 
 # Alembic
 backend/alembic/versions/__pycache__/

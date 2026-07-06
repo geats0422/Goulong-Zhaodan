@@ -241,7 +241,7 @@ async def register(body: RegisterRequest, response: Response, request: Request, 
 @router.post("/login")
 async def login(body: LoginRequest, response: Response, request: Request, db=Depends(get_db_session)):
     ip = get_client_ip(request)
-    throttle_key = body.email or body.phone
+    throttle_key = body.email or body.phone or ""
     wait = login_throttle.check(throttle_key)
     if wait > 0:
         raise HTTPException(

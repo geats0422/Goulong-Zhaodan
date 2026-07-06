@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse

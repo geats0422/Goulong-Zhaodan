@@ -3,6 +3,7 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 from struct import unpack_from
+from typing import TypedDict
 from xml.etree import ElementTree
 
 from markitdown import MarkItDown
@@ -15,6 +16,13 @@ class ConversionError(Exception):
 END_OF_CHAIN = 0xFFFFFFFE
 FREE_SECTOR = 0xFFFFFFFF
 NO_STREAM = 0xFFFFFFFF
+
+
+class _DirectoryEntry(TypedDict):
+    name: str
+    type: int
+    start: int
+    size: int
 
 
 def convert_to_markdown(file_path: str | Path) -> str:
@@ -222,9 +230,9 @@ class _CompoundFile:
         chunks = [self._read_sector(sector_id) for sector_id in self._sector_chain(start_sector)]
         return b"".join(chunks)[:size]
 
-    def _read_directory_entries(self) -> list[dict[str, int | str]]:
+    def _read_directory_entries(self) -> list[_DirectoryEntry]:
         directory_stream = self._read_regular_stream(self.first_dir_sector, 2**31)
-        entries = []
+        entries: list[_DirectoryEntry] = []
         for offset in range(0, len(directory_stream), 128):
             entry = directory_stream[offset : offset + 128]
             if len(entry) < 128:

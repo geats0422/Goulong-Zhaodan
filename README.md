@@ -194,6 +194,8 @@ uv run python scripts/import_default_knowledge.py   # （可选）导入系统�
 uv run uvicorn main:app --reload --port 8000
 ```
 
+默认本地文件存储目录为 `knowledge-base/uploads`。生产部署由 `Goulong-Wenheng/deploy` 注入 `UPLOAD_DIR=/app/knowledge-base/uploads` 并挂载 ECS 本地目录；`OSS_BUCKET_NAME` 和 `OSS_ENDPOINT` 留空时不会访问 OSS。
+
 后端默认监听 `http://localhost:8000`，Swagger UI 在 `/docs`。
 
 如需异步审查任务（Agent API），需额外启动 Worker：

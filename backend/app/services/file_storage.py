@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 STORAGE_ROOT = "data/knowledge"
+_DEFAULT_STORAGE_ROOT = STORAGE_ROOT
 
 
 def is_oss_enabled() -> bool:
@@ -38,7 +39,12 @@ def _validate_storage_path(storage_path: str) -> None:
 
 def _local_path(storage_path: str) -> Path:
     """本地模式：相对 storage_path → 绝对路径。"""
-    return Path(STORAGE_ROOT) / storage_path
+    from app.core.config import settings
+
+    root = Path(STORAGE_ROOT if STORAGE_ROOT != _DEFAULT_STORAGE_ROOT else settings.upload_dir)
+    if not root.is_absolute():
+        root = Path(__file__).resolve().parents[3] / root
+    return root / storage_path
 
 
 def build_storage_path(

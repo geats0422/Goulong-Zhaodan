@@ -160,7 +160,7 @@ async def import_single_file(db: AsyncSession, file_path: Path, application_scen
 async def run_import(reference_dir: Path | None = None) -> dict:
     if reference_dir is None:
         project_root = Path(__file__).resolve().parent.parent.parent
-        reference_dir = project_root / "reference" / "招投标法律法规（新）-用于照胆"
+        reference_dir = project_root / "knowledge-base" / "system" / "legal-regulations"
 
     if not reference_dir.exists():
         print(f"错误：参考目录不存在: {reference_dir}", file=sys.stderr)
@@ -208,7 +208,7 @@ def main() -> None:
         "--reference-dir",
         type=str,
         default=None,
-        help="参考文件目录路径（默认: reference/招投标法律法规（新）-用于照胆）",
+        help="参考文件目录路径（默认: knowledge-base/system/legal-regulations）",
     )
     args = parser.parse_args()
 

@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     max_document_length: int = 8000  # 单次体检最大字符数
     inspection_prompt_char_budget: int = 60000  # 体检 Agent 单次提示词字符预算
+    upload_dir: str = "knowledge-base/uploads"
 
     api_key_encryption_secret: str = "dev-encryption-secret-change-in-production"
 
@@ -42,7 +43,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     data_encryption_key: str = ""
 
-    # 阿里云通用 AccessKey（短信 Dysmsapi + 邮件 DirectMail + OSS 共用）
+    # 阿里云通用 AccessKey（短信 Dysmsapi + 邮件 DirectMail 共用）
     aliyun_access_key_id: str = ""
     aliyun_access_key_secret: str = ""
 

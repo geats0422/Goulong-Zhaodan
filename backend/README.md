@@ -65,6 +65,8 @@ uv run uvicorn main:app --reload --port 8000
 
 然后访问 http://localhost:8000/docs 查看 Swagger UI。
 
+本地文件存储默认写入 `knowledge-base/uploads`。生产环境由统一部署仓库 `Goulong-Wenheng/deploy` 设置 `UPLOAD_DIR=/app/knowledge-base/uploads`；如需继续使用 ECS 本地盘，保持 `OSS_BUCKET_NAME` 和 `OSS_ENDPOINT` 为空。
+
 ### 5. 启动 Worker（异步任务队列）
 
 审查等长时间任务通过 Arq Worker 异步执行，需单独启动：

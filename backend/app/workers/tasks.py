@@ -123,14 +123,17 @@ async def _run_knowledge_upload(ctx, job_id: str) -> dict:
 
         filename = payload.get("document_name") or payload.get("filename") or "knowledge.pdf"
         upload_file = UploadFile(file=io.BytesIO(content), filename=filename)
+        from app.core.auth import CurrentUserContext
+
+        fake_user = CurrentUserContext(user_id=job.user_id)
         result = await upload_and_ingest(
-            file=upload_file,
+            file=upload_file,  # type: ignore[arg-type]
             category=payload.get("category", "general"),
             application_scenario=payload.get("application_scenario", "bidding"),
             subcategory_id=payload.get("subcategory_id"),
             subcategory_name=payload.get("subcategory_name"),
             db=db,
-            user={"user_id": str(job.user_id)},
+            user=fake_user,
         )
         if hasattr(result, "model_dump"):
             return result.model_dump()

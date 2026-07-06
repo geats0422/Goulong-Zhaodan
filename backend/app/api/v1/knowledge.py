@@ -31,7 +31,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024
 router = APIRouter(prefix="/knowledge", tags=["知识库"])
 
 
-def _current_user_id(user: dict) -> uuid.UUID:
+def _current_user_id(user: CurrentUserContext) -> uuid.UUID:
     try:
         return user.user_id
     except (KeyError, TypeError, ValueError) as exc:

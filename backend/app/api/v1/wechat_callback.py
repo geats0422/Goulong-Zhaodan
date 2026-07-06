@@ -76,7 +76,7 @@ async def _handle_v3_native(request: Request, body: bytes, db):
 
 async def _handle_v2_papay(body: bytes, db):
     """V2 PAPay 签约/扣款回调：MD5 验签 + 业务分发。"""
-    payload = get_wechatpay_v2_client().parse_callback_xml(body)
+    payload = get_wechatpay_v2_client().parse_callback_xml(body.decode())
     if not WechatPayV2Client.verify_callback_sign(payload, settings.wechatpay_api_v2_key):
         return PlainTextResponse(
             content=(

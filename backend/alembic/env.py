@@ -6,14 +6,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from logging.config import fileConfig
+import os
 
 from alembic import context
-from sqlalchemy import create_engine, engine_from_config, pool
+from sqlalchemy import create_engine, pool
 
 from app.models import Base
-from goulong_auth.base import AuthBase
-
-import os
 
 config = context.config
 

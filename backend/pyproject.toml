@@ -43,6 +43,36 @@ include = ["app*"]
 [tool.ruff]
 line-length = 120
 
+[tool.mypy]
+python_version = "3.12"
+exclude = [
+    "alembic/",
+    "tests/",
+    "vendor/",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "alibabacloud_dm20151123.*",
+    "alibabacloud_dysmsapi20170525.*",
+    "alibabacloud_tea_openapi.*",
+    "alibabacloud_tea_util.*",
+    "arq.*",
+    "goulong_auth.*",
+    "oss2",
+    "pydantic_ai.*",
+    "redis.*",
+    "weasyprint",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "app.tools.common",
+    "app.agents.*",
+]
+ignore_errors = true
+
 [dependency-groups]
 dev = [
     "aiosqlite>=0.22.1",

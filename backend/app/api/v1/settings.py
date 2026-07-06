@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import re
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
@@ -28,7 +29,7 @@ from app.models.knowledge import (
 
 router = APIRouter(prefix="/settings", tags=["设置"])
 
-PLAN_CATALOG = {
+PLAN_CATALOG: dict[str, dict[str, Any]] = {
     "free":       {"label": "免费体验",   "period": "永久",  "price": "¥0",    "monthly_quota": 50,    "features": ["基础智能审查", "单文件上传", "Markdown 报告"]},
     "personal":   {"label": "个人版",     "period": "/月",   "price": "¥39",   "monthly_quota": 500,   "features": ["多文件材料包", "私域红线标准", "本地脱敏", "阅后即焚"]},
     "team":       {"label": "团队版",     "period": "/月",   "price": "¥299",  "monthly_quota": 3000,  "features": ["团队协作", "审计留痕", "自定义红线", "优先支持"]},
@@ -219,7 +220,7 @@ class TabooWordUpdateRequest(TabooWordCreateRequest):
     pass
 
 
-def _current_user_id(user: dict) -> uuid.UUID:
+def _current_user_id(user: CurrentUserContext) -> uuid.UUID:
     try:
         return user.user_id
     except (KeyError, TypeError, ValueError) as exc:
@@ -653,7 +654,7 @@ async def update_api_key_route(
     from app.services.api_key_service import update_api_key
 
     user_id = _current_user_id(user)
-    kwargs = {}
+    kwargs: dict[str, Any] = {}
     if body.name is not None:
         kwargs["name"] = body.name
     if body.scopes is not None:

@@ -52,7 +52,7 @@ MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)]\([^)]*\)")
 _inspection_sessions: dict[str, dict[str, Any]] = {}
 
 
-def _current_user_id(user: dict) -> uuid_mod.UUID:
+def _current_user_id(user: CurrentUserContext) -> uuid_mod.UUID:
     try:
         return user.user_id
     except (KeyError, TypeError, ValueError) as exc:
