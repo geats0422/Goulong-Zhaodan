@@ -1,36 +1,58 @@
 ---
 name: cluster-0
-description: "Skill for the Cluster_0 area of Goulong-Zhaodan. 5 symbols across 1 files."
+description: "Skill for the Cluster_0 area of Goulong-Zhaodan. 11 symbols across 1 files."
 ---
 
 # Cluster_0
 
-5 symbols | 1 files | Cohesion: 100%
+11 symbols | 1 files | Cohesion: 91%
 
 ## When to Use
 
-- Working with code in `MCP/`
-- Understanding how ZhaodanApiError, requireApiKey, apiUrl work
+- Working with code in `CLI/`
+- Understanding how ZhaodanCliError, usage, parseArgs work
 - Modifying cluster_0-related functionality
 
 ## Key Files
 
 | File | Symbols |
 |------|---------|
-| `MCP/src/index.ts` | ZhaodanApiError, requireApiKey, apiUrl, parseResponse, requestJson |
+| `CLI/src/index.ts` | ZhaodanCliError, usage, parseArgs, getString, getNumber (+6) |
 
 ## Key Symbols
 
 | Symbol | Type | File | Line |
 |--------|------|------|------|
-| `ZhaodanApiError` | Class | `MCP/src/index.ts` | 14 |
-| `requireApiKey` | Function | `MCP/src/index.ts` | 24 |
-| `apiUrl` | Function | `MCP/src/index.ts` | 33 |
-| `parseResponse` | Function | `MCP/src/index.ts` | 37 |
-| `requestJson` | Function | `MCP/src/index.ts` | 59 |
+| `ZhaodanCliError` | Class | `CLI/src/index.ts` | 11 |
+| `usage` | Function | `CLI/src/index.ts` | 55 |
+| `parseArgs` | Function | `CLI/src/index.ts` | 76 |
+| `getString` | Function | `CLI/src/index.ts` | 98 |
+| `getNumber` | Function | `CLI/src/index.ts` | 109 |
+| `scenario` | Function | `CLI/src/index.ts` | 122 |
+| `readLocalFile` | Function | `CLI/src/index.ts` | 130 |
+| `toArrayBuffer` | Function | `CLI/src/index.ts` | 141 |
+| `run` | Function | `CLI/src/index.ts` | 145 |
+| `printResult` | Function | `CLI/src/index.ts` | 226 |
+| `main` | Function | `CLI/src/index.ts` | 245 |
+
+## Execution Flows
+
+| Flow | Type | Steps |
+|------|------|-------|
+| `Main → ZhaodanCliError` | cross_community | 5 |
+| `Main → ApiUrl` | cross_community | 4 |
+| `Main → ParseResponse` | cross_community | 4 |
+| `Main → Usage` | intra_community | 3 |
+| `Scenario → ZhaodanCliError` | intra_community | 3 |
+
+## Connected Areas
+
+| Area | Connections |
+|------|-------------|
+| Cluster_1 | 1 calls |
 
 ## How to Explore
 
-1. `gitnexus_context({name: "ZhaodanApiError"})` — see callers and callees
+1. `gitnexus_context({name: "ZhaodanCliError"})` — see callers and callees
 2. `gitnexus_query({query: "cluster_0"})` — find related execution flows
 3. Read key files listed above for implementation details

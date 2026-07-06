@@ -1,16 +1,16 @@
 ---
 name: models
-description: "Skill for the Models area of Goulong-Zhaodan. 11 symbols across 2 files."
+description: "Skill for the Models area of Goulong-Zhaodan. 14 symbols across 4 files."
 ---
 
 # Models
 
-11 symbols | 2 files | Cohesion: 100%
+14 symbols | 4 files | Cohesion: 100%
 
 ## When to Use
 
 - Working with code in `backend/`
-- Understanding how ApiKey, AgentJob, Base work
+- Understanding how ApiKey, AgentJob, SubscriptionContract work
 - Modifying models-related functionality
 
 ## Key Files
@@ -19,6 +19,8 @@ description: "Skill for the Models area of Goulong-Zhaodan. 11 symbols across 2 
 |------|---------|
 | `backend/app/models/knowledge.py` | Base, EngineeringSubcategory, KnowledgeDocument, DocumentVersion, IndexNode (+4) |
 | `backend/app/models/api_keys.py` | ApiKey, AgentJob |
+| `backend/app/models/delegated_deduction.py` | SubscriptionContract, DeductionOrder |
+| `backend/app/models/payment.py` | PaymentOrder |
 
 ## Entry Points
 
@@ -26,9 +28,9 @@ Start here when exploring this area:
 
 - **`ApiKey`** (Class) — `backend/app/models/api_keys.py:12`
 - **`AgentJob`** (Class) — `backend/app/models/api_keys.py:37`
+- **`SubscriptionContract`** (Class) — `backend/app/models/delegated_deduction.py:10`
+- **`DeductionOrder`** (Class) — `backend/app/models/delegated_deduction.py:36`
 - **`Base`** (Class) — `backend/app/models/knowledge.py:14`
-- **`EngineeringSubcategory`** (Class) — `backend/app/models/knowledge.py:29`
-- **`KnowledgeDocument`** (Class) — `backend/app/models/knowledge.py:46`
 
 ## Key Symbols
 
@@ -36,6 +38,8 @@ Start here when exploring this area:
 |--------|------|------|------|
 | `ApiKey` | Class | `backend/app/models/api_keys.py` | 12 |
 | `AgentJob` | Class | `backend/app/models/api_keys.py` | 37 |
+| `SubscriptionContract` | Class | `backend/app/models/delegated_deduction.py` | 10 |
+| `DeductionOrder` | Class | `backend/app/models/delegated_deduction.py` | 36 |
 | `Base` | Class | `backend/app/models/knowledge.py` | 14 |
 | `EngineeringSubcategory` | Class | `backend/app/models/knowledge.py` | 29 |
 | `KnowledgeDocument` | Class | `backend/app/models/knowledge.py` | 46 |
@@ -45,6 +49,7 @@ Start here when exploring this area:
 | `TabooWord` | Class | `backend/app/models/knowledge.py` | 134 |
 | `KnowledgeDocumentSetting` | Class | `backend/app/models/knowledge.py` | 152 |
 | `InspectionRecord` | Class | `backend/app/models/knowledge.py` | 168 |
+| `PaymentOrder` | Class | `backend/app/models/payment.py` | 10 |
 
 ## How to Explore
 

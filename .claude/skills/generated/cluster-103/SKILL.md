@@ -1,9 +1,9 @@
 ---
-name: cluster-84
-description: "Skill for the Cluster_84 area of Goulong-Zhaodan. 4 symbols across 1 files."
+name: cluster-103
+description: "Skill for the Cluster_103 area of Goulong-Zhaodan. 4 symbols across 1 files."
 ---
 
-# Cluster_84
+# Cluster_103
 
 4 symbols | 1 files | Cohesion: 75%
 
@@ -11,7 +11,7 @@ description: "Skill for the Cluster_84 area of Goulong-Zhaodan. 4 symbols across
 
 - Working with code in `backend/`
 - Understanding how record_failure, get_wait_seconds, check work
-- Modifying cluster_84-related functionality
+- Modifying cluster_103-related functionality
 
 ## Key Files
 
@@ -45,5 +45,5 @@ Start here when exploring this area:
 ## How to Explore
 
 1. `gitnexus_context({name: "record_failure"})` — see callers and callees
-2. `gitnexus_query({query: "cluster_84"})` — find related execution flows
+2. `gitnexus_query({query: "cluster_103"})` — find related execution flows
 3. Read key files listed above for implementation details

@@ -52,7 +52,6 @@ Start here when exploring this area:
 
 | Flow | Type | Steps |
 |------|------|-------|
-| `_run_inspect → Mask_sensitive_data` | cross_community | 6 |
 | `Agent_inspect → _prompt_char_budget` | cross_community | 5 |
 | `Agent_inspect → Format_regulation_base_context` | cross_community | 5 |
 | `Agent_inspect → _truncate_text` | cross_community | 5 |
@@ -62,6 +61,7 @@ Start here when exploring this area:
 | `Inspect_session → _prompt_char_budget` | cross_community | 5 |
 | `Inspect_session → Format_regulation_base_context` | cross_community | 5 |
 | `Inspect_session → _truncate_text` | cross_community | 5 |
+| `Inspect_record → _prompt_char_budget` | cross_community | 5 |
 
 ## Connected Areas
 

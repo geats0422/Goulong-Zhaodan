@@ -1,42 +1,42 @@
 ---
 name: v1
-description: "Skill for the V1 area of Goulong-Zhaodan. 116 symbols across 23 files."
+description: "Skill for the V1 area of Goulong-Zhaodan. 122 symbols across 24 files."
 ---
 
 # V1
 
-116 symbols | 23 files | Cohesion: 76%
+122 symbols | 24 files | Cohesion: 72%
 
 ## When to Use
 
 - Working with code in `backend/`
-- Understanding how agent_parse, parse_inspection_file, validate_file_magic work
+- Understanding how upload_and_ingest, validate_file_type, safe_path_segment work
 - Modifying v1-related functionality
 
 ## Key Files
 
 | File | Symbols |
 |------|---------|
-| `backend/app/api/v1/inspection.py` | _validate_inspection_filename, _document_type_score, _detect_document_type, _inspection_file_format, _clean_inspection_markdown (+26) |
+| `backend/app/api/v1/inspection.py` | _validate_inspection_filename, _inspection_file_format, _clean_inspection_markdown, _read_inspection_upload_text, _extract_inspection_text (+26) |
 | `backend/app/api/v1/settings.py` | _current_user_id, _taboo_response, update_knowledge_document_setting, create_taboo_word, update_taboo_word (+18) |
 | `backend/app/api/v1/knowledge.py` | _safe_path_segment, _get_or_create_subcategory, _build_display_name, upload_and_ingest, _current_user_id (+7) |
-| `backend/app/api/v1/agent.py` | agent_parse, _job_response, create_inspect_job, create_parse_job, _record_list_item (+4) |
-| `backend/app/core/auth.py` | create_access_token, create_refresh_token, decode_token, store_refresh_token, is_refresh_token_revoked (+4) |
-| `backend/app/api/v1/auth.py` | _set_refresh_cookie, register, login, refresh, validate_password_strength (+1) |
-| `backend/tests/test_infrastructure.py` | test_validate_file_type_valid, test_validate_file_type_invalid, test_validate_application_scenario_valid, test_validate_application_scenario_invalid |
+| `backend/app/api/v1/auth.py` | send_sms_code, send_email_code, register, refresh, _set_refresh_cookie (+6) |
+| `backend/app/core/auth.py` | create_access_token, decode_token, is_refresh_token_revoked, get_current_user, create_refresh_token (+4) |
+| `backend/app/api/v1/agent.py` | _job_response, create_inspect_job, create_parse_job, _record_list_item, _record_detail (+3) |
+| `backend/tests/test_infrastructure.py` | test_validate_file_type_valid, test_validate_file_type_invalid, test_build_storage_path, test_build_storage_path_version |
 | `backend/app/services/inspection_runner.py` | inspection_record_to_history_dict, append_history_record, create_pending_inspection_record |
+| `backend/app/services/file_storage.py` | safe_path_segment, build_storage_path |
 | `backend/tests/test_agent_worker_tasks.py` | test_run_parse_creates_pending_record_with_text_payload, test_run_parse_raises_on_missing_text |
-| `backend/app/core/constants.py` | validate_file_type, validate_application_scenario |
 
 ## Entry Points
 
 Start here when exploring this area:
 
-- **`agent_parse`** (Function) — `backend/app/api/v1/agent.py:187`
-- **`parse_inspection_file`** (Function) — `backend/app/api/v1/inspection.py:495`
-- **`validate_file_magic`** (Function) — `backend/app/core/file_magic.py:18`
-- **`inspection_record_to_history_dict`** (Function) — `backend/app/services/inspection_runner.py:60`
-- **`append_history_record`** (Function) — `backend/app/services/inspection_runner.py:76`
+- **`upload_and_ingest`** (Function) — `backend/app/api/v1/knowledge.py:275`
+- **`validate_file_type`** (Function) — `backend/app/core/constants.py:29`
+- **`safe_path_segment`** (Function) — `backend/app/services/file_storage.py:22`
+- **`build_storage_path`** (Function) — `backend/app/services/file_storage.py:43`
+- **`test_validate_file_type_valid`** (Function) — `backend/tests/test_infrastructure.py:58`
 
 ## Key Symbols
 
@@ -46,22 +46,22 @@ Start here when exploring this area:
 | `TabooWordUpdateRequest` | Class | `backend/app/api/v1/settings.py` | 217 |
 | `ApiKeyResponse` | Class | `backend/app/api/v1/settings.py` | 536 |
 | `CreateApiKeyResponse` | Class | `backend/app/api/v1/settings.py` | 551 |
-| `agent_parse` | Function | `backend/app/api/v1/agent.py` | 187 |
-| `parse_inspection_file` | Function | `backend/app/api/v1/inspection.py` | 495 |
+| `upload_and_ingest` | Function | `backend/app/api/v1/knowledge.py` | 275 |
+| `validate_file_type` | Function | `backend/app/core/constants.py` | 29 |
+| `safe_path_segment` | Function | `backend/app/services/file_storage.py` | 22 |
+| `build_storage_path` | Function | `backend/app/services/file_storage.py` | 43 |
+| `test_validate_file_type_valid` | Function | `backend/tests/test_infrastructure.py` | 58 |
+| `test_validate_file_type_invalid` | Function | `backend/tests/test_infrastructure.py` | 67 |
+| `test_build_storage_path` | Function | `backend/tests/test_infrastructure.py` | 72 |
+| `test_build_storage_path_version` | Function | `backend/tests/test_infrastructure.py` | 77 |
+| `upload_and_inspect` | Function | `backend/app/api/v1/inspection.py` | 462 |
 | `validate_file_magic` | Function | `backend/app/core/file_magic.py` | 18 |
-| `inspection_record_to_history_dict` | Function | `backend/app/services/inspection_runner.py` | 60 |
-| `append_history_record` | Function | `backend/app/services/inspection_runner.py` | 76 |
-| `create_pending_inspection_record` | Function | `backend/app/services/inspection_runner.py` | 82 |
 | `test_run_parse_creates_pending_record_with_text_payload` | Function | `backend/tests/test_agent_worker_tasks.py` | 246 |
 | `test_run_parse_raises_on_missing_text` | Function | `backend/tests/test_agent_worker_tasks.py` | 283 |
-| `register` | Function | `backend/app/api/v1/auth.py` | 90 |
-| `login` | Function | `backend/app/api/v1/auth.py` | 155 |
-| `refresh` | Function | `backend/app/api/v1/auth.py` | 202 |
-| `create_access_token` | Function | `backend/app/core/auth.py` | 19 |
-| `create_refresh_token` | Function | `backend/app/core/auth.py` | 24 |
-| `decode_token` | Function | `backend/app/core/auth.py` | 32 |
-| `store_refresh_token` | Function | `backend/app/core/auth.py` | 48 |
-| `is_refresh_token_revoked` | Function | `backend/app/core/auth.py` | 55 |
+| `update_knowledge_document_setting` | Function | `backend/app/api/v1/settings.py` | 431 |
+| `create_taboo_word` | Function | `backend/app/api/v1/settings.py` | 464 |
+| `update_taboo_word` | Function | `backend/app/api/v1/settings.py` | 482 |
+| `delete_taboo_word` | Function | `backend/app/api/v1/settings.py` | 513 |
 
 ## Execution Flows
 
@@ -70,24 +70,24 @@ Start here when exploring this area:
 | `Agent_parse → _sector_chain` | cross_community | 8 |
 | `Parse_inspection_file → _sector_chain` | cross_community | 8 |
 | `Parse_inspection_file → _readable_score` | cross_community | 8 |
-| `_run_parse → _sector_offset` | cross_community | 8 |
-| `_read_inspection_upload_text → _sector_offset` | cross_community | 8 |
 | `Agent_parse → _read_mini_stream` | cross_community | 7 |
 | `Parse_inspection_file → _read_mini_stream` | cross_community | 7 |
-| `_run_parse → _sector_chain` | cross_community | 7 |
-| `_run_parse → _readable_score` | cross_community | 7 |
-| `_run_parse → _read_mini_stream` | cross_community | 6 |
+| `_extract_inspection_text → _sector_offset` | cross_community | 7 |
+| `Agent_parse → _convert_docx_to_text` | cross_community | 5 |
+| `Upload_and_inspect → _convert_docx_to_text` | cross_community | 5 |
+| `Upload_and_inspect → _make_model` | cross_community | 5 |
+| `Upload_and_inspect → _prompt_char_budget` | cross_community | 5 |
 
 ## Connected Areas
 
 | Area | Connections |
 |------|-------------|
-| Tests | 16 calls |
+| Tests | 19 calls |
 | Services | 4 calls |
-| Cluster_84 | 2 calls |
+| Cluster_103 | 2 calls |
 
 ## How to Explore
 
-1. `gitnexus_context({name: "agent_parse"})` — see callers and callees
+1. `gitnexus_context({name: "upload_and_ingest"})` — see callers and callees
 2. `gitnexus_query({query: "v1"})` — find related execution flows
 3. Read key files listed above for implementation details

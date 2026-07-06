@@ -45,7 +45,6 @@ Start here when exploring this area:
 
 | Flow | Type | Steps |
 |------|------|-------|
-| `_run_inspect → Mask_sensitive_data` | cross_community | 6 |
 | `Agent_inspect → _make_model` | cross_community | 5 |
 | `Agent_inspect → _prompt_char_budget` | cross_community | 5 |
 | `Agent_inspect → Format_regulation_base_context` | cross_community | 5 |
@@ -55,6 +54,7 @@ Start here when exploring this area:
 | `Upload_and_inspect → Format_regulation_base_context` | cross_community | 5 |
 | `Upload_and_inspect → _truncate_text` | cross_community | 5 |
 | `Inspect_session → _make_model` | cross_community | 5 |
+| `Inspect_session → _prompt_char_budget` | cross_community | 5 |
 
 ## Connected Areas
 
