@@ -550,13 +550,6 @@ ln -s "&lt;仓库&gt;/skills/zhaodan-api-access" ~/.claude/skills/
                   <p>Skills / MCP / CLI 均不提供删除记录能力。默认不请求或假设 <code>records:delete</code> 权限。</p>
                 </div>
               </div>
-              <div class="docs-security-item">
-                <span class="material-symbols-outlined">verified_user</span>
-                <div>
-                  <h4>Cloudflare Turnstile</h4>
-                  <p>注册和验证码端点启用人机验证，防止自动化注册攻击和短信轰炸。</p>
-                </div>
-              </div>
             </div>
           </article>
         </main>

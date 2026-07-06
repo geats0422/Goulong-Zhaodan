@@ -63,10 +63,6 @@ class Settings(BaseSettings):
     aliyun_dm_template_expire: str = ""
     aliyun_dm_template_notice: str = ""
 
-    # Cloudflare Turnstile 人机验证
-    turnstile_site_key: str = ""
-    turnstile_secret_key: str = ""
-
     # 阿里云 OSS 对象存储
     oss_access_key_id: str = ""
     oss_access_key_secret: str = ""

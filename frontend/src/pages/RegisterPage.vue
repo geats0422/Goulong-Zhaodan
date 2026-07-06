@@ -3,7 +3,6 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 import { useTheme } from '../composables/useTheme.js'
-import TurnstileWidget from '../components/auth/TurnstileWidget.vue'
 
 const { register, sendSmsCode, sendEmailCode } = useAuth()
 const router = useRouter()
@@ -26,7 +25,6 @@ const phoneCountdown = ref(0)
 const phoneSending = ref(false)
 const emailCountdown = ref(0)
 const emailSending = ref(false)
-const turnstileRef = ref(null)
 
 const WEAK_PASSWORDS = new Set([
   'password', 'password1', 'password12', 'password123', 'password1234',
@@ -99,12 +97,11 @@ async function startSmsCountdown() {
   phoneSending.value = true
   error.value = ''
   try {
-    await sendSmsCode(phone.value, 'login', turnstileRef.value?.token || '')
+    await sendSmsCode(phone.value, 'login')
     startTimer(phoneCountdown, 'phone')
   } catch (e) {
     error.value = e.message
   } finally {
-    turnstileRef.value?.reset?.()
     phoneSending.value = false
   }
 }
@@ -114,12 +111,11 @@ async function startEmailCountdown() {
   emailSending.value = true
   error.value = ''
   try {
-    await sendEmailCode(email.value, turnstileRef.value?.token || '')
+    await sendEmailCode(email.value)
     startTimer(emailCountdown, 'email')
   } catch (e) {
     error.value = e.message
   } finally {
-    turnstileRef.value?.reset?.()
     emailSending.value = false
   }
 }
@@ -146,7 +142,6 @@ async function handleRegister() {
       emailCode: emailValid.value ? emailCode.value : undefined,
       nickname: nickname.value,
       password: password.value,
-      turnstileToken: turnstileRef.value?.token || '',
     })
     await router.push('/dashboard')
   } catch (e) {
@@ -307,9 +302,7 @@ function gotoLogin() {
                 <span class="material-symbols-outlined">{{ showConfirm ? 'visibility_off' : 'visibility' }}</span>
               </button>
             </div>
-          </label>
-
-          <TurnstileWidget ref="turnstileRef" />
+            </label>
 
           <button type="submit" class="primary-btn primary-btn-block" :disabled="!canRegister || loading">
             {{ loading ? '处理中…' : '立即注册' }}

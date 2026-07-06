@@ -109,11 +109,11 @@ async function loginByCode({ phone, email, code }) {
   return data
 }
 
-async function sendSmsCode(phone, scene = 'login', turnstileToken = '') {
+async function sendSmsCode(phone, scene = 'login') {
   const response = await fetch('/auth/send-sms-code', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone, scene, turnstile_token: turnstileToken }),
+    body: JSON.stringify({ phone, scene }),
     credentials: 'include',
   })
 
@@ -124,11 +124,11 @@ async function sendSmsCode(phone, scene = 'login', turnstileToken = '') {
   return response.json()
 }
 
-async function sendEmailCode(email, turnstileToken = '') {
+async function sendEmailCode(email) {
   const response = await fetch('/auth/send-email-code', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, turnstile_token: turnstileToken }),
+    body: JSON.stringify({ email }),
     credentials: 'include',
   })
 
@@ -139,8 +139,8 @@ async function sendEmailCode(email, turnstileToken = '') {
   return response.json()
 }
 
-async function register({ email, phone, nickname, password, phoneCode, emailCode, turnstileToken }) {
-  const body = { nickname, password, turnstile_token: turnstileToken || '' }
+async function register({ email, phone, nickname, password, phoneCode, emailCode }) {
+  const body = { nickname, password }
   if (phone) {
     body.phone = phone
     body.phone_code = phoneCode

@@ -27,7 +27,6 @@ from app.core.login_throttle import login_throttle
 from app.core.password_rules import validate_password
 from app.core.pii_masking import mask_email, mask_phone
 from app.core.rate_limit import register_limiter, send_code_limiter
-from app.core.turnstile import TurnstileError, verify_token
 from goulong_auth.models import Membership, User
 from app.models.knowledge import ZhaodanUserProfile
 from app.services import email_service, sms_service
@@ -45,7 +44,6 @@ class RegisterRequest(BaseModel):
     phone: str | None = None
     phone_code: str | None = None
     email_code: str | None = None
-    turnstile_token: str = ""
     nickname: str
     password: str
 
@@ -71,12 +69,10 @@ class RegisterRequest(BaseModel):
 class SendSmsCodeRequest(BaseModel):
     phone: str
     scene: Literal["login", "register", "forgot_password"] = "login"
-    turnstile_token: str = ""
 
 
 class SendEmailCodeRequest(BaseModel):
     email: str
-    turnstile_token: str = ""
 
 
 class CodeLoginRequest(BaseModel):
@@ -139,10 +135,6 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 async def send_sms_code(body: SendSmsCodeRequest, request: Request):
     """发送短信验证码。"""
     ip = get_client_ip(request)
-    try:
-        await verify_token(body.turnstile_token, ip)
-    except TurnstileError as e:
-        raise HTTPException(status_code=403, detail=str(e)) from None
     if send_code_limiter.is_limited(ip):
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
     send_code_limiter.record(ip)
@@ -161,10 +153,6 @@ async def send_sms_code(body: SendSmsCodeRequest, request: Request):
 async def send_email_code(body: SendEmailCodeRequest, request: Request):
     """发送邮箱验证码。"""
     ip = get_client_ip(request)
-    try:
-        await verify_token(body.turnstile_token, ip)
-    except TurnstileError as e:
-        raise HTTPException(status_code=403, detail=str(e)) from None
     if send_code_limiter.is_limited(ip):
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
     send_code_limiter.record(ip)
@@ -182,10 +170,6 @@ async def send_email_code(body: SendEmailCodeRequest, request: Request):
 @router.post("/register", status_code=201)
 async def register(body: RegisterRequest, response: Response, request: Request, db=Depends(get_db_session)):
     ip = get_client_ip(request)
-    try:
-        await verify_token(body.turnstile_token, ip)
-    except TurnstileError as e:
-        raise HTTPException(status_code=403, detail=str(e)) from None
     if register_limiter.is_limited(ip):
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
     register_limiter.record(ip)

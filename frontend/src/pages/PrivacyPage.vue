@@ -42,7 +42,6 @@ const vendors = [
   { ref: 'REF.GL-V04', name: '阿里云短信', tags: ['验证码', '中国大陆'], desc: '发送手机验证码，仅包含手机号与验证码内容。', outbound: false },
   { ref: 'REF.GL-V05', name: '阿里云邮件', tags: ['邮件发送', '中国大陆'], desc: '邮箱验证码邮件发送。', outbound: false },
   { ref: 'REF.GL-V06', name: 'DeepSeek', tags: ['AI 模型', '中国大陆'], desc: '材料包一致性、完整性审查等 AI 能力。', outbound: false },
-  { ref: 'REF.GL-V07', name: 'Cloudflare Turnstile', tags: ['人机验证', '海外节点 · 数据出境'], desc: '登录与敏感操作时的人机验证，仅传输 IP 与请求信息。', outbound: true },
 ]
 
 const usageRows = [
@@ -169,13 +168,6 @@ const security = [
               </div>
               <p>{{ v.desc }}</p>
             </article>
-          </div>
-          <div class="legal-callout">
-            <span class="material-symbols-outlined">info</span>
-            <div>
-              <h4>数据出境说明</h4>
-              <p>依据《个人信息保护法》第三十八条，Cloudflare Turnstile 的人机验证涉及跨境传输。传输数据严格限定于人机验证所需的 IP 与请求信息，不含个人身份信息明文，不含用户上传的文档内容。</p>
-            </div>
           </div>
         </section>
 

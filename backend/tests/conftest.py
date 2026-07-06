@@ -98,12 +98,6 @@ async def _cleanup_before_test():
     await _cleanup_tables(db_mod.engine)
 
 
-@pytest.fixture(autouse=True)
-def _disable_turnstile(monkeypatch):
-    """测试环境禁用 Turnstile 人机验证（SECRET_KEY 置空 → 开发模式跳过）。"""
-    monkeypatch.setattr(settings, "turnstile_secret_key", "")
-
-
 @pytest.fixture
 def api_headers():
     return {"X-API-Key": "goulong-dev-key"}

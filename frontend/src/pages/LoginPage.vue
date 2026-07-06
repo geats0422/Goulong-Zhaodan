@@ -3,7 +3,6 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 import { useTheme } from '../composables/useTheme.js'
-import TurnstileWidget from '../components/auth/TurnstileWidget.vue'
 
 const { login, sendSmsCode, loginByCode } = useAuth()
 const router = useRouter()
@@ -19,7 +18,6 @@ const phone = ref('')
 const smsCode = ref('')
 const smsCountdown = ref(0)
 const smsSending = ref(false)
-const turnstileRef = ref(null)
 
 const showPassword = ref(false)
 const agreedToTerms = ref(false)
@@ -59,12 +57,11 @@ async function startSmsCountdown() {
   smsSending.value = true
   error.value = ''
   try {
-    await sendSmsCode(phone.value, 'login', turnstileRef.value?.token || '')
+    await sendSmsCode(phone.value, 'login')
     startCountdown()
   } catch (e) {
     error.value = e.message
   } finally {
-    turnstileRef.value?.reset?.()
     smsSending.value = false
   }
 }
@@ -210,8 +207,6 @@ function gotoRegister() {
               </button>
             </div>
           </label>
-
-          <TurnstileWidget ref="turnstileRef" />
 
           <button type="submit" class="primary-btn primary-btn-block" :disabled="!canSubmitSms">
             立即登录
