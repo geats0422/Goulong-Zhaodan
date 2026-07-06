@@ -63,7 +63,7 @@ async def security_headers_middleware(request: Request, call_next):
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: blob:; "
         "frame-src https://challenges.cloudflare.com; "
-        "connect-src 'self';"
+        "connect-src 'self' https://challenges.cloudflare.com;"
     )
     if request.url.scheme == "https":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
