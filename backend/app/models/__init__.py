@@ -15,7 +15,7 @@ from app.models.knowledge import (
     TabooWord,
     ZhaodanUserProfile,
 )
-from app.models.payment import PaymentOrder
+from app.models.payment import PaymentOrder, PaymentOrderEvent
 
 __all__ = [
     "AgentJob",
@@ -29,6 +29,7 @@ __all__ = [
     "InspectionRecord",
     "Membership",
     "PaymentOrder",
+    "PaymentOrderEvent",
     "RefreshToken",
     "SubscriptionContract",
     "User",

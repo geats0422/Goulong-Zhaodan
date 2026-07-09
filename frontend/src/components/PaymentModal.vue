@@ -88,6 +88,8 @@ function startPolling() {
         emit('paid', data)
       } else if (data.status === 'closed') {
         stopPolling()
+      } else if (data.status === 'failed') {
+        stopPolling()
       }
     } catch {
       // 轮询失败静默忽略
@@ -152,6 +154,11 @@ watch(() => props.productCode, () => initOrder(payMethod.value))
       <div v-else-if="status === 'closed'" class="closed-box">
         <span class="material-symbols-outlined">cancel</span>
         <p>订单已关闭</p>
+      </div>
+
+      <div v-else-if="status === 'failed'" class="closed-box">
+        <span class="material-symbols-outlined" style="color:#c62828;">error</span>
+        <p style="color:#c62828;">支付失败</p>
       </div>
 
       <div v-else-if="payMethod === 'alipay'" class="qr-section">

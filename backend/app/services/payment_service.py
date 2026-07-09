@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -10,12 +11,21 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models.payment import PaymentOrder
-from app.services.alipay_client import AlipayClient, get_alipay_client
+from app.models.payment import PaymentOrder, PaymentOrderEvent
+from app.services.alipay_client import AlipayClient, AlipayError, get_alipay_client
 from app.services.payment_catalog import get_product, is_addon
 from app.services.wechatpay_client import WechatPayClient, WechatPayError, get_wechatpay_client
 
+_logger = logging.getLogger(__name__)
+
 ORDER_EXPIRE_MINUTES = 30
+
+_ALLOWED_TRANSITIONS = {
+    ("pending", "paid"),
+    ("pending", "closed"),
+    ("pending", "failed"),
+    ("closed", "paid"),
+}
 
 
 def _generate_out_trade_no() -> str:
@@ -115,9 +125,11 @@ async def create_alipay_page_order(
 
 async def get_order_by_id(db: AsyncSession, order_id: uuid.UUID, user_id: uuid.UUID) -> PaymentOrder | None:
     result = await db.execute(
-        select(PaymentOrder).where(
+        select(PaymentOrder)
+        .where(
             PaymentOrder.id == order_id, PaymentOrder.user_id == user_id
         )
+        .with_for_update()
     )
     return result.scalar_one_or_none()
 
@@ -133,10 +145,14 @@ async def list_user_orders(db: AsyncSession, user_id: uuid.UUID, limit: int = 20
 
 
 async def sync_order_status(db: AsyncSession, order: PaymentOrder) -> PaymentOrder:
-    if order.status == "paid":
+    if order.status in ("paid", "closed", "failed"):
         return order
-    if order.payment_method != "wechat":
-        return order
+    if order.payment_method == "alipay":
+        return await _sync_alipay_order(db, order)
+    return await _sync_wechat_order(db, order)
+
+
+async def _sync_wechat_order(db: AsyncSession, order: PaymentOrder) -> PaymentOrder:
     client = get_wechatpay_client()
     try:
         result = await client.query_order(order.out_trade_no)
@@ -144,11 +160,26 @@ async def sync_order_status(db: AsyncSession, order: PaymentOrder) -> PaymentOrd
         return order
     trade_state = result.get("trade_state", "")
     if trade_state == "SUCCESS":
-        await _mark_paid(db, order, result.get("transaction_id"))
-    elif trade_state in ("CLOSED", "PAYERROR", "REVOKED"):
-        order.status = "closed"
-        await db.commit()
-        await db.refresh(order)
+        await _mark_paid(db, order, result.get("transaction_id"), event_type="sync_paid")
+    elif trade_state == "CLOSED":
+        await _transition_status(db, order, "closed", "sync_closed", trade_state)
+    elif trade_state in ("PAYERROR", "REVOKED"):
+        await _transition_status(db, order, "failed", "sync_failed", trade_state)
+    return order
+
+
+async def _sync_alipay_order(db: AsyncSession, order: PaymentOrder) -> PaymentOrder:
+    client = get_alipay_client()
+    try:
+        result = await client.query_order(order.out_trade_no)
+    except AlipayError:
+        _logger.warning("支付宝查单失败 order=%s", order.out_trade_no)
+        return order
+    trade_status = result.get("trade_status", "")
+    if trade_status in ("TRADE_SUCCESS", "TRADE_FINISHED"):
+        await _mark_paid(db, order, result.get("trade_no"), event_type="sync_paid")
+    elif trade_status == "TRADE_CLOSED":
+        await _transition_status(db, order, "closed", "sync_closed", trade_status)
     return order
 
 
@@ -159,7 +190,9 @@ async def handle_callback(
 ) -> bool:
     out_trade_no = decrypted.get("out_trade_no", "")
     result = await db.execute(
-        select(PaymentOrder).where(PaymentOrder.out_trade_no == out_trade_no)
+        select(PaymentOrder)
+        .where(PaymentOrder.out_trade_no == out_trade_no)
+        .with_for_update()
     )
     order = result.scalar_one_or_none()
     if order is None:
@@ -182,7 +215,9 @@ async def handle_alipay_callback(
 ) -> bool:
     out_trade_no = data.get("out_trade_no", "")
     result = await db.execute(
-        select(PaymentOrder).where(PaymentOrder.out_trade_no == out_trade_no)
+        select(PaymentOrder)
+        .where(PaymentOrder.out_trade_no == out_trade_no)
+        .with_for_update()
     )
     order = result.scalar_one_or_none()
     if order is None:
@@ -202,12 +237,49 @@ async def handle_alipay_callback(
     return False
 
 
+async def _transition_status(
+    db: AsyncSession,
+    order: PaymentOrder,
+    to_status: str,
+    event_type: str,
+    reason: str | None = None,
+) -> bool:
+    if order.status == to_status:
+        return True
+    if (order.status, to_status) not in _ALLOWED_TRANSITIONS:
+        _logger.warning(
+            "非法状态转换被拒绝: %s → %s order=%s",
+            order.status,
+            to_status,
+            order.out_trade_no,
+        )
+        return False
+    event = PaymentOrderEvent(
+        order_id=order.id,
+        from_status=order.status,
+        to_status=to_status,
+        event_type=event_type,
+        reason=reason,
+    )
+    db.add(event)
+    order.status = to_status
+    await db.commit()
+    await db.refresh(order)
+    return True
+
+
 async def _mark_paid(
     db: AsyncSession,
     order: PaymentOrder,
     transaction_id: str | None,
+    *,
+    event_type: str = "callback_paid",
 ) -> None:
-    order.status = "paid"
+    if order.status == "closed":
+        event_type = "callback_paid_late"
+    ok = await _transition_status(db, order, "paid", event_type)
+    if not ok:
+        return
     order.transaction_id = transaction_id
     order.paid_at = datetime.now(UTC)
     await _apply_quota(db, order)
@@ -217,8 +289,6 @@ async def _mark_paid(
 
 
 async def _send_payment_email(db: AsyncSession, order: PaymentOrder) -> None:
-    import logging
-
     try:
         from app.services import email_service
 
@@ -235,7 +305,7 @@ async def _send_payment_email(db: AsyncSession, order: PaymentOrder) -> None:
             expire_date="永久有效" if is_addon(order.product_code) else "订阅周期内有效",
         )
     except Exception:
-        logging.getLogger(__name__).warning("支付通知邮件发送失败 order=%s", order.out_trade_no)
+        _logger.warning("支付通知邮件发送失败 order=%s", order.out_trade_no)
 
 
 async def _apply_quota(db: AsyncSession, order: PaymentOrder) -> None:
@@ -291,3 +361,70 @@ def is_alipay_configured() -> bool:
         and settings.alipay_notify_url
         and settings.alipay_zhaodan_return_url
     )
+
+
+async def close_expired_orders(db: AsyncSession, now: datetime | None = None) -> dict[str, int]:
+    """关闭超时未支付的 pending 订单。"""
+    now = now or datetime.now(UTC)
+    result = await db.execute(
+        select(PaymentOrder)
+        .where(
+            PaymentOrder.status == "pending",
+            PaymentOrder.expires_at < now,
+        )
+    )
+    orders = list(result.scalars().all())
+
+    closed = 0
+    skipped = 0
+    paid_late = 0
+
+    for order in orders:
+        try:
+            paid = await _query_and_close_order(db, order)
+            if paid:
+                paid_late += 1
+            else:
+                closed += 1
+        except (WechatPayError, AlipayError) as e:
+            _logger.warning("定时关单查单异常，跳过 order=%s err=%s", order.out_trade_no, e)
+            skipped += 1
+
+    _logger.info(
+        "定时关单完成 closed=%d paid_late=%d skipped=%d total=%d",
+        closed, paid_late, skipped, len(orders),
+    )
+    return {"closed": closed, "paid_late": paid_late, "skipped": skipped, "total": len(orders)}
+
+
+async def _query_and_close_order(db: AsyncSession, order: PaymentOrder) -> bool:
+    """查单并关单。返回 True 表示已支付（补救发额度），False 表示已关单。"""
+    if order.payment_method == "alipay":
+        alipay_client = get_alipay_client()
+        result = await alipay_client.query_order(order.out_trade_no)
+        trade_status = result.get("trade_status", "")
+        if trade_status in ("TRADE_SUCCESS", "TRADE_FINISHED"):
+            await _mark_paid(db, order, result.get("trade_no"), event_type="sync_paid")
+            return True
+        if trade_status == "TRADE_CLOSED":
+            await _transition_status(db, order, "closed", "timeout_close", "alipay TRADE_CLOSED")
+            return False
+        await alipay_client.close_order(order.out_trade_no)
+        await _transition_status(db, order, "closed", "timeout_close")
+        return False
+
+    wechat_client = get_wechatpay_client()
+    result = await wechat_client.query_order(order.out_trade_no)
+    trade_state = result.get("trade_state", "")
+    if trade_state == "SUCCESS":
+        await _mark_paid(db, order, result.get("transaction_id"), event_type="sync_paid")
+        return True
+    if trade_state in ("PAYERROR", "REVOKED"):
+        await _transition_status(db, order, "failed", "sync_failed", trade_state)
+        return False
+    if trade_state == "CLOSED":
+        await _transition_status(db, order, "closed", "timeout_close", trade_state)
+        return False
+    await wechat_client.close_order(order.out_trade_no)
+    await _transition_status(db, order, "closed", "timeout_close")
+    return False

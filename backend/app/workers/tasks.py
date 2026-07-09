@@ -164,3 +164,11 @@ async def parse_document_task(ctx, job_id: str):
 
 async def knowledge_upload_task(ctx, job_id: str):
     await _execute_task(ctx, job_id, _run_knowledge_upload)
+
+
+async def close_expired_orders_task(ctx: dict) -> dict[str, int]:
+    """ARQ 定时任务：每 5 分钟关闭超时未支付的 pending 订单。"""
+    from app.services.payment_service import close_expired_orders
+
+    async with async_session() as db:
+        return await close_expired_orders(db)

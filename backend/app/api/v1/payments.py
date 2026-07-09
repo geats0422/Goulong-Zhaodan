@@ -193,7 +193,12 @@ async def wechatpay_notify(request: Request, db=Depends(get_db_session)) -> JSON
             content={"code": "FAIL", "message": "解密失败"},
         )
 
-    await payment_service.handle_callback(db, client, decrypted)
+    handled = await payment_service.handle_callback(db, client, decrypted)
+    if not handled:
+        import logging as _logging
+        _logging.getLogger(__name__).error(
+            "微信回调业务处理失败（订单不存在/状态不符）decrypted=%s", decrypted
+        )
     return JSONResponse(status_code=status.HTTP_200_OK, content={})
 
 
@@ -205,7 +210,12 @@ async def alipay_notify(request: Request, db=Depends(get_db_session)) -> PlainTe
     if not client.verify_notify(data):
         return PlainTextResponse("fail", status_code=status.HTTP_400_BAD_REQUEST)
     handled = await payment_service.handle_alipay_callback(db, client, data)
-    return PlainTextResponse("success" if handled else "fail")
+    if not handled:
+        import logging as _logging
+        _logging.getLogger(__name__).error(
+            "支付宝回调业务处理失败（订单不存在/金额不匹配）data=%s", data
+        )
+    return PlainTextResponse("success")
 
 
 async def _user_is_pro(db, user_id: uuid.UUID) -> bool:

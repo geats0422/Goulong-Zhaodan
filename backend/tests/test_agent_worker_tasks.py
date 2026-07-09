@@ -334,7 +334,10 @@ async def test_run_knowledge_upload_uses_existing_ingestion_handler():
     assert call_kwargs["file"].filename == "法规.pdf"
     assert call_kwargs["category"] == "general"
     assert call_kwargs["subcategory_name"] == "测试法规"
-    assert call_kwargs["user"] == {"user_id": "12345678-1234-1234-1234-123456789012"}
+    from app.core.auth import CurrentUserContext
+    assert call_kwargs["user"] == CurrentUserContext(
+        user_id=uuid.UUID("12345678-1234-1234-1234-123456789012")
+    )
 
 
 @pytest.mark.asyncio

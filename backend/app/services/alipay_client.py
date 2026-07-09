@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
 
+import httpx
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
@@ -130,6 +131,40 @@ class AlipayClient:
         except Exception:
             return False
         return True
+
+    async def query_order(self, out_trade_no: str) -> dict[str, Any]:
+        return await self._request("alipay.trade.query", {"out_trade_no": out_trade_no})
+
+    async def close_order(self, out_trade_no: str) -> None:
+        await self._request("alipay.trade.close", {"out_trade_no": out_trade_no})
+
+    async def _request(self, method: str, biz_content: dict[str, Any]) -> dict[str, Any]:
+        biz_json = json.dumps(biz_content, ensure_ascii=False, separators=(",", ":"))
+        params = {
+            "app_id": self._config.app_id,
+            "method": method,
+            "format": "JSON",
+            "charset": "utf-8",
+            "sign_type": self._config.sign_type,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "version": "1.0",
+            "biz_content": biz_json,
+        }
+        params["sign"] = self._sign(_canonicalize(params))
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(self._config.gateway_url, data=params)
+        body = resp.json()
+        resp_key = method.replace(".", "_") + "_response"
+        data = body.get(resp_key, {})
+        code = str(data.get("code", ""))
+        if code != "10000":
+            sub_code = data.get("sub_code", "")
+            sub_msg = data.get("sub_msg", "")
+            msg = data.get("msg", "")
+            raise AlipayError(
+                f"支付宝 {method} 失败: code={code} msg={msg} sub_code={sub_code} sub_msg={sub_msg}"
+            )
+        return data
 
     def _sign(self, message: str) -> str:
         signature = self._private_key.sign(
