@@ -86,6 +86,16 @@ class Settings(BaseSettings):
     wechatpay_papay_notify_url: str = ""
     wechatpay_papay_deduct_notify_url: str = ""
 
+    # 支付宝（电脑网站支付）
+    alipay_app_id: str = ""
+    alipay_seller_id: str = ""
+    alipay_gateway_url: str = "https://openapi.alipay.com/gateway.do"
+    alipay_sign_type: str = "RSA2"
+    alipay_private_key_path: str = ""
+    alipay_public_key_path: str = ""
+    alipay_notify_url: str = ""
+    alipay_zhaodan_return_url: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",         # 本地开发时若存在 .env 则读取（不提交到 git）
         env_file_encoding="utf-8",

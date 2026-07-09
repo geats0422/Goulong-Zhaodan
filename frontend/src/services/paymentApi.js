@@ -20,6 +20,16 @@ export async function createNativeOrder(productCode) {
   return resp.json()
 }
 
+export async function createAlipayPageOrder(productCode) {
+  const resp = await fetchWithAuth('/payment/alipay/page', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ product_code: productCode }),
+  })
+  if (!resp.ok) throw new Error((await parseErr(resp)).detail || '创建订单失败')
+  return resp.json()
+}
+
 export async function getOrderStatus(orderId) {
   const resp = await fetchWithAuth(`/payment/orders/${orderId}`)
   if (!resp.ok) throw new Error('查询订单失败')

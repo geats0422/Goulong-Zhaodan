@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -12,6 +12,7 @@ from app.core.database import get_db_session
 from app.core.deps import get_client_ip
 from goulong_auth.models import Membership
 from app.services import payment_service
+from app.services.alipay_client import AlipayError, get_alipay_client
 from app.services.wechatpay_client import WechatPayError, get_wechatpay_client
 
 router = APIRouter(prefix="/payment", tags=["支付"])
@@ -28,6 +29,19 @@ class NativeOrderResponse(BaseModel):
     product_name: str
     amount_cents: int
     code_url: str
+
+
+class AlipayPageOrderRequest(BaseModel):
+    product_code: str
+
+
+class AlipayPageOrderResponse(BaseModel):
+    order_id: uuid.UUID
+    out_trade_no: str
+    product_code: str
+    product_name: str
+    amount_cents: int
+    pay_url: str
 
 
 class PaymentOrderStatusResponse(BaseModel):
@@ -87,6 +101,36 @@ async def create_native_order(
         product_name=order.product_name,
         amount_cents=order.amount_cents,
         code_url=order.code_url or "",
+    )
+
+
+@router.post("/alipay/page", response_model=AlipayPageOrderResponse, status_code=status.HTTP_201_CREATED)
+async def create_alipay_page_order(
+    body: AlipayPageOrderRequest,
+    current_user: CurrentUserContext = Depends(get_current_user),
+    db=Depends(get_db_session),
+) -> AlipayPageOrderResponse:
+    user_id = current_user.user_id
+    try:
+        order, pay_url = await payment_service.create_alipay_page_order(
+            db,
+            user_id,
+            body.product_code,
+            is_pro=await _user_is_pro(db, user_id),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from None
+    except AlipayError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"支付宝下单失败: {e}"
+        ) from None
+    return AlipayPageOrderResponse(
+        order_id=order.id,
+        out_trade_no=order.out_trade_no,
+        product_code=order.product_code,
+        product_name=order.product_name,
+        amount_cents=order.amount_cents,
+        pay_url=pay_url,
     )
 
 
@@ -151,6 +195,17 @@ async def wechatpay_notify(request: Request, db=Depends(get_db_session)) -> JSON
 
     await payment_service.handle_callback(db, client, decrypted)
     return JSONResponse(status_code=status.HTTP_200_OK, content={})
+
+
+@router.post("/alipay/notify", response_class=PlainTextResponse)
+async def alipay_notify(request: Request, db=Depends(get_db_session)) -> PlainTextResponse:
+    form = await request.form()
+    data = {key: str(value) for key, value in form.items()}
+    client = get_alipay_client()
+    if not client.verify_notify(data):
+        return PlainTextResponse("fail", status_code=status.HTTP_400_BAD_REQUEST)
+    handled = await payment_service.handle_alipay_callback(db, client, data)
+    return PlainTextResponse("success" if handled else "fail")
 
 
 async def _user_is_pro(db, user_id: uuid.UUID) -> bool:

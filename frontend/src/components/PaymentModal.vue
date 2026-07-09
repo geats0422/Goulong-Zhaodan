@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
-import { createNativeOrder, getOrderStatus } from '../services/paymentApi.js'
+import { createAlipayPageOrder, createNativeOrder, getOrderStatus } from '../services/paymentApi.js'
 
 const props = defineProps({
   productCode: { type: String, required: true },
@@ -14,6 +14,8 @@ const error = ref('')
 const codeUrl = ref('')
 const orderId = ref(null)
 const status = ref('pending')
+const payMethod = ref('alipay')
+const alipayUrl = ref('')
 const qrContainer = ref(null)
 
 let pollTimer = null
@@ -44,16 +46,28 @@ function renderQr(url) {
   })
 }
 
-async function initOrder() {
+async function initOrder(method = payMethod.value) {
+  stopPolling()
   loading.value = true
   error.value = ''
+  codeUrl.value = ''
+  alipayUrl.value = ''
+  payMethod.value = method
   try {
-    const data = await createNativeOrder(props.productCode)
-    orderId.value = data.order_id
-    codeUrl.value = data.code_url
-    status.value = 'pending'
-    await loadQrScript()
-    renderQr(data.code_url)
+    if (method === 'wechat') {
+      const data = await createNativeOrder(props.productCode)
+      orderId.value = data.order_id
+      codeUrl.value = data.code_url
+      status.value = 'pending'
+      await loadQrScript()
+      renderQr(data.code_url)
+    } else {
+      const data = await createAlipayPageOrder(props.productCode)
+      orderId.value = data.order_id
+      alipayUrl.value = data.pay_url
+      status.value = 'pending'
+      window.open(data.pay_url, '_blank', 'noopener,noreferrer')
+    }
     startPolling()
   } catch (e) {
     error.value = e.message
@@ -88,6 +102,12 @@ function stopPolling() {
   }
 }
 
+function openAlipayCashier() {
+  if (alipayUrl.value) {
+    window.open(alipayUrl.value, '_blank', 'noopener,noreferrer')
+  }
+}
+
 onMounted(initOrder)
 onBeforeUnmount(() => {
   stopPolling()
@@ -96,7 +116,7 @@ onBeforeUnmount(() => {
   }
 })
 
-watch(() => props.productCode, initOrder)
+watch(() => props.productCode, () => initOrder(payMethod.value))
 </script>
 
 <template>
@@ -108,9 +128,14 @@ watch(() => props.productCode, initOrder)
 
       <header class="modal-header">
         <span class="modal-ref">REF.PAY-001</span>
-        <h2>微信扫码支付</h2>
+        <h2>选择支付方式</h2>
         <p class="modal-sub" v-if="productName">{{ productName }}<span v-if="amountLabel"> · {{ amountLabel }}</span></p>
       </header>
+
+      <div class="method-tabs">
+        <button :class="{ active: payMethod === 'alipay' }" @click="initOrder('alipay')">支付宝</button>
+        <button :class="{ active: payMethod === 'wechat' }" @click="initOrder('wechat')">微信</button>
+      </div>
 
       <div v-if="error" class="error-box">{{ error }}</div>
 
@@ -127,6 +152,16 @@ watch(() => props.productCode, initOrder)
       <div v-else-if="status === 'closed'" class="closed-box">
         <span class="material-symbols-outlined">cancel</span>
         <p>订单已关闭</p>
+      </div>
+
+      <div v-else-if="payMethod === 'alipay'" class="qr-section">
+        <span class="material-symbols-outlined alipay-icon">open_in_new</span>
+        <button class="alipay-btn" @click="openAlipayCashier">打开支付宝收银台</button>
+        <p class="qr-hint">支付后请返回本页，系统会自动确认到账</p>
+        <div class="status-row">
+          <span class="dot pulse"></span>
+          <span>等待支付…</span>
+        </div>
       </div>
 
       <div v-else class="qr-section">
@@ -203,6 +238,27 @@ watch(() => props.productCode, initOrder)
   color: #99907c;
 }
 
+.method-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.method-tabs button {
+  padding: 10px 12px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  background: transparent;
+  color: #99907c;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.method-tabs button.active {
+  background: #d4af37;
+  color: #121212;
+}
+
 .error-box {
   padding: 12px 16px;
   margin-bottom: 16px;
@@ -257,6 +313,20 @@ watch(() => props.productCode, initOrder)
 .qr-hint {
   font-size: 13px;
   color: #e5e2e1;
+}
+
+.alipay-icon {
+  font-size: 48px;
+  color: #1677ff;
+}
+
+.alipay-btn {
+  padding: 12px 18px;
+  border: 1px solid #1677ff;
+  background: #1677ff;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
 }
 
 .status-row {

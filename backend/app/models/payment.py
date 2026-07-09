@@ -22,6 +22,7 @@ class PaymentOrder(Base):
     product_code: Mapped[str] = mapped_column(String(50), nullable=False)
     product_name: Mapped[str] = mapped_column(String(100), nullable=False)
     product_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    payment_method: Mapped[str] = mapped_column(String(20), nullable=False, default="wechat")
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     token_quota: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")

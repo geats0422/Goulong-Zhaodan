@@ -3,6 +3,7 @@ from __future__ import annotations
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 from goulong_auth.models import Membership, User
 from sqlalchemy import select
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.payment import PaymentOrder
+from app.services.alipay_client import AlipayClient, get_alipay_client
 from app.services.payment_catalog import get_product, is_addon
 from app.services.wechatpay_client import WechatPayClient, WechatPayError, get_wechatpay_client
 
@@ -47,6 +49,7 @@ async def create_native_order(
         product_code=product.code,
         product_name=product.name,
         product_type=product.product_type,
+        payment_method="wechat",
         amount_cents=product.amount_cents,
         token_quota=product.token_quota,
         status="pending",
@@ -70,6 +73,46 @@ async def create_native_order(
     return order
 
 
+async def create_alipay_page_order(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    product_code: str,
+    *,
+    is_pro: bool = False,
+) -> tuple[PaymentOrder, str]:
+    product = get_product(product_code)
+    if product is None:
+        raise ValueError("不支持的支付产品")
+    if product.product_type == "addon" and not product.free_user_allowed and not is_pro:
+        raise ValueError("该产品仅 Pro 用户可购买")
+
+    out_trade_no = _generate_out_trade_no()
+    order = PaymentOrder(
+        user_id=user_id,
+        out_trade_no=out_trade_no,
+        product_code=product.code,
+        product_name=product.name,
+        product_type=product.product_type,
+        payment_method="alipay",
+        amount_cents=product.amount_cents,
+        token_quota=product.token_quota,
+        status="pending",
+        expires_at=datetime.now(UTC) + timedelta(minutes=ORDER_EXPIRE_MINUTES),
+    )
+    db.add(order)
+    await db.commit()
+    await db.refresh(order)
+
+    client = get_alipay_client()
+    pay_url = client.build_page_pay_url(
+        out_trade_no=out_trade_no,
+        subject=f"句龙·照胆 - {product.name}",
+        total_amount=Decimal(product.amount_cents) / Decimal(100),
+        passback_params=product.code,
+    )
+    return order, pay_url
+
+
 async def get_order_by_id(db: AsyncSession, order_id: uuid.UUID, user_id: uuid.UUID) -> PaymentOrder | None:
     result = await db.execute(
         select(PaymentOrder).where(
@@ -91,6 +134,8 @@ async def list_user_orders(db: AsyncSession, user_id: uuid.UUID, limit: int = 20
 
 async def sync_order_status(db: AsyncSession, order: PaymentOrder) -> PaymentOrder:
     if order.status == "paid":
+        return order
+    if order.payment_method != "wechat":
         return order
     client = get_wechatpay_client()
     try:
@@ -126,6 +171,33 @@ async def handle_callback(
     if trade_state == "SUCCESS":
         transaction_id = decrypted.get("transaction_id")
         await _mark_paid(db, order, transaction_id)
+        return True
+    return False
+
+
+async def handle_alipay_callback(
+    db: AsyncSession,
+    client: AlipayClient,
+    data: dict[str, str],
+) -> bool:
+    out_trade_no = data.get("out_trade_no", "")
+    result = await db.execute(
+        select(PaymentOrder).where(PaymentOrder.out_trade_no == out_trade_no)
+    )
+    order = result.scalar_one_or_none()
+    if order is None:
+        return False
+    if order.status == "paid":
+        return True
+    if data.get("app_id") != client.app_id:
+        return False
+    if client.seller_id and data.get("seller_id") != client.seller_id:
+        return False
+    total_amount = Decimal(data.get("total_amount", "0"))
+    if total_amount != Decimal(order.amount_cents) / Decimal(100):
+        return False
+    if data.get("trade_status") in {"TRADE_SUCCESS", "TRADE_FINISHED"}:
+        await _mark_paid(db, order, data.get("trade_no"))
         return True
     return False
 
@@ -208,4 +280,14 @@ def is_wechatpay_configured() -> bool:
         and settings.wechatpay_api_v3_key
         and settings.wechatpay_cert_serial_no
         and (settings.wechatpay_private_key_pem or settings.wechatpay_private_key_path)
+    )
+
+
+def is_alipay_configured() -> bool:
+    return bool(
+        settings.alipay_app_id
+        and settings.alipay_private_key_path
+        and settings.alipay_public_key_path
+        and settings.alipay_notify_url
+        and settings.alipay_zhaodan_return_url
     )
