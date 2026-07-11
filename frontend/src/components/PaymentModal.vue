@@ -22,6 +22,7 @@ let pollTimer = null
 let qrInstance = null
 
 const QR_CDN = 'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js'
+const QR_SIZE = 240
 
 function loadQrScript() {
   if (window.QRCode) return Promise.resolve()
@@ -39,8 +40,8 @@ function renderQr(url) {
   qrContainer.value.innerHTML = ''
   qrInstance = new window.QRCode(qrContainer.value, {
     text: url,
-    width: 200,
-    height: 200,
+    width: QR_SIZE,
+    height: QR_SIZE,
     colorDark: '#0A0A0A',
     colorLight: '#ffffff',
   })
@@ -196,11 +197,11 @@ watch(() => props.productCode, () => initOrder(payMethod.value))
 
 .payment-modal {
   position: relative;
-  width: min(420px, 90vw);
+  width: min(560px, 92vw);
   background: #121212;
   border: 1px solid rgba(212, 175, 55, 0.25);
   box-shadow: 0 0 60px rgba(212, 175, 55, 0.1);
-  padding: 32px 28px;
+  padding: 40px 44px;
 }
 
 .close-btn {
@@ -309,12 +310,19 @@ watch(() => props.productCode, () => initOrder(payMethod.value))
 }
 
 .qr-box {
+  width: 272px;
+  height: 272px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 16px;
   background: #fff;
 }
 
 .qr-box :deep(canvas), .qr-box :deep(img) {
   display: block;
+  width: 240px !important;
+  height: 240px !important;
 }
 
 .qr-hint {
@@ -323,7 +331,7 @@ watch(() => props.productCode, () => initOrder(payMethod.value))
 }
 
 .alipay-icon {
-  font-size: 48px;
+  font-size: 64px;
   color: #1677ff;
 }
 
