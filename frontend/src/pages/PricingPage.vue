@@ -12,6 +12,7 @@ const activeTab = ref('personal')
 const modalProduct = ref(null)
 
 const addons = [
+  { code: 'test_0_1', name: '支付测试包', price: '¥0.01', quota: '1万 Token', desc: '仅用于验证支付链路' },
   { code: 'light', name: '轻量包', price: '¥5', quota: '100万 Token', desc: '适合轻度试用与体验' },
   { code: 'standard', name: '标准包', price: '¥18', quota: '500万 Token', desc: '适合常规项目审查' },
   { code: 'large', name: '大额包', price: '¥58', quota: '2000万 Token', desc: '适合高频深度审查（仅 Pro 用户）' },

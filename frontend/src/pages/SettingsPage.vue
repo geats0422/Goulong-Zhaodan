@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
+import PaymentModal from '../components/PaymentModal.vue'
 import {
   API_KEY_SCOPES,
   MODEL_CATALOG,
@@ -58,12 +59,11 @@ const showRecoverConfirmPassword = ref(false)
 const recoverCodeCountdown = ref(0)
 let recoverCodeTimer = null
 
-const wechatBound = ref(false)
-const alipayBound = ref(false)
 const burnAfterRead = ref(true)
 
 const showUpgradeDialog = ref(false)
 const upgradingPlanKey = ref(null)
+const modalProduct = ref(null)
 
 const apiKeys = ref([])
 const secretCache = ref({})
@@ -104,8 +104,6 @@ async function loadSettings() {
     profile.value = data.profile
     knowledge.value = data.knowledge || []
     tabooWords.value = data.taboo_words || []
-    wechatBound.value = data.profile.has_wechat
-    alipayBound.value = data.profile.has_alipay
     burnAfterRead.value = data.profile.burn_after_read
     identityForm.value = {
       nickname: data.profile.nickname,
@@ -308,6 +306,23 @@ function openUpgradeDialog() {
 
 function closeUpgradeDialog() {
   showUpgradeDialog.value = false
+}
+
+function openPaymentModal(pack) {
+  modalProduct.value = {
+    code: pack.key,
+    name: pack.name,
+    price: pack.price,
+  }
+}
+
+function closePaymentModal() {
+  modalProduct.value = null
+}
+
+async function handlePaymentSuccess() {
+  modalProduct.value = null
+  await loadSettings()
 }
 
 function selectUpgradePlan(key) {
@@ -636,30 +651,6 @@ onMounted(() => {
           <p class="security-hint">激活后，所有会话结束立即清除内存残留痕迹，符合最高级保密标准。</p>
         </article>
 
-        <article class="settings-card">
-          <header>
-            <div class="card-header-main">
-              <span class="card-ref">REF.GL-004</span>
-              <h2>第三方账号绑定</h2>
-            </div>
-          </header>
-          <p class="security-hint">绑定后可使用快捷登录及系统订阅服务</p>
-          <div class="third-party-grid">
-            <div class="third-party-row">
-              <span class="material-symbols-outlined">chat</span>
-              <span class="third-party-name">微信绑定</span>
-              <span class="third-party-status">{{ wechatBound ? '已绑定' : '加载中...' }}</span>
-              <button class="ghost-btn" type="button" @click="wechatBound = !wechatBound">{{ wechatBound ? '解除绑定' : '立即绑定' }}</button>
-            </div>
-            <div class="third-party-row">
-              <span class="material-symbols-outlined">account_balance</span>
-              <span class="third-party-name">支付宝绑定</span>
-              <span class="third-party-status">{{ alipayBound ? '已绑定' : '加载中...' }}</span>
-              <button class="ghost-btn" type="button" @click="alipayBound = !alipayBound">{{ alipayBound ? '解除绑定' : '立即绑定' }}</button>
-            </div>
-          </div>
-        </article>
-
         <div v-if="showChangePasswordDialog" class="modal-overlay" @click.self="cancelChangePassword">
           <div class="modal-card modal-card-sm">
             <header class="modal-header">
@@ -789,7 +780,7 @@ onMounted(() => {
                 <span class="material-symbols-outlined">{{ f.ok ? 'check' : 'close' }}</span>{{ f.text }}
               </li>
             </ul>
-            <button class="ghost-btn ghost-btn-block" type="button" @click="message = `已记录购买意向：${pack.name}（支付即将上线）`">购买</button>
+            <button class="ghost-btn ghost-btn-block" type="button" @click="openPaymentModal(pack)">购买</button>
           </article>
         </div>
 
@@ -1037,6 +1028,15 @@ onMounted(() => {
         </article>
       </section>
     </main>
+
+    <PaymentModal
+      v-if="modalProduct"
+      :product-code="modalProduct.code"
+      :product-name="modalProduct.name"
+      :amount-label="modalProduct.price"
+      @paid="handlePaymentSuccess"
+      @close="closePaymentModal"
+    />
   </div>
 </template>
 
@@ -1111,12 +1111,6 @@ onMounted(() => {
 .switch-row { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px 16px; border: 1px solid rgba(155, 116, 22, 0.18); background: #1c1b1b; }
 .switch-label-text { color: #d0c5af; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; }
 .switch-track-wrap { display: inline-flex; align-items: center; }
-
-.third-party-grid { display: flex; flex-direction: column; gap: 12px; }
-.third-party-row { display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 16px; padding: 14px 16px; border: 1px solid rgba(155, 116, 22, 0.18); background: #1c1b1b; }
-.third-party-row .material-symbols-outlined { color: #f2ca50; }
-.third-party-name { color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; }
-.third-party-status { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 12px; }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
 .modal-card { background: #121212; border: 1px solid rgba(212, 175, 55, 0.3); border-radius: 0; max-width: 720px; width: 100%; max-height: 90vh; overflow: auto; }

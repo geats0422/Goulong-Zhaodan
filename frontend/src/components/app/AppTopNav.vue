@@ -150,8 +150,8 @@ onBeforeUnmount(() => {
               退出账号
             </button>
             <div class="account-menu-links">
-              <a href="/security.html" role="menuitem">隐私协议</a>
-              <a href="/pricing.html" role="menuitem">服务条款</a>
+              <a href="/privacy" role="menuitem">隐私政策</a>
+              <a href="/terms" role="menuitem">服务条款</a>
             </div>
           </div>
         </div>

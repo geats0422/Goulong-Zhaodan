@@ -1,19 +1,23 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AppTopNav from '../components/app/AppTopNav.vue'
 import InspectionReviewModal from '../components/inspection/InspectionReviewModal.vue'
 import { useAuth } from '../composables/useAuth.js'
 import { fetchInspectionRecords } from '../services/inspectionApi.js'
+import { getSettingsOverview } from '../services/settingsApi.js'
 
 const { currentUser } = useAuth()
+const router = useRouter()
 const username = computed(() => currentUser.value?.nickname || '用户')
 const fileInput = ref(null)
 const selectedFile = ref(null)
 const modalOpen = ref(false)
 const recentRecords = ref([])
+const activeKnowledgeTags = ref([])
 
-const rules = ['招投标法', '房建施工规范']
-const avoidRules = ['内部代号X7', '旧版公司名']
+const defaultKnowledgeTags = ['招投标法', '房建施工规范']
+const mountedKnowledgeTags = computed(() => activeKnowledgeTags.value.length ? activeKnowledgeTags.value : defaultKnowledgeTags)
 function riskText(risk, issueCount = 0) {
   if (risk === 'pending') return '等待审查'
   if (risk === 'low') return '纯净通过'
@@ -36,6 +40,32 @@ async function loadRecentRecords() {
   }))
 }
 
+async function loadKnowledgeMounts() {
+  try {
+    const data = await getSettingsOverview()
+    activeKnowledgeTags.value = (data.knowledge || [])
+      .flatMap(category => category.subcategories || [])
+      .flatMap(sub => sub.documents || [])
+      .filter(doc => doc.enabled)
+      .map(doc => doc.title)
+      .slice(0, 4)
+  } catch {
+    activeKnowledgeTags.value = []
+  }
+}
+
+function goToKnowledgeBase() {
+  router.push('/knowledge-base')
+}
+
+function goToHistory() {
+  router.push('/history')
+}
+
+function goToStatistics() {
+  router.push('/statistics')
+}
+
 function openFilePicker() {
   fileInput.value?.click()
 }
@@ -54,7 +84,10 @@ function handleModalClose() {
   loadRecentRecords()
 }
 
-onMounted(() => loadRecentRecords())
+onMounted(() => {
+  loadRecentRecords()
+  loadKnowledgeMounts()
+})
 </script>
 
 <template>
@@ -97,20 +130,18 @@ onMounted(() => loadRecentRecords())
           <div class="panel-accent"></div>
           <header class="panel-header">
             <span class="material-symbols-outlined">rule</span>
-            <h3>当前挂载标尺</h3>
+            <h3>当前启用知识库</h3>
           </header>
           <div class="panel-section">
-            <h4>层级索引树</h4>
+            <h4>审查依据</h4>
             <div class="tag-row">
-              <span v-for="rule in rules" :key="rule" class="tag">{{ rule }}</span>
-              <span class="tag tag-add"><span class="material-symbols-outlined">add</span>添加</span>
+              <span v-for="rule in mountedKnowledgeTags" :key="rule" class="tag">{{ rule }}</span>
+              <button class="tag tag-add" type="button" @click="goToKnowledgeBase"><span class="material-symbols-outlined">add</span>管理</button>
             </div>
           </div>
           <div class="panel-section">
-            <h4>负面规避清单</h4>
-            <div class="tag-row">
-              <span v-for="rule in avoidRules" :key="rule" class="tag tag-danger">{{ rule }}</span>
-            </div>
+            <h4>挂载策略</h4>
+            <p class="panel-note">优先使用用户已启用知识库；未配置时采用系统默认审查依据。</p>
           </div>
         </article>
 
@@ -121,7 +152,7 @@ onMounted(() => loadRecentRecords())
               <span class="material-symbols-outlined">history</span>
               <h3>近期体检记录</h3>
             </div>
-            <button class="panel-link" type="button" aria-label="查看全部">
+            <button class="panel-link" type="button" aria-label="查看全部" @click="goToHistory">
               <span class="material-symbols-outlined">arrow_forward</span>
             </button>
           </header>
@@ -141,21 +172,21 @@ onMounted(() => loadRecentRecords())
           <div class="lab-accent"></div>
           <header class="panel-header lab-header">
             <span class="material-symbols-outlined">science</span>
-            <h3>句龙实验室</h3>
+            <h3>数据统计</h3>
           </header>
           <div class="lab-content">
             <div>
-              <p class="lab-label">Experimental Feature</p>
-              <h4>项目统筹与架构生成引擎</h4>
+              <p class="lab-label">DATA INSIGHT</p>
+              <h4>审查记录与额度消耗看板</h4>
               <div class="engine-preview">
                 <div class="engine-glow"></div>
-                <span class="material-symbols-outlined">account_tree</span>
-                <span>[Mermaid Engine Rendering...]</span>
+                <span class="material-symbols-outlined">monitoring</span>
+                <span>基于真实体检记录生成趋势</span>
               </div>
             </div>
-            <button class="lab-button" type="button">
+            <button class="lab-button" type="button" @click="goToStatistics">
               <span class="material-symbols-outlined">input</span>
-              进入实验室
+              查看统计
             </button>
           </div>
         </article>
@@ -165,12 +196,12 @@ onMounted(() => loadRecentRecords())
     <footer class="dashboard-footer">
       <strong>句龙 · 照胆</strong>
       <div>
-        <a href="#">隐私政策</a>
-        <a href="#">服务条款</a>
-        <a href="#">技术文档</a>
-        <a href="#">安全白皮书</a>
+        <a href="/help">帮助中心</a>
+        <a href="/privacy">隐私政策</a>
+        <a href="/terms">服务条款</a>
+        <a href="/docs">技术文档</a>
       </div>
-      <span>© 2024 句龙 · 照胆. SECURED BY TIGER TALLY PROTOCOL</span>
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">杭州焕羽格致智能科技有限公司 · 浙ICP备2026045389号-1</a>
     </footer>
 
     <InspectionReviewModal

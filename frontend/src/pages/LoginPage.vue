@@ -251,23 +251,6 @@ function gotoRegister() {
           <span>登录即代表同意 <a href="#">《服务条款》</a> 与 <a href="#">《隐私政策》</a></span>
         </label>
 
-        <div class="oauth-divider"><span>使用以下方式快捷登录</span></div>
-
-        <div class="oauth-row" aria-hidden="true">
-          <button type="button" class="oauth-btn" disabled title="微信登录暂未上线">
-            <span class="material-symbols-outlined">chat</span>
-          </button>
-          <button type="button" class="oauth-btn" disabled title="QQ 登录暂未上线">
-            <span class="material-symbols-outlined">visibility</span>
-          </button>
-          <button type="button" class="oauth-btn" disabled title="GitHub 登录暂未上线">
-            <span class="material-symbols-outlined">code</span>
-          </button>
-          <button type="button" class="oauth-btn" disabled title="企业 SSO 暂未上线">
-            <span class="material-symbols-outlined">shield</span>
-          </button>
-        </div>
-
         <footer class="form-footer">
           还没有账号？<button type="button" class="link-btn" @click="gotoRegister">立即注册</button>
         </footer>
@@ -760,58 +743,6 @@ function gotoRegister() {
   color: #9b7416;
 }
 
-.oauth-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 24px 0 12px;
-  color: #66563a;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-}
-
-.oauth-divider::before,
-.oauth-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.3), transparent);
-}
-
-.login-page[data-theme="light"] .oauth-divider::before,
-.login-page[data-theme="light"] .oauth-divider::after {
-  background: linear-gradient(90deg, transparent, rgba(155, 116, 22, 0.3), transparent);
-}
-
-.oauth-row {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-}
-
-.oauth-btn {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(212, 175, 55, 0.2);
-  background: transparent;
-  color: #99907c;
-  cursor: not-allowed;
-  border-radius: 0.25rem;
-  opacity: 0.5;
-  transition: opacity 0.2s, color 0.2s, border-color 0.2s;
-}
-
-.login-page[data-theme="light"] .oauth-btn {
-  border-color: rgba(155, 116, 22, 0.28);
-  color: #66563a;
-}
-
-.oauth-btn .material-symbols-outlined {
-  font-size: 20px;
-}
-
 .form-footer {
   text-align: center;
   margin-top: 24px;
@@ -844,8 +775,6 @@ function gotoRegister() {
 .login-page[data-theme="light"] .field > span,
 .login-page[data-theme="light"] .terms-row,
 .login-page[data-theme="light"] .form-footer,
-.login-page[data-theme="light"] .oauth-divider,
-.login-page[data-theme="light"] .oauth-btn,
 .login-page[data-theme="light"] .tab-bar button {
   color: #66563a;
 }

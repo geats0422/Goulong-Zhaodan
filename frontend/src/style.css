@@ -419,9 +419,20 @@
   font-size: 12px;
 }
 
+button.tag {
+  cursor: pointer;
+}
+
 .tag-add {
   border-style: dashed;
   opacity: 0.6;
+}
+
+.panel-note {
+  margin: 0;
+  color: #99907c;
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .tag .material-symbols-outlined {
@@ -2796,30 +2807,6 @@ p {
   background: radial-gradient(circle at 50% 50%, rgba(65, 111, 178, 0.16), transparent 70%) !important;
 }
 
-[data-theme="light"] .binding-section {
-  border-top-color: rgba(155, 116, 22, 0.28) !important;
-}
-
-[data-theme="light"] .binding-chip {
-  border-color: rgba(155, 116, 22, 0.32) !important;
-  background: rgba(255, 250, 240, 0.9) !important;
-  color: #1f1a12 !important;
-}
-
-[data-theme="light"] .binding-chip.active {
-  border-color: rgba(155, 116, 22, 0.62) !important;
-  background: rgba(155, 116, 22, 0.12) !important;
-  box-shadow: inset 0 0 0 1px rgba(155, 116, 22, 0.08) !important;
-}
-
-[data-theme="light"] .binding-chip small {
-  color: #66563a !important;
-}
-
-[data-theme="light"] .binding-chip.active small {
-  color: #9b7416 !important;
-}
-
 [data-theme="light"] .statistics-header,
 [data-theme="light"] .analytics-panel header {
   border-color: rgba(155, 116, 22, 0.24) !important;
@@ -2998,12 +2985,6 @@ p {
 }
 
 [data-theme="light"] .masking-toggle {
-  border-color: rgba(155, 116, 22, 0.18);
-  background: rgba(255, 250, 240, 0.6);
-  color: #2a2010;
-}
-
-[data-theme="light"] .binding-chip {
   border-color: rgba(155, 116, 22, 0.18);
   background: rgba(255, 250, 240, 0.6);
   color: #2a2010;
@@ -3419,19 +3400,15 @@ html[data-theme="light"] .register-page .terms-row a {
   color: #9b7416;
 }
 
-html[data-theme="light"] .login-page .oauth-divider,
 html[data-theme="light"] .register-page .oauth-divider {
   color: #66563a;
 }
 
-html[data-theme="light"] .login-page .oauth-divider::before,
-html[data-theme="light"] .login-page .oauth-divider::after,
 html[data-theme="light"] .register-page .oauth-divider::before,
 html[data-theme="light"] .register-page .oauth-divider::after {
   background: linear-gradient(90deg, transparent, rgba(155, 116, 22, 0.4), transparent);
 }
 
-html[data-theme="light"] .login-page .oauth-btn,
 html[data-theme="light"] .register-page .oauth-btn {
   border-color: rgba(155, 116, 22, 0.4);
   color: #66563a;

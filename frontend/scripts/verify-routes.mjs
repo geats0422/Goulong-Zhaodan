@@ -77,8 +77,8 @@ if (!app.includes('<RouterView')) {
   throw new Error('App.vue must render RouterView')
 }
 
-if (!dashboard.includes('极速载入案卷') || !dashboard.includes('当前挂载标尺')) {
-  throw new Error('Dashboard page must contain Stitch dashboard sections')
+if (!dashboard.includes('极速载入案卷') || !dashboard.includes('当前启用知识库') || !dashboard.includes('数据统计')) {
+  throw new Error('Dashboard page must contain the current dashboard, knowledge base, and statistics sections')
 }
 
 if (!dashboard.includes('AppTopNav') || dashboard.includes('<nav class="dashboard-nav"')) {
@@ -173,7 +173,7 @@ if (!theme.includes('localStorage') || !theme.includes('matchMedia') || !theme.i
   throw new Error('Theme mode must persist preference, support system mode, and update document theme')
 }
 
-if (!appTopNav.includes('隐私协议') || !appTopNav.includes('服务条款')) {
+if (!appTopNav.includes('href="/privacy"') || !appTopNav.includes('href="/terms"')) {
   throw new Error('Account popover must include privacy and terms links')
 }
 
@@ -197,9 +197,6 @@ for (const selector of [
   '.citation-box',
   '.record-item',
   '.engine-preview',
-  '.binding-chip',
-  '.binding-chip small',
-  '.binding-chip.active small',
   '.stat-card',
   '.analytics-panel',
   '.quota-ring',
@@ -210,7 +207,7 @@ for (const selector of [
   }
 }
 
-if (!appTopNav.includes('account-menu') || !appTopNav.includes('切换账号') || !appTopNav.includes('退出账号') || !appTopNav.includes('隐私协议') || !appTopNav.includes('服务条款')) {
+if (!appTopNav.includes('account-menu') || !appTopNav.includes('切换账号') || !appTopNav.includes('退出账号') || !appTopNav.includes('href="/privacy"') || !appTopNav.includes('href="/terms"')) {
   throw new Error('AppTopNav avatar must open the account menu with required actions')
 }
 
