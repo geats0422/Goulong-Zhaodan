@@ -153,7 +153,14 @@ class AlipayClient:
         params["sign"] = self._sign(_canonicalize(params))
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(self._config.gateway_url, data=params)
-        body = resp.json()
+        try:
+            body = resp.json()
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            content_type = resp.headers.get("content-type", "")
+            raise AlipayError(
+                f"支付宝 {method} 响应解析失败: status={resp.status_code} "
+                f"content_type={content_type} err={exc}"
+            ) from exc
         resp_key = method.replace(".", "_") + "_response"
         data = body.get(resp_key, {})
         code = str(data.get("code", ""))
