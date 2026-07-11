@@ -14,7 +14,7 @@ const error = ref('')
 const codeUrl = ref('')
 const orderId = ref(null)
 const status = ref('pending')
-const payMethod = ref('alipay')
+const payMethod = ref('wechat')
 const alipayUrl = ref('')
 const qrContainer = ref(null)
 
@@ -135,8 +135,8 @@ watch(() => props.productCode, () => initOrder(payMethod.value))
       </header>
 
       <div class="method-tabs">
-        <button :class="{ active: payMethod === 'alipay' }" @click="initOrder('alipay')">支付宝</button>
         <button :class="{ active: payMethod === 'wechat' }" @click="initOrder('wechat')">微信</button>
+        <button :class="{ active: payMethod === 'alipay' }" @click="initOrder('alipay')">支付宝</button>
       </div>
 
       <div v-if="error" class="error-box">{{ error }}</div>

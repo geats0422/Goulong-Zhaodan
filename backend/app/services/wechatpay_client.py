@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -10,7 +11,7 @@ import httpx
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from app.core.config import settings
@@ -38,6 +39,8 @@ class WechatPayConfig:
     cert_serial_no: str
     private_key_pem: str
     notify_url: str
+    public_key_id: str = ""
+    public_key_pem: str = ""
     base_url: str = "https://api.mch.weixin.qq.com"
 
 
@@ -46,6 +49,10 @@ def _load_config() -> WechatPayConfig:
     if not pem and settings.wechatpay_private_key_path:
         with open(settings.wechatpay_private_key_path, encoding="utf-8") as f:
             pem = f.read()
+    public_key_pem = ""
+    if settings.wechatpay_public_key_path and os.path.exists(settings.wechatpay_public_key_path):
+        with open(settings.wechatpay_public_key_path, encoding="utf-8") as f:
+            public_key_pem = f.read()
     return WechatPayConfig(
         app_id=settings.wechatpay_app_id,
         mch_id=settings.wechatpay_mch_id,
@@ -53,6 +60,8 @@ def _load_config() -> WechatPayConfig:
         cert_serial_no=settings.wechatpay_cert_serial_no,
         private_key_pem=pem,
         notify_url=settings.wechatpay_notify_url,
+        public_key_id=settings.wechatpay_public_key_id,
+        public_key_pem=public_key_pem,
     )
 
 
@@ -66,6 +75,20 @@ class WechatPayClient:
             raise WechatPayError("商户 API 证书私钥必须是 RSA 密钥")
         self._private_key: RSAPrivateKey = key
         self._platform_certs: dict[str, _PlatformCert] = {}
+        self._wechatpay_public_key: _PlatformCert | None = None
+        if self._config.public_key_pem:
+            public_key = serialization.load_pem_public_key(
+                self._config.public_key_pem.encode()
+            )
+            if not isinstance(public_key, RSAPublicKey):
+                raise WechatPayError("微信支付公钥必须是 RSA 公钥")
+            self._wechatpay_public_key = _PlatformCert(
+                serial_no=self._config.public_key_id,
+                public_key=public_key,
+                pem=self._config.public_key_pem,
+            )
+            if self._config.public_key_id:
+                self._platform_certs[self._config.public_key_id] = self._wechatpay_public_key
         self._client = httpx.AsyncClient(timeout=30.0)
 
     def _generate_nonce(self) -> str:
@@ -193,7 +216,7 @@ class WechatPayClient:
         signature_b64: str,
         serial: str,
     ) -> bool:
-        cert = self._platform_certs.get(serial)
+        cert = self._platform_certs.get(serial) or self._wechatpay_public_key
         if cert is None:
             return False
         try:
@@ -217,6 +240,8 @@ class WechatPayClient:
 
     async def ensure_platform_cert(self, serial: str | None = None) -> None:
         if serial and serial in self._platform_certs:
+            return
+        if self._wechatpay_public_key is not None:
             return
         if not self._platform_certs:
             await self._download_platform_certs()

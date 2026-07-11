@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -16,6 +17,7 @@ from app.services.alipay_client import AlipayError, get_alipay_client
 from app.services.wechatpay_client import WechatPayError, get_wechatpay_client
 
 router = APIRouter(prefix="/payment", tags=["支付"])
+_logger = logging.getLogger(__name__)
 
 
 class NativeOrderRequest(BaseModel):
@@ -169,7 +171,14 @@ async def wechatpay_notify(request: Request, db=Depends(get_db_session)) -> JSON
     serial = request.headers.get("Wechatpay-Serial", "")
 
     client = get_wechatpay_client()
-    await client.ensure_platform_cert(serial)
+    try:
+        await client.ensure_platform_cert(serial)
+    except WechatPayError as exc:
+        _logger.warning("微信支付回调验签准备失败 serial=%s err=%s", serial, exc)
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"code": "FAIL", "message": "验签准备失败"},
+        )
 
     if not client.verify_callback(
         timestamp=timestamp,
@@ -178,6 +187,7 @@ async def wechatpay_notify(request: Request, db=Depends(get_db_session)) -> JSON
         signature_b64=signature,
         serial=serial,
     ):
+        _logger.warning("微信支付回调验签失败 serial=%s body_len=%d", serial, len(body_text))
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"code": "FAIL", "message": "验签失败"},
@@ -187,7 +197,8 @@ async def wechatpay_notify(request: Request, db=Depends(get_db_session)) -> JSON
         notification = json.loads(body_text)
         resource = notification.get("resource", {})
         decrypted = client.decrypt_callback(resource)
-    except Exception:
+    except Exception as exc:
+        _logger.warning("微信支付回调解密失败 serial=%s err=%s body_len=%d", serial, exc, len(body_text))
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"code": "FAIL", "message": "解密失败"},
@@ -195,8 +206,7 @@ async def wechatpay_notify(request: Request, db=Depends(get_db_session)) -> JSON
 
     handled = await payment_service.handle_callback(db, client, decrypted)
     if not handled:
-        import logging as _logging
-        _logging.getLogger(__name__).error(
+        _logger.error(
             "微信回调业务处理失败（订单不存在/状态不符）decrypted=%s", decrypted
         )
     return JSONResponse(status_code=status.HTTP_200_OK, content={})

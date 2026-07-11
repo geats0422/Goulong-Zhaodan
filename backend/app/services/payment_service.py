@@ -70,13 +70,17 @@ async def create_native_order(
     await db.refresh(order)
 
     client = get_wechatpay_client()
-    code_url = await client.create_native_order(
-        out_trade_no=out_trade_no,
-        description=f"句龙·照胆 - {product.name}",
-        amount_cents=product.amount_cents,
-        client_ip=_client_ip_or_default(client_ip),
-        attach=product.code,
-    )
+    try:
+        code_url = await client.create_native_order(
+            out_trade_no=out_trade_no,
+            description=f"句龙·照胆 - {product.name}",
+            amount_cents=product.amount_cents,
+            client_ip=_client_ip_or_default(client_ip),
+            attach=product.code,
+        )
+    except WechatPayError as exc:
+        await _transition_status(db, order, "failed", "create_failed", exc.code or str(exc))
+        raise
     order.code_url = code_url
     await db.commit()
     await db.refresh(order)
@@ -141,7 +145,11 @@ async def list_user_orders(db: AsyncSession, user_id: uuid.UUID, limit: int = 20
         .order_by(PaymentOrder.created_at.desc())
         .limit(limit)
     )
-    return list(result.scalars().all())
+    orders = list(result.scalars().all())
+    for order in orders:
+        if order.status == "pending":
+            await sync_order_status(db, order)
+    return orders
 
 
 async def sync_order_status(db: AsyncSession, order: PaymentOrder) -> PaymentOrder:
@@ -153,12 +161,23 @@ async def sync_order_status(db: AsyncSession, order: PaymentOrder) -> PaymentOrd
 
 
 async def _sync_wechat_order(db: AsyncSession, order: PaymentOrder) -> PaymentOrder:
+    if not order.code_url:
+        await _transition_status(db, order, "failed", "sync_failed", "missing_code_url")
+        return order
     client = get_wechatpay_client()
     try:
         result = await client.query_order(order.out_trade_no)
-    except WechatPayError:
+    except WechatPayError as exc:
+        _logger.warning(
+            "微信支付查单失败 order=%s code=%s status=%s err=%s",
+            order.out_trade_no,
+            exc.code,
+            exc.status_code,
+            exc,
+        )
         return order
     trade_state = result.get("trade_state", "")
+    _logger.info("微信支付查单结果 order=%s state=%s", order.out_trade_no, trade_state)
     if trade_state == "SUCCESS":
         await _mark_paid(db, order, result.get("transaction_id"), event_type="sync_paid")
     elif trade_state == "CLOSED":

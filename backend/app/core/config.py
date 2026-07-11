@@ -78,6 +78,8 @@ class Settings(BaseSettings):
     wechatpay_cert_serial_no: str = ""
     wechatpay_private_key_pem: str = ""
     wechatpay_private_key_path: str = ""
+    wechatpay_public_key_id: str = ""
+    wechatpay_public_key_path: str = ""
     wechatpay_notify_url: str = ""
 
     # 微信支付（APIv2 / 委托代扣）
