@@ -34,6 +34,20 @@ export async function updatePassword(payload) {
   }))
 }
 
+export async function sendPasswordRecoverCode() {
+  return parseResponse(await fetchWithAuth('/settings/password/recover/code', {
+    method: 'POST',
+  }))
+}
+
+export async function recoverPassword(payload) {
+  return parseResponse(await fetchWithAuth('/settings/password/recover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }))
+}
+
 export async function updateKnowledgeDocument(documentId, enabled) {
   return parseResponse(await fetchWithAuth(`/settings/knowledge/documents/${documentId}`, {
     method: 'PATCH',

@@ -194,6 +194,64 @@ async def test_update_password_rejects_weak(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_send_password_recover_code_uses_current_user_phone(client: AsyncClient, monkeypatch):
+    headers = await register_and_auth(client, "recover_code_user")
+    await client.patch("/settings/profile", headers=headers, json={"phone": "13800138000"})
+
+    from app.api.v1 import settings as settings_api
+
+    async def fake_send_code(phone: str, *args, **kwargs):
+        assert phone == "13800138000"
+        assert kwargs["scene"] == "forgot_password"
+        return "123456", 300
+
+    monkeypatch.setattr(settings_api.sms_service, "send_code", fake_send_code)
+
+    resp = await client.post("/settings/password/recover/code", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"sent": True, "expires_in": 300}
+
+
+@pytest.mark.asyncio
+async def test_recover_password_with_sms_code(client: AsyncClient, monkeypatch):
+    headers = await register_and_auth(client, "recover_user", "OldPass123")
+    await client.patch("/settings/profile", headers=headers, json={"phone": "13800138001"})
+
+    from app.api.v1 import settings as settings_api
+
+    async def fake_verify_code(phone: str, code: str):
+        assert phone == "13800138001"
+        assert code == "123456"
+        return True
+
+    monkeypatch.setattr(settings_api.sms_service, "verify_code", fake_verify_code)
+
+    resp = await client.post(
+        "/settings/password/recover",
+        headers=headers,
+        json={"phone_code": "123456", "new_password": "NewPass456"},
+    )
+
+    assert resp.status_code == 200
+    assert (await client.post("/auth/login", json={"email": "recover_user@test.com", "password": "OldPass123"})).status_code == 401
+    assert (await client.post("/auth/login", json={"email": "recover_user@test.com", "password": "NewPass456"})).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_recover_password_requires_bound_phone(client: AsyncClient):
+    headers = await register_and_auth(client, "recover_no_phone")
+
+    resp = await client.post(
+        "/settings/password/recover",
+        headers=headers,
+        json={"phone_code": "123456", "new_password": "NewPass456"},
+    )
+
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_toggle_knowledge_document_is_user_scoped(client: AsyncClient):
     doc_id = await create_document("可切换文档")
     user_a = await register_and_auth(client, "knowledge_a")

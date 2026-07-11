@@ -15,7 +15,9 @@ import {
   getApiKeySecret,
   getSettingsOverview,
   listApiKeys,
+  recoverPassword,
   revokeApiKey,
+  sendPasswordRecoverCode,
   updateKnowledgeDocument,
   updatePassword,
   updateProfile,
@@ -48,6 +50,13 @@ const passwordError = ref('')
 const showOldPassword = ref(false)
 const showNewPassword = ref(false)
 const showConfirmPassword = ref(false)
+const showRecoverPasswordDialog = ref(false)
+const recoverPasswordForm = ref({ phone_code: '', new_password: '', confirm_new_password: '' })
+const recoverPasswordError = ref('')
+const showRecoverNewPassword = ref(false)
+const showRecoverConfirmPassword = ref(false)
+const recoverCodeCountdown = ref(0)
+let recoverCodeTimer = null
 
 const wechatBound = ref(false)
 const alipayBound = ref(false)
@@ -170,6 +179,77 @@ function openChangePasswordDialog() {
 
 function cancelChangePassword() {
   showChangePasswordDialog.value = false
+}
+
+function openRecoverPasswordDialog() {
+  recoverPasswordForm.value = { phone_code: '', new_password: '', confirm_new_password: '' }
+  recoverPasswordError.value = ''
+  showRecoverNewPassword.value = false
+  showRecoverConfirmPassword.value = false
+  recoverCodeCountdown.value = 0
+  if (recoverCodeTimer) {
+    clearInterval(recoverCodeTimer)
+    recoverCodeTimer = null
+  }
+  showRecoverPasswordDialog.value = true
+}
+
+function cancelRecoverPassword() {
+  showRecoverPasswordDialog.value = false
+}
+
+function startRecoverCodeCountdown(seconds = 60) {
+  if (recoverCodeTimer) clearInterval(recoverCodeTimer)
+  recoverCodeCountdown.value = seconds
+  recoverCodeTimer = setInterval(() => {
+    recoverCodeCountdown.value -= 1
+    if (recoverCodeCountdown.value <= 0) {
+      clearInterval(recoverCodeTimer)
+      recoverCodeTimer = null
+      recoverCodeCountdown.value = 0
+    }
+  }, 1000)
+}
+
+async function sendRecoverPasswordCode() {
+  if (recoverCodeCountdown.value > 0) return
+  recoverPasswordError.value = ''
+  saving.value = true
+  try {
+    const result = await sendPasswordRecoverCode()
+    startRecoverCodeCountdown(result?.expires_in && result.expires_in < 60 ? result.expires_in : 60)
+    message.value = '验证码已发送'
+  } catch (err) {
+    recoverPasswordError.value = err.message
+  } finally {
+    saving.value = false
+  }
+}
+
+async function submitRecoverPassword() {
+  if (!/^\d{6}$/.test(recoverPasswordForm.value.phone_code)) {
+    recoverPasswordError.value = '验证码必须为 6 位数字'
+    return
+  }
+  if (recoverPasswordForm.value.new_password !== recoverPasswordForm.value.confirm_new_password) {
+    recoverPasswordError.value = '两次输入的新密码不一致'
+    return
+  }
+  saving.value = true
+  recoverPasswordError.value = ''
+  try {
+    await recoverPassword({
+      phone_code: recoverPasswordForm.value.phone_code,
+      new_password: recoverPasswordForm.value.new_password,
+    })
+    showRecoverPasswordDialog.value = false
+    message.value = '密码已重设，请重新登录'
+    setTimeout(() => { window.location.href = '/login' }, 1500)
+  } catch (err) {
+    recoverPasswordError.value = err.message
+  } finally {
+    saving.value = false
+  }
 }
 
 async function submitChangePassword() {
@@ -533,7 +613,10 @@ onMounted(() => {
           <div class="account-status-row">
             <span class="identity-label">登录密码</span>
             <span class="identity-value">••••••••</span>
-            <button class="ghost-btn" type="button" @click="openChangePasswordDialog">更改密码</button>
+            <div class="password-action-group">
+              <button class="ghost-btn" type="button" @click="openRecoverPasswordDialog">忘记密码</button>
+              <button class="ghost-btn" type="button" @click="openChangePasswordDialog">更改密码</button>
+            </div>
           </div>
           <p class="security-hint">用于登录验证、敏感操作的二次确认</p>
         </article>
@@ -619,6 +702,55 @@ onMounted(() => {
             <footer class="modal-footer">
               <button class="ghost-btn" type="button" @click="cancelChangePassword">取消</button>
               <button class="primary-btn" type="button" :disabled="saving" @click="submitChangePassword">确认修改</button>
+            </footer>
+          </div>
+        </div>
+
+        <div v-if="showRecoverPasswordDialog" class="modal-overlay" @click.self="cancelRecoverPassword">
+          <div class="modal-card modal-card-sm">
+            <header class="modal-header">
+              <div>
+                <h3>短信验证重设密码</h3>
+                <p class="modal-subtitle">验证码将发送至已绑定手机号 {{ profile.phone || '—' }}</p>
+              </div>
+              <button class="icon-btn" type="button" @click="cancelRecoverPassword">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </header>
+            <div class="modal-body">
+              <label class="form-row">
+                <span>验证码</span>
+                <div class="code-input-row">
+                  <input v-model="recoverPasswordForm.phone_code" class="form-input" placeholder="请输入短信验证码" maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
+                  <button class="ghost-btn code-btn" type="button" :disabled="saving || recoverCodeCountdown > 0" @click="sendRecoverPasswordCode">
+                    {{ recoverCodeCountdown > 0 ? `${recoverCodeCountdown}s` : (saving ? '发送中...' : '获取验证码') }}
+                  </button>
+                </div>
+              </label>
+              <label class="form-row">
+                <span>新密码</span>
+                <div class="password-input-wrap">
+                  <input v-model="recoverPasswordForm.new_password" :type="showRecoverNewPassword ? 'text' : 'password'" class="form-input" placeholder="设置新密码" minlength="6" />
+                  <button type="button" class="password-toggle" @click="showRecoverNewPassword = !showRecoverNewPassword">
+                    <span class="material-symbols-outlined">{{ showRecoverNewPassword ? 'visibility_off' : 'visibility' }}</span>
+                  </button>
+                </div>
+                <small class="form-hint">至少 6 位，需包含大小写字母和数字</small>
+              </label>
+              <label class="form-row">
+                <span>确认新密码</span>
+                <div class="password-input-wrap">
+                  <input v-model="recoverPasswordForm.confirm_new_password" :type="showRecoverConfirmPassword ? 'text' : 'password'" class="form-input" placeholder="再次输入新密码" />
+                  <button type="button" class="password-toggle" @click="showRecoverConfirmPassword = !showRecoverConfirmPassword">
+                    <span class="material-symbols-outlined">{{ showRecoverConfirmPassword ? 'visibility_off' : 'visibility' }}</span>
+                  </button>
+                </div>
+              </label>
+              <p v-if="recoverPasswordError" class="form-error">{{ recoverPasswordError }}</p>
+            </div>
+            <footer class="modal-footer">
+              <button class="ghost-btn" type="button" @click="cancelRecoverPassword">取消</button>
+              <button class="primary-btn" type="button" :disabled="saving" @click="submitRecoverPassword">确认重设</button>
             </footer>
           </div>
         </div>
@@ -953,6 +1085,7 @@ onMounted(() => {
 .account-status-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; margin-bottom: 12px; }
 .account-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px rgba(52, 211, 153, 0.5); }
 .account-status-label { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 12px; }
+.password-action-group { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }
 
 .identity-grid { display: grid; gap: 16px; }
 .identity-row { display: grid; grid-template-columns: 140px 1fr auto; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(155, 116, 22, 0.15); }
@@ -1019,6 +1152,10 @@ onMounted(() => {
 .option-badge { padding: 1px 8px; border: 1px solid rgba(212, 175, 55, 0.4); color: #d4af37; font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.06em; }
 .form-error { color: #ffb4ab; font-size: 13px; margin: 8px 0 0; padding: 8px 12px; border: 1px solid rgba(255, 180, 171, 0.3); background: rgba(255, 180, 171, 0.05); }
 .form-actions { display: flex; gap: 12px; margin-top: 12px; }
+.code-input-row { display: flex; align-items: center; gap: 10px; }
+.code-input-row .form-input { flex: 1; }
+.code-btn { min-width: 104px; white-space: nowrap; }
+.code-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .password-input-wrap { position: relative; }
 .password-input-wrap .form-input { padding-right: 42px; }

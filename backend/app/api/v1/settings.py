@@ -18,6 +18,7 @@ from app.core.constants import ENGINEERING_CATEGORIES
 from app.core.database import get_db_session
 from app.core.password_rules import validate_password
 from app.core.pii_masking import mask_email, mask_phone
+from app.services import sms_service
 from goulong_auth.models import Membership, User
 from app.models.knowledge import (
     EngineeringSubcategory,
@@ -172,6 +173,26 @@ class ProfileUpdateRequest(BaseModel):
 class PasswordUpdateRequest(BaseModel):
     old_password: str
     new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        errors = validate_password(value)
+        if errors:
+            raise ValueError("; ".join(errors))
+        return value
+
+
+class PasswordRecoverRequest(BaseModel):
+    phone_code: str
+    new_password: str
+
+    @field_validator("phone_code")
+    @classmethod
+    def validate_phone_code(cls, value: str) -> str:
+        if not re.match(r"^\d{6}$", value):
+            raise ValueError("验证码必须为 6 位数字")
+        return value
 
     @field_validator("new_password")
     @classmethod
@@ -422,6 +443,45 @@ async def update_password(
     db_user = await _get_user(db, user_id)
     if not verify_password(body.old_password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="旧密码错误")
+
+    db_user.hashed_password = hash_password(body.new_password)
+    await revoke_all_refresh_tokens(db, user_id)
+    await db.commit()
+    return {"success": True}
+
+
+@router.post("/password/recover/code")
+async def send_password_recover_code(
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
+) -> dict[str, int | bool]:
+    user_id = _current_user_id(user)
+    db_user = await _get_user(db, user_id)
+    if not db_user.phone:
+        raise HTTPException(status_code=400, detail="当前账号未绑定手机号，无法通过短信找回密码")
+    try:
+        _, expires_in = await sms_service.send_code(db_user.phone, scene="forgot_password")
+    except sms_service.SmsInvalidPhoneError:
+        raise HTTPException(status_code=400, detail="手机号格式错误") from None
+    except sms_service.SmsRateLimitError:
+        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试") from None
+    except sms_service.SmsSendError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from None
+    return {"sent": True, "expires_in": expires_in}
+
+
+@router.post("/password/recover")
+async def recover_password(
+    body: PasswordRecoverRequest,
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
+) -> dict[str, bool]:
+    user_id = _current_user_id(user)
+    db_user = await _get_user(db, user_id)
+    if not db_user.phone:
+        raise HTTPException(status_code=400, detail="当前账号未绑定手机号，无法通过短信找回密码")
+    if not await sms_service.verify_code(db_user.phone, body.phone_code):
+        raise HTTPException(status_code=401, detail="验证码错误或已过期")
 
     db_user.hashed_password = hash_password(body.new_password)
     await revoke_all_refresh_tokens(db, user_id)
