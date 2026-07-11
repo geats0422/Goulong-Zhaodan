@@ -29,8 +29,7 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# OpenCode
-.opencode/
+# OpenCode（项目级规则走版本控制；运行时临时件和依赖仍忽略）
 .opencode/.tmp/
 .opencode/node_modules/
 
