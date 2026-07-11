@@ -814,10 +814,6 @@ onMounted(() => {
               <p class="billing-tier-hint">{{ profile.subscription_plan === 'free' ? '当前为免费体验等级，未购买任何付费方案。' : `当前为${profile.subscription_label}（${profile.subscription_price}${profile.subscription_period}），可通过下方算力包扩展配额。` }}</p>
             </div>
             <div class="billing-tier-actions">
-              <button class="ghost-btn" type="button" @click="openHistory">
-                <span class="material-symbols-outlined">history</span>
-                查看历史订单
-              </button>
               <button v-if="profile.subscription_plan === 'free'" class="primary-btn" type="button" @click="openUpgradeDialog">立即升级</button>
             </div>
           </div>
@@ -831,6 +827,12 @@ onMounted(() => {
             </div>
           </div>
         </article>
+
+        <h3 class="section-title"><span class="material-symbols-outlined">receipt_long</span>订单历史</h3>
+        <button class="ghost-btn history-trigger" type="button" @click="openHistory">
+          <span class="material-symbols-outlined">history</span>
+          查看历史订单
+        </button>
 
         <h3 class="section-title"><span class="material-symbols-outlined">bolt</span>算力补充包</h3>
         <div class="power-pack-grid">
@@ -1239,6 +1241,7 @@ onMounted(() => {
 .history-status.is-failed { color: #c62828; }
 .history-status.is-closed { color: #99907c; }
 .history-time { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 11px; }
+.history-trigger { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 16px; }
 .modal-security-hint { display: inline-flex; align-items: center; gap: 6px; color: #99907c; font-size: 12px; margin-right: auto; }
 .modal-security-hint .material-symbols-outlined { font-size: 14px; color: #34d399; }
 .modal-link { color: #d4af37; text-decoration: none; font-family: "Hanken Grotesk", sans-serif; font-size: 13px; }
