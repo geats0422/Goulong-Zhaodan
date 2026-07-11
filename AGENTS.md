@@ -40,6 +40,20 @@ This is a monorepo containing a frontend and backend. Agentic coding tools shoul
 - Run targeted tests for behavior changes
 - Run full test suite for structural changes
 
+## Deployment & credential guardrails (2026-07-11 沉淀)
+
+Any change to `.env`, `config.py`, `docker-compose.yml`, `Dockerfile`, or `nginx.conf` must pass three-step verification before claiming completion:
+
+1. **Static check**: `docker compose config`, `nginx -t`, or `python -c "from app.core.config import settings"`.
+2. **Readback check**: verify the key was actually loaded (`dotenv_values()` / `os.environ` / `docker compose exec ... env`).
+3. **Live call check**: actually invoke the endpoint (`curl` / real API call), and wait for `docker compose ps` to show `(healthy)` — not just `started`.
+
+### False-success traps
+
+1. `git push` succeeded ≠ remote updated → sandbox and user's machine are independent environments; ask user to `git pull --ff-only` before proceeding.
+2. `commit` succeeded ≠ deployed → `docker compose build && up -d` required to enter container.
+3. Container `started` ≠ healthy → wait for `(healthy)` in `docker compose ps`.
+
 ## Agent Guidance
 - Prefer improving shared abstractions over copying logic.
 - Search for existing components/composables/constants before creating new ones.
