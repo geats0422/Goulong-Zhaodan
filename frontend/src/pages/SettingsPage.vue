@@ -24,6 +24,7 @@ import {
   updateProfile,
   updateTabooWord,
 } from '../services/settingsApi.js'
+import { listOrders } from '../services/paymentApi.js'
 
 const activeTab = ref('system')
 const tabs = [
@@ -58,6 +59,22 @@ const showRecoverNewPassword = ref(false)
 const showRecoverConfirmPassword = ref(false)
 const recoverCodeCountdown = ref(0)
 let recoverCodeTimer = null
+
+const showHistoryDialog = ref(false)
+const historyOrders = ref([])
+const historyLoading = ref(false)
+const historyError = ref('')
+
+const ORDER_STATUS_LABELS = {
+  pending: '待支付',
+  paid: '已支付',
+  closed: '已关闭',
+  failed: '支付失败',
+}
+const ORDER_METHOD_LABELS = {
+  wechat: '微信',
+  alipay: '支付宝',
+}
 
 const burnAfterRead = ref(true)
 
@@ -314,6 +331,46 @@ function openPaymentModal(pack) {
     name: pack.name,
     price: pack.price,
   }
+}
+
+async function openHistory() {
+  showHistoryDialog.value = true
+  historyError.value = ''
+  historyLoading.value = true
+  try {
+    const data = await listOrders()
+    historyOrders.value = Array.isArray(data) ? data : []
+  } catch (err) {
+    historyError.value = err instanceof Error ? err.message : '历史订单加载失败'
+    historyOrders.value = []
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+function closeHistory() {
+  showHistoryDialog.value = false
+}
+
+function historyAmount(order) {
+  const cents = order?.amount_cents
+  const yuan = typeof cents === 'number' ? cents / 100 : 0
+  return `¥${yuan.toFixed(2)}`
+}
+
+function historyDate(value) {
+  if (!value) return '--'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '--'
+  return d.toLocaleString('zh-CN', { hour12: false })
+}
+
+function historyStatusLabel(status) {
+  return ORDER_STATUS_LABELS[status] || status || '--'
+}
+
+function historyMethodLabel(method) {
+  return ORDER_METHOD_LABELS[method] || method || '--'
 }
 
 function closePaymentModal() {
@@ -745,6 +802,45 @@ onMounted(() => {
             </footer>
           </div>
         </div>
+
+        <div v-if="showHistoryDialog" class="modal-overlay" @click.self="closeHistory">
+          <div class="modal-card modal-card-md history-modal">
+            <header class="modal-header">
+              <div>
+                <span class="card-ref">REF.HIS-001</span>
+                <h3>历史订单</h3>
+                <p class="modal-subtitle">包含算力包与订阅相关订单</p>
+              </div>
+              <button class="icon-btn" type="button" @click="closeHistory">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </header>
+            <div class="modal-body">
+              <div v-if="historyLoading" class="modal-empty">正在加载历史订单...</div>
+              <div v-else-if="historyError" class="form-error">{{ historyError }}</div>
+              <div v-else-if="historyOrders.length === 0" class="modal-empty">暂无历史订单</div>
+              <div v-else class="history-list">
+                <article v-for="order in historyOrders" :key="order.id" class="history-row">
+                  <div class="history-row-main">
+                    <div class="history-name">{{ order.product_name || order.product_code || '订单' }} · {{ historyAmount(order) }}</div>
+                    <div class="history-meta">
+                      <span>{{ historyMethodLabel(order.payment_method) }}</span>
+                      <span>·</span>
+                      <span>{{ order.token_quota || 0 }} Tokens</span>
+                    </div>
+                  </div>
+                  <div class="history-row-side">
+                    <span class="history-status" :class="`is-${order.status}`">{{ historyStatusLabel(order.status) }}</span>
+                    <div class="history-time">{{ historyDate(order.created_at) }}</div>
+                  </div>
+                </article>
+              </div>
+            </div>
+            <footer class="modal-footer">
+              <button class="ghost-btn" type="button" @click="closeHistory">关闭</button>
+            </footer>
+          </div>
+        </div>
       </section>
 
       <section v-else-if="!loading && profile && activeTab === 'billing'" class="settings-content billing-settings">
@@ -755,7 +851,13 @@ onMounted(() => {
               <h2>{{ profile.subscription_label }}<span class="tier-tag" :class="profile.subscription_plan === 'free' ? 'tier-tag-free' : 'tier-tag-paid'">{{ profile.subscription_plan === 'free' ? '未订阅' : profile.subscription_period }}</span></h2>
               <p class="billing-tier-hint">{{ profile.subscription_plan === 'free' ? '当前为免费体验等级，未购买任何付费方案。' : `当前为${profile.subscription_label}（${profile.subscription_price}${profile.subscription_period}），可通过下方算力包扩展配额。` }}</p>
             </div>
-            <button v-if="profile.subscription_plan === 'free'" class="primary-btn" type="button" @click="openUpgradeDialog">立即升级</button>
+            <div class="billing-tier-actions">
+              <button class="ghost-btn" type="button" @click="openHistory">
+                <span class="material-symbols-outlined">history</span>
+                查看历史订单
+              </button>
+              <button v-if="profile.subscription_plan === 'free'" class="primary-btn" type="button" @click="openUpgradeDialog">立即升级</button>
+            </div>
           </div>
           <div class="billing-quota-bar">
             <div class="quota-bar-header">
@@ -1121,6 +1223,21 @@ onMounted(() => {
 .modal-subtitle { color: #99907c; font-size: 13px; margin: 4px 0 0; }
 .modal-body { padding: 20px 28px; }
 .modal-footer { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 16px 28px; border-top: 1px solid rgba(155, 116, 22, 0.2); }
+
+.history-modal .modal-body { max-height: 480px; overflow-y: auto; }
+.modal-empty { color: #99907c; padding: 32px 0; text-align: center; }
+.history-list { display: flex; flex-direction: column; gap: 12px; }
+.history-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 16px; border: 1px solid rgba(155, 116, 22, 0.18); background: rgba(212, 175, 55, 0.04); }
+.history-row-main { display: flex; flex-direction: column; gap: 4px; }
+.history-name { color: #e5e2e1; font-family: "Source Serif 4", serif; font-size: 16px; font-weight: 600; }
+.history-meta { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.05em; display: flex; gap: 6px; }
+.history-row-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.history-status { display: inline-block; padding: 2px 10px; font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.06em; background: rgba(0, 0, 0, 0.4); }
+.history-status.is-paid { color: #66bb6a; }
+.history-status.is-pending { color: #f0b400; }
+.history-status.is-failed { color: #c62828; }
+.history-status.is-closed { color: #99907c; }
+.history-time { color: #99907c; font-family: "JetBrains Mono", monospace; font-size: 11px; }
 .modal-security-hint { display: inline-flex; align-items: center; gap: 6px; color: #99907c; font-size: 12px; margin-right: auto; }
 .modal-security-hint .material-symbols-outlined { font-size: 14px; color: #34d399; }
 .modal-link { color: #d4af37; text-decoration: none; font-family: "Hanken Grotesk", sans-serif; font-size: 13px; }
@@ -1160,6 +1277,7 @@ onMounted(() => {
 .billing-tier-card { background: linear-gradient(135deg, #121212, #1c1b1b); }
 .billing-tier-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
 .billing-tier-head h2 { margin: 4px 0; color: #e5e2e1; font-family: "Syne", sans-serif; font-size: 28px; }
+.billing-tier-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
 .tier-tag { display: inline-block; margin-left: 8px; padding: 2px 10px; border: 1px solid #d4af37; color: #d4af37; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.08em; vertical-align: middle; }
 .tier-tag-free { border-color: #99907c; color: #99907c; }
 .tier-tag-paid { border-color: #d4af37; color: #d4af37; }
@@ -1261,6 +1379,8 @@ onMounted(() => {
 
 @media (max-width: 900px) {
   .power-pack-grid, .upgrade-grid, .model-card-grid, .scope-template-grid, .custom-scope-grid, .apikey-row, .knowledge-grid { grid-template-columns: 1fr; }
+  .billing-tier-head { flex-direction: column; }
+  .billing-tier-actions { align-items: flex-start; }
   .identity-row { grid-template-columns: 1fr; gap: 4px; }
   .third-party-row { grid-template-columns: 1fr; }
 }
