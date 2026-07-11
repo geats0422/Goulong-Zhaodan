@@ -803,44 +803,6 @@ onMounted(() => {
           </div>
         </div>
 
-        <div v-if="showHistoryDialog" class="modal-overlay" @click.self="closeHistory">
-          <div class="modal-card modal-card-md history-modal">
-            <header class="modal-header">
-              <div>
-                <span class="card-ref">REF.HIS-001</span>
-                <h3>历史订单</h3>
-                <p class="modal-subtitle">包含算力包与订阅相关订单</p>
-              </div>
-              <button class="icon-btn" type="button" @click="closeHistory">
-                <span class="material-symbols-outlined">close</span>
-              </button>
-            </header>
-            <div class="modal-body">
-              <div v-if="historyLoading" class="modal-empty">正在加载历史订单...</div>
-              <div v-else-if="historyError" class="form-error">{{ historyError }}</div>
-              <div v-else-if="historyOrders.length === 0" class="modal-empty">暂无历史订单</div>
-              <div v-else class="history-list">
-                <article v-for="order in historyOrders" :key="order.id" class="history-row">
-                  <div class="history-row-main">
-                    <div class="history-name">{{ order.product_name || order.product_code || '订单' }} · {{ historyAmount(order) }}</div>
-                    <div class="history-meta">
-                      <span>{{ historyMethodLabel(order.payment_method) }}</span>
-                      <span>·</span>
-                      <span>{{ order.token_quota || 0 }} Tokens</span>
-                    </div>
-                  </div>
-                  <div class="history-row-side">
-                    <span class="history-status" :class="`is-${order.status}`">{{ historyStatusLabel(order.status) }}</span>
-                    <div class="history-time">{{ historyDate(order.created_at) }}</div>
-                  </div>
-                </article>
-              </div>
-            </div>
-            <footer class="modal-footer">
-              <button class="ghost-btn" type="button" @click="closeHistory">关闭</button>
-            </footer>
-          </div>
-        </div>
       </section>
 
       <section v-else-if="!loading && profile && activeTab === 'billing'" class="settings-content billing-settings">
@@ -916,6 +878,45 @@ onMounted(() => {
             <footer class="modal-footer">
               <span class="modal-security-hint"><span class="material-symbols-outlined">verified</span>所有方案均含银行级加密与数据隔离保护</span>
               <a href="/pricing" class="modal-link">查看完整方案对比 →</a>
+            </footer>
+          </div>
+        </div>
+
+        <div v-if="showHistoryDialog" class="modal-overlay" @click.self="closeHistory">
+          <div class="modal-card modal-card-md history-modal">
+            <header class="modal-header">
+              <div>
+                <span class="card-ref">REF.HIS-001</span>
+                <h3>历史订单</h3>
+                <p class="modal-subtitle">包含算力包与订阅相关订单</p>
+              </div>
+              <button class="icon-btn" type="button" @click="closeHistory">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </header>
+            <div class="modal-body">
+              <div v-if="historyLoading" class="modal-empty">正在加载历史订单...</div>
+              <div v-else-if="historyError" class="form-error">{{ historyError }}</div>
+              <div v-else-if="historyOrders.length === 0" class="modal-empty">暂无历史订单</div>
+              <div v-else class="history-list">
+                <article v-for="order in historyOrders" :key="order.id" class="history-row">
+                  <div class="history-row-main">
+                    <div class="history-name">{{ order.product_name || order.product_code || '订单' }} · {{ historyAmount(order) }}</div>
+                    <div class="history-meta">
+                      <span>{{ historyMethodLabel(order.payment_method) }}</span>
+                      <span>·</span>
+                      <span>{{ order.token_quota || 0 }} Tokens</span>
+                    </div>
+                  </div>
+                  <div class="history-row-side">
+                    <span class="history-status" :class="`is-${order.status}`">{{ historyStatusLabel(order.status) }}</span>
+                    <div class="history-time">{{ historyDate(order.created_at) }}</div>
+                  </div>
+                </article>
+              </div>
+            </div>
+            <footer class="modal-footer">
+              <button class="ghost-btn" type="button" @click="closeHistory">关闭</button>
             </footer>
           </div>
         </div>
