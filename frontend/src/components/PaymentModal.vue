@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import QRCode from 'qrcode'
 import { createAlipayPageOrder, createNativeOrder, getOrderStatus } from '../services/paymentApi.js'
 
 const props = defineProps({
@@ -12,38 +13,27 @@ const emit = defineEmits(['paid', 'close'])
 const loading = ref(true)
 const error = ref('')
 const codeUrl = ref('')
+const qrDataUrl = ref('')
 const orderId = ref(null)
 const status = ref('pending')
 const payMethod = ref('wechat')
 const alipayUrl = ref('')
-const qrContainer = ref(null)
 
 let pollTimer = null
-let qrInstance = null
-
-const QR_CDN = 'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js'
 const QR_SIZE = 240
 
-function loadQrScript() {
-  if (window.QRCode) return Promise.resolve()
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script')
-    s.src = QR_CDN
-    s.onload = resolve
-    s.onerror = reject
-    document.head.appendChild(s)
-  })
-}
-
-function renderQr(url) {
-  if (!qrContainer.value || !window.QRCode) return
-  qrContainer.value.innerHTML = ''
-  qrInstance = new window.QRCode(qrContainer.value, {
-    text: url,
+async function renderQr(url) {
+  if (!url) {
+    qrDataUrl.value = ''
+    throw new Error('微信支付未返回二维码链接')
+  }
+  qrDataUrl.value = await QRCode.toDataURL(url, {
     width: QR_SIZE,
-    height: QR_SIZE,
-    colorDark: '#0A0A0A',
-    colorLight: '#ffffff',
+    margin: 1,
+    color: {
+      dark: '#0A0A0A',
+      light: '#ffffff',
+    },
   })
 }
 
@@ -52,6 +42,7 @@ async function initOrder(method = payMethod.value) {
   loading.value = true
   error.value = ''
   codeUrl.value = ''
+  qrDataUrl.value = ''
   alipayUrl.value = ''
   payMethod.value = method
   try {
@@ -60,8 +51,7 @@ async function initOrder(method = payMethod.value) {
       orderId.value = data.order_id
       codeUrl.value = data.code_url
       status.value = 'pending'
-      await loadQrScript()
-      renderQr(data.code_url)
+      await renderQr(data.code_url)
     } else {
       const data = await createAlipayPageOrder(props.productCode)
       orderId.value = data.order_id
@@ -114,9 +104,6 @@ function openAlipayCashier() {
 onMounted(initOrder)
 onBeforeUnmount(() => {
   stopPolling()
-  if (qrInstance && qrContainer.value) {
-    qrContainer.value.innerHTML = ''
-  }
 })
 
 watch(() => props.productCode, () => initOrder(payMethod.value))
@@ -173,7 +160,9 @@ watch(() => props.productCode, () => initOrder(payMethod.value))
       </div>
 
       <div v-else class="qr-section">
-        <div ref="qrContainer" class="qr-box"></div>
+        <div class="qr-box">
+          <img v-if="qrDataUrl" :src="qrDataUrl" alt="微信支付二维码">
+        </div>
         <p class="qr-hint">请使用微信扫描二维码完成支付</p>
         <div class="status-row">
           <span class="dot pulse"></span>
