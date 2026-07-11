@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy import select
 
+from app.api.v1.payments import PaymentOrderStatusResponse
 from app.core.database import async_session
 from app.models.payment import PaymentOrder, PaymentOrderEvent
 from app.services import payment_service
@@ -129,3 +130,13 @@ async def test_sync_wechat_payerror_to_failed(monkeypatch):
         monkeypatch.setattr(payment_service, "get_wechatpay_client", lambda: mock_client)
         await payment_service.sync_order_status(db, order)
         assert order.status == "failed"
+
+
+@pytest.mark.asyncio
+async def test_payment_status_response_accepts_datetime_fields():
+    async with async_session() as db:
+        now = datetime.now(UTC)
+        order = await _create_user_and_order(db, paid_at=now)
+        response = PaymentOrderStatusResponse.model_validate(order)
+        assert response.created_at is not None
+        assert response.paid_at is not None

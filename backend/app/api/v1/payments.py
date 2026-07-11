@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -55,8 +56,8 @@ class PaymentOrderStatusResponse(BaseModel):
     status: str
     code_url: str | None = None
     transaction_id: str | None = None
-    paid_at: str | None = None
-    created_at: str | None = None
+    paid_at: datetime | None = None
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -68,8 +69,8 @@ class PaymentOrderListItem(BaseModel):
     product_name: str
     amount_cents: int
     status: str
-    paid_at: str | None = None
-    created_at: str | None = None
+    paid_at: datetime | None = None
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
