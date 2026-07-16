@@ -117,13 +117,13 @@ export const SUB_PLANS = [
 // AI 模型目录（profile.model_name 可选值；与后端 settings.py MODEL_CATALOG 对齐）
 export const MODEL_CATALOG = [
   {
-    model_name: 'deepseek-ai/deepseek-v4-pro',
+    model_name: 'deepseek-v4-pro',
     label: 'DeepSeek V4 Pro',
     tier: '高准确度 · 慢',
     context: '128K',
   },
   {
-    model_name: 'deepseek-ai/deepseek-v4-flash',
+    model_name: 'deepseek-v4-flash',
     label: 'DeepSeek V4 Flash',
     tier: '快速响应',
     context: '64K',

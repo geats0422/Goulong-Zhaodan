@@ -19,8 +19,8 @@ Copy-Item env.example .env
 | 变量 | 必填 | 默认值 | 说明 |
 |---|---|---|---|
 | `MODEL_API_KEY` | 是 | — | 模型 API 密钥 |
-| `MODEL_BASE_URL` | 否 | `https://api.openai.com/v1` | 模型 API 基础地址 |
-| `MODEL_NAME` | 否 | `gpt-4o` | 模型名称 |
+| `MODEL_BASE_URL` | 否 | `https://api.deepseek.com/v1` | DeepSeek 官方 API 基础地址 |
+| `MODEL_NAME` | 否 | `deepseek-v4-pro` | 模型名称 |
 | `LOG_LEVEL` | 否 | `INFO` | 日志级别 |
 | `MAX_DOCUMENT_LENGTH` | 否 | `8000` | 单次体检最大字符数 |
 | `API_KEY_ENCRYPTION_SECRET` | 是 | — | API Key 加密密钥，生产环境必须更换为随机强密码 |
@@ -39,7 +39,7 @@ MODEL_NAME=gpt-4o
 ```env
 MODEL_API_KEY=sk-xxx
 MODEL_BASE_URL=https://api.deepseek.com/v1
-MODEL_NAME=deepseek-chat
+MODEL_NAME=deepseek-v4-pro
 ```
 
 **通义千问**

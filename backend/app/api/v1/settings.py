@@ -16,6 +16,7 @@ from app.core.auth import CurrentUserContext, get_current_user, hash_password, r
 from app.core.config import settings
 from app.core.constants import ENGINEERING_CATEGORIES
 from app.core.database import get_db_session
+from app.core.model_config import MODEL_CATALOG, normalize_model_name
 from app.core.password_rules import validate_password
 from app.core.pii_masking import mask_email, mask_phone
 from app.services import sms_service
@@ -36,11 +37,6 @@ PLAN_CATALOG: dict[str, dict[str, Any]] = {
     "team":       {"label": "团队版",     "period": "/月",   "price": "¥299",  "monthly_quota": 3000,  "features": ["团队协作", "审计留痕", "自定义红线", "优先支持"]},
     "enterprise": {"label": "企业定制",   "period": "按合同", "price": "议价",  "monthly_quota": None,  "features": ["私有化部署", "SSO 单点登录", "SLA 保障", "专属客户成功"]},
 }
-
-MODEL_CATALOG = [
-    {"model_name": "deepseek-ai/deepseek-v4-pro",   "label": "DeepSeek V4 Pro",   "tier": "高准确度 · 慢", "context": "128K"},
-    {"model_name": "deepseek-ai/deepseek-v4-flash", "label": "DeepSeek V4 Flash", "tier": "快速响应",      "context": "64K"},
-]
 
 SCOPE_TEMPLATES_CATALOG: list[dict] = [
     {"key": m.key, "label": m.label, "description": m.description, "scopes": list(m.scopes)}
@@ -298,7 +294,7 @@ def _profile_response(db_user: User, profile: ZhaodanUserProfile, membership: Me
     key = settings.model_api_key
     preview = f"****-****-{key[-4:]}" if len(key) >= 8 else "****"
     plan = PLAN_CATALOG.get(membership.plan, PLAN_CATALOG["free"])
-    effective_model = profile.model_name or settings.model_name
+    effective_model = normalize_model_name(profile.model_name or settings.model_name)
     return ProfileResponse(
         nickname=db_user.nickname,
         email=mask_email(db_user.email),

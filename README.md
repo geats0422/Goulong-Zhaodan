@@ -226,8 +226,8 @@ npm run dev
 | 变量 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `MODEL_API_KEY` | ✅ | — | LLM API 密钥（兼容 OpenAI 格式） |
-| `MODEL_BASE_URL` | — | `https://api.openai.com/v1` | LLM 网关地址 |
-| `MODEL_NAME` | — | `gpt-4o` | 模型标识 |
+| `MODEL_BASE_URL` | — | `https://api.deepseek.com/v1` | DeepSeek 官方 API 地址 |
+| `MODEL_NAME` | — | `deepseek-v4-pro` | 模型标识 |
 | `DATABASE_URL` | ✅ | `postgresql+asyncpg://...` | 数据库连接串 |
 | `JWT_SECRET_KEY` | ✅ | `dev-secret` | JWT 签名密钥（**生产务必修改**） |
 | `JWT_ALGORITHM` | — | `HS256` | JWT 算法 |
@@ -251,7 +251,7 @@ MODEL_NAME=gpt-4o
 
 # DeepSeek
 MODEL_BASE_URL=https://api.deepseek.com/v1
-MODEL_NAME=deepseek-chat
+MODEL_NAME=deepseek-v4-pro
 
 # 通义千问
 MODEL_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1

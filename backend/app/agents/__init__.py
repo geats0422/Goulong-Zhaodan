@@ -17,6 +17,7 @@ from app.prompts.inspection_prompts import (
 )
 from app.core.config import settings
 from app.core.deps import InspectionDeps
+from app.core.model_config import normalize_model_name
 
 if TYPE_CHECKING:
     from pydantic_ai import Agent as AgentType
@@ -31,7 +32,7 @@ def _make_model():
         base_url=settings.model_base_url,
         api_key=settings.model_api_key,
     )
-    return OpenAIModel(settings.model_name, provider=provider)
+    return OpenAIModel(normalize_model_name(settings.model_name) or settings.model_name, provider=provider)
 
 
 # ─── 懒加载缓存 ───

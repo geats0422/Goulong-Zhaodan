@@ -380,11 +380,11 @@ async def test_update_profile_subscription_plan_removed(client: AsyncClient):
 async def test_update_profile_model_name(client: AsyncClient):
     headers = await register_and_auth(client, "modelname_user")
 
-    resp = await client.patch("/settings/profile", headers=headers, json={"model_name": "deepseek-ai/deepseek-v4-pro"})
+    resp = await client.patch("/settings/profile", headers=headers, json={"model_name": "deepseek-v4-pro"})
     assert resp.status_code == 200
 
     overview = await client.get("/settings/overview", headers=headers)
-    assert overview.json()["profile"]["model_name"] == "deepseek-ai/deepseek-v4-pro"
+    assert overview.json()["profile"]["model_name"] == "deepseek-v4-pro"
 
 
 @pytest.mark.asyncio

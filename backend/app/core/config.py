@@ -5,6 +5,12 @@ import logging
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.model_config import (
+    DEFAULT_MODEL_NAME,
+    OFFICIAL_DEEPSEEK_BASE_URL,
+    validate_official_deepseek_configuration,
+)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -13,8 +19,8 @@ class Settings(BaseSettings):
 
     # 模型 API 配置（兼容 OpenAI 格式，支持任意提供商）
     model_api_key: str = ""
-    model_base_url: str = "https://api.openai.com/v1"
-    model_name: str = "gpt-4o"
+    model_base_url: str = OFFICIAL_DEEPSEEK_BASE_URL
+    model_name: str = DEFAULT_MODEL_NAME
 
     jwt_secret_key: str = "goulong-jwt-dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"
@@ -143,6 +149,9 @@ def assert_production_security() -> None:
             raise RuntimeError(f"生产环境不允许使用默认 {attr}")
     if not settings.model_api_key:
         raise RuntimeError("生产环境必须配置 MODEL_API_KEY")
+    validate_official_deepseek_configuration(
+        settings.model_base_url, settings.model_name
+    )
     if not settings.data_encryption_key:
         raise RuntimeError("生产环境必须配置 DATA_ENCRYPTION_KEY")
     if "your-password" in settings.database_url:

@@ -64,6 +64,7 @@ async def _parse_with_pageindex(
 
 async def _run_pageindex_md_to_tree(md_path: str) -> list[IndexNodeCreate]:
     from app.core.config import settings
+    from app.core.model_config import configure_openai_environment, normalize_model_name
 
     vendor_path = Path(__file__).resolve().parents[1] / settings.pageindex_vendor_path
     if not vendor_path.exists():
@@ -78,9 +79,11 @@ async def _run_pageindex_md_to_tree(md_path: str) -> list[IndexNodeCreate]:
     except Exception as exc:
         raise IndexingError(f"pageindex import failed: {exc}") from exc
 
-    os.environ.setdefault("OPENAI_API_KEY", settings.model_api_key)
-    if settings.model_base_url:
-        os.environ.setdefault("OPENAI_API_BASE", settings.model_base_url)
+    configure_openai_environment(
+        os.environ,
+        api_key=settings.model_api_key,
+        base_url=settings.model_base_url,
+    )
 
     tree = await md_to_tree(
         md_path=md_path,
@@ -89,7 +92,7 @@ async def _run_pageindex_md_to_tree(md_path: str) -> list[IndexNodeCreate]:
         if_add_node_text=True,
         if_add_node_id=True,
         if_add_doc_description=False,
-        model=settings.model_name,
+        model=normalize_model_name(settings.model_name) or settings.model_name,
         summary_token_threshold=200,
     )
 
