@@ -27,9 +27,9 @@ const uploadForm = ref({
 function mapDocumentStatus(status) {
   if (status === 'completed') return { state: 'ready', label: '索引树已构建' }
   if (status === 'converting' || status === 'indexing') return { state: 'processing', label: '解析中...' }
-  if (status === 'pending') return { state: 'pending', label: '待处理' }
-  if (status === 'convert_failed' || status === 'index_failed') return { state: 'failed', label: '处理失败' }
-  return { state: 'pending', label: '待处理' }
+  if (status === 'pending') return { state: 'pending', label: '处理中...' }
+  if (status === 'failed' || status === 'convert_failed' || status === 'index_failed') return { state: 'failed', label: '处理失败' }
+  return { state: 'pending', label: '处理中...' }
 }
 
 function getIcon(name) {

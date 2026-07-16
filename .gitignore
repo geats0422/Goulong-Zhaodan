@@ -32,6 +32,7 @@ npm-debug.log*
 # OpenCode（项目级规则走版本控制；运行时临时件和依赖仍忽略）
 .opencode/.tmp/
 .opencode/node_modules/
+.opencode/opencode.json
 
 # Test artifacts
 test-results/

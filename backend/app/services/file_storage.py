@@ -5,13 +5,42 @@ storage_path 始终使用后端无关的相对路径（如 "traditional/房建/�
 - OSS 模式（oss_bucket_name + oss_endpoint 已配置）：相对路径前加 oss_prefix 作为 OSS key。
 - 本地模式（默认）：相对路径拼接到 STORAGE_ROOT 之下。
 """
+
 from __future__ import annotations
 
+import asyncio
+import codecs
+import hashlib
+import inspect
+import os
 import re
-from pathlib import Path
+import stat
+import zipfile
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath, PureWindowsPath
+
+from app.lib.private_temp import FileIdentity, create_private_temp_file, secure_unlink, snapshot_file_identity
 
 STORAGE_ROOT = "data/knowledge"
 _DEFAULT_STORAGE_ROOT = STORAGE_ROOT
+_OLE_SIGNATURE = bytes.fromhex("D0CF11E0A1B11AE1")
+_OOXML_ROOTS = {"docx": "word/", "pptx": "ppt/", "xlsx": "xl/"}
+
+
+async def _await_stream_close(result):
+    await result
+
+
+class StoredFileValidationError(ValueError):
+    """Stable validation failure for a stored source document."""
+
+
+@dataclass(frozen=True, slots=True)
+class PrivateStoredFile:
+    path: Path
+    content_hash: str
+    size: int
+    identity: FileIdentity
 
 
 def is_oss_enabled() -> bool:
@@ -29,11 +58,18 @@ def safe_path_segment(value: str, fallback: str = "untitled", max_length: int = 
 
 
 def _validate_storage_path(storage_path: str) -> None:
-    """校验相对存储路径，阻止路径遍历（禁止 .. 段）。"""
-    if not storage_path:
+    """Require a normalized POSIX identifier, never an OS path."""
+    if not storage_path or "\\" in storage_path or "\x00" in storage_path:
         raise ValueError("存储路径为空")
-    parts = storage_path.replace("\\", "/").split("/")
-    if any(p == ".." for p in parts):
+    posix = PurePosixPath(storage_path)
+    windows = PureWindowsPath(storage_path)
+    if (
+        posix.is_absolute()
+        or windows.is_absolute()
+        or windows.drive
+        or storage_path.startswith("//")
+        or any(part in {"", ".", ".."} for part in posix.parts)
+    ):
         raise ValueError("非法存储路径")
 
 
@@ -88,6 +124,160 @@ def read_file(storage_path: str) -> bytes:
 
         return get_bucket().get_object(get_oss_key(storage_path)).read()
     return _local_path(storage_path).read_bytes()
+
+
+def iter_file_chunks(storage_path: str, chunk_size: int = 64 * 1024):
+    """以有界块读取受控存储对象，供哈希与解析边界校验使用。"""
+    _validate_storage_path(storage_path)
+    if chunk_size <= 0:
+        raise ValueError("chunk_size 必须大于 0")
+    if is_oss_enabled():
+        from app.core.oss_client import get_bucket, get_oss_key
+
+        stream = get_bucket().get_object(get_oss_key(storage_path))
+        try:
+            while chunk := stream.read(chunk_size):
+                yield chunk
+        finally:
+            close = getattr(stream, "close", None)
+            if callable(close):
+                close()
+            else:
+                aclose = getattr(stream, "aclose", None)
+                if callable(aclose):
+                    result = aclose()
+                    if inspect.isawaitable(result):
+                        asyncio.run(_await_stream_close(result))
+        return
+    with _local_path(storage_path).open("rb") as source:
+        while chunk := source.read(chunk_size):
+            yield chunk
+
+
+def _is_reparse(info: os.stat_result) -> bool:
+    return bool(getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+
+
+def _validated_local_source(storage_path: str) -> Path:
+    target = _local_path(storage_path)
+    root = _local_path("")
+    try:
+        root_info = root.lstat()
+        if stat.S_ISLNK(root_info.st_mode) or _is_reparse(root_info):
+            raise StoredFileValidationError("unsafe storage root")
+        resolved_root = root.resolve(strict=True)
+        current = root
+        for part in PurePosixPath(storage_path).parts:
+            current = current / part
+            info = current.lstat()
+            if stat.S_ISLNK(info.st_mode) or _is_reparse(info):
+                raise StoredFileValidationError("unsafe storage path")
+        resolved_target = target.resolve(strict=True)
+        resolved_target.relative_to(resolved_root)
+        if not resolved_target.is_file():
+            raise StoredFileValidationError("unsafe storage path")
+        return resolved_target
+    except StoredFileValidationError:
+        raise
+    except (FileNotFoundError, OSError, ValueError):
+        raise StoredFileValidationError("unsafe storage path") from None
+
+
+def copy_storage_to_private_temp(
+    storage_path: str,
+    *,
+    suffix: str,
+    max_bytes: int,
+    expected_hash: str | None = None,
+    chunk_size: int = 64 * 1024,
+) -> PrivateStoredFile:
+    """Stream a bounded stored object into the hardened private temp root."""
+    _validate_storage_path(storage_path)
+    if max_bytes <= 0 or chunk_size <= 0:
+        raise StoredFileValidationError("invalid size limit")
+    output = create_private_temp_file(prefix="stored-document-", suffix=suffix)
+    identity = snapshot_file_identity(output)
+    digest = hashlib.sha256()
+    total = 0
+    try:
+        if is_oss_enabled():
+            chunks = iter_file_chunks(storage_path, chunk_size)
+        else:
+            source = _validated_local_source(storage_path)
+
+            def local_chunks():
+                with source.open("rb") as stream:
+                    while chunk := stream.read(chunk_size):
+                        yield chunk
+
+            chunks = local_chunks()
+        with output.open("wb") as destination:
+            for chunk in chunks:
+                total += len(chunk)
+                if total > max_bytes:
+                    raise StoredFileValidationError("stored file exceeds size limit")
+                digest.update(chunk)
+                destination.write(chunk)
+        actual_hash = digest.hexdigest()
+        if expected_hash is not None and actual_hash != expected_hash:
+            raise StoredFileValidationError("stored file hash mismatch")
+        return PrivateStoredFile(output, actual_hash, total, identity)
+    except Exception:
+        secure_unlink(output, identity=identity)
+        raise
+
+
+def validate_document_snapshot(
+    path: Path,
+    file_type: str,
+    *,
+    max_members: int = 1000,
+    max_member_bytes: int = 100 * 1024 * 1024,
+    max_total_uncompressed_bytes: int = 500 * 1024 * 1024,
+    max_compression_ratio: float = 100,
+) -> None:
+    """Revalidate basic signatures and bounded OOXML structure before parsing."""
+    normalized = file_type.lower().lstrip(".")
+    try:
+        with path.open("rb") as source:
+            signature = source.read(8)
+        if normalized == "pdf":
+            if not signature.startswith(b"%PDF-"):
+                raise StoredFileValidationError("invalid PDF signature")
+            return
+        if normalized == "doc":
+            if signature != _OLE_SIGNATURE:
+                raise StoredFileValidationError("invalid OLE signature")
+            return
+        if normalized in {"txt", "md"}:
+            decoder = codecs.getincrementaldecoder("utf-8")()
+            with path.open("rb") as source:
+                while chunk := source.read(64 * 1024):
+                    decoder.decode(chunk)
+                decoder.decode(b"", final=True)
+            return
+        if normalized not in _OOXML_ROOTS or not signature.startswith(b"PK"):
+            raise StoredFileValidationError("invalid document signature")
+        with zipfile.ZipFile(path) as archive:
+            members = archive.infolist()
+            if len(members) > max_members:
+                raise StoredFileValidationError("OOXML member count exceeds limit")
+            names = {member.filename for member in members}
+            if "[Content_Types].xml" not in names or not any(
+                name.startswith(_OOXML_ROOTS[normalized]) for name in names
+            ):
+                raise StoredFileValidationError("invalid OOXML signature")
+            total = 0
+            for member in members:
+                total += member.file_size
+                if member.file_size > max_member_bytes or total > max_total_uncompressed_bytes:
+                    raise StoredFileValidationError("OOXML expanded size exceeds limit")
+                if member.file_size / max(member.compress_size, 1) > max_compression_ratio:
+                    raise StoredFileValidationError("OOXML compression ratio exceeds limit")
+    except StoredFileValidationError:
+        raise
+    except (OSError, UnicodeDecodeError, zipfile.BadZipFile, zipfile.LargeZipFile):
+        raise StoredFileValidationError("invalid document signature") from None
 
 
 def delete_file(storage_path: str) -> bool:

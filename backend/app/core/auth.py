@@ -3,10 +3,15 @@ from __future__ import annotations
 import datetime
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, timedelta
 from typing import Annotated
 
+import jwt
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select, update
+
+from app.core.database import get_db_session
+from goulong_auth.config import auth_settings
 
 
 def hash_password(password: str) -> str:
@@ -20,31 +25,69 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(user_id: uuid.UUID) -> str:
-    from goulong_auth.auth.jwt import create_access_token as _create
-    return _create(user_id, product="zhaodan")
+    now = datetime.datetime.now(UTC)
+    return jwt.encode(
+        {
+            "user_id": str(user_id),
+            "product": "zhaodan",
+            "typ": "access",
+            "exp": now + timedelta(minutes=auth_settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+            "iat": now,
+        },
+        auth_settings.JWT_SECRET_KEY,
+        algorithm=auth_settings.JWT_ALGORITHM,
+    )
 
 
 def create_refresh_token(user_id: uuid.UUID) -> tuple[str, str]:
-    from goulong_auth.auth.jwt import create_refresh_token as _create, decode_token as _decode
-    token = _create(user_id, product="zhaodan")
-    payload = _decode(token)
-    jti = payload.jti
+    now = datetime.datetime.now(UTC)
+    jti = uuid.uuid4().hex
+    token = jwt.encode(
+        {
+            "user_id": str(user_id),
+            "product": "zhaodan",
+            "typ": "refresh",
+            "jti": jti,
+            "exp": now + timedelta(days=auth_settings.REFRESH_TOKEN_EXPIRE_DAYS),
+            "iat": now,
+        },
+        auth_settings.JWT_SECRET_KEY,
+        algorithm=auth_settings.JWT_ALGORITHM,
+    )
     return token, jti
 
 
 def decode_token(token: str, token_type: str) -> dict:
-    from goulong_auth.auth.jwt import decode_token as _decode
     try:
-        payload = _decode(token)
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        if token_type not in {"access", "refresh"}:
+            raise ValueError("unsupported token type")
+        payload = jwt.decode(
+            token,
+            auth_settings.JWT_SECRET_KEY,
+            algorithms=[auth_settings.JWT_ALGORITHM],
+            options={"require": ["exp", "iat", "user_id", "product"]},
+        )
+        user_id = uuid.UUID(str(payload["user_id"]))
+        if payload.get("product") != "zhaodan":
+            raise ValueError("wrong product")
+
+        encoded_type = payload.get("typ")
+        if encoded_type is None:
+            encoded_type = "refresh" if payload.get("jti") else "access"
+        if encoded_type != token_type:
+            raise ValueError("wrong token type")
+        if token_type == "refresh" and not payload.get("jti"):
+            raise ValueError("missing refresh token id")
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Invalid token") from exc
     return {
-        "user_id": str(payload.user_id),
-        "product": payload.product,
-        "exp": payload.exp,
-        "iat": payload.iat,
-        "jti": payload.jti,
-        "sub": str(payload.user_id),
+        "user_id": str(user_id),
+        "product": payload["product"],
+        "typ": encoded_type,
+        "exp": payload["exp"],
+        "iat": payload["iat"],
+        "jti": payload.get("jti"),
+        "sub": str(user_id),
     }
 
 
@@ -82,7 +125,7 @@ class CurrentUserContext:
     is_active: bool = True
 
 
-async def get_current_user(request: Request) -> CurrentUserContext:
+async def get_current_user(request: Request, db=Depends(get_db_session)) -> CurrentUserContext:
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -90,9 +133,16 @@ async def get_current_user(request: Request) -> CurrentUserContext:
     token = auth_header[7:]
     payload = decode_token(token, "access")
 
+    from goulong_auth.models import User
+
+    result = await db.execute(select(User).where(User.id == uuid.UUID(payload["user_id"])))
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     return CurrentUserContext(
-        user_id=uuid.UUID(payload["user_id"]),
-        is_active=payload.get("is_active", True),
+        user_id=user.id,
+        is_active=user.is_active,
     )
 
 

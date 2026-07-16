@@ -1,6 +1,7 @@
 """FastAPI 应用入口"""
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,7 @@ from fastapi.responses import JSONResponse, Response
 from app.core.config import assert_production_security, settings
 from app.core.database import init_db
 from app.core.redis_client import close_redis
+from app.lib.private_temp import cleanup_private_temp_dir
 from app.api.v1.inspection import router as inspection_router
 from app.api.v1.knowledge import router as knowledge_router
 from app.api.v1.auth import router as auth_router
@@ -19,12 +21,14 @@ from app.api.v1.settings import router as settings_router
 from app.api.v1.payments import router as payment_router
 from app.api.v1.subscriptions import router as subscription_router
 from app.api.v1.wechat_callback import router as wechat_callback_router
+from app.api.router import router as api_router
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await asyncio.to_thread(cleanup_private_temp_dir)
     await init_db()
     assert_production_security()
     yield
@@ -91,6 +95,7 @@ app.include_router(agent_router)
 app.include_router(payment_router)
 app.include_router(subscription_router)
 app.include_router(wechat_callback_router)
+app.include_router(api_router)
 
 
 @app.exception_handler(Exception)

@@ -1,6 +1,7 @@
 """体检台 API 路由"""
 from __future__ import annotations
 
+import hashlib
 import logging
 import tempfile
 import re
@@ -22,11 +23,16 @@ from app.core.data_encryption import decrypt_text
 from app.core.database import get_db_session
 from app.core.file_magic import validate_file_magic
 from app.models.knowledge import InspectionRecord
+from app.services.document_job_service import (
+    create_document_job,
+    prepare_source_artifact,
+)
+from app.services.file_storage import delete_file, save_file
 from app.services.inspection_runner import (
     DOCUMENT_TYPE_LABELS,
     InspectionReportResponse,
     _inspection_records,
-    create_pending_inspection_record,
+    add_pending_inspection_record,
     execute_inspection,
 )
 from app.services.markdown_converter import ConversionError, convert_to_markdown
@@ -193,7 +199,11 @@ def _clean_inspection_markdown(text: str) -> str:
 
 
 async def _read_inspection_upload_text(file: UploadFile) -> tuple[str, bytes, str]:
-    """读取体检上传文件，并返回已消费的原始字节与解码文本。"""
+    """读取体检上传文件，并返回已消费的原始字节与解码文本。
+
+    仅保留给同步入口（``/upload``）使用；``/parse`` 已改为异步文档处理入口，
+    PDF/Word 不再在请求线程内同步解析。
+    """
     filename = file.filename or "unknown"
     _validate_inspection_filename(filename)
 
@@ -213,6 +223,29 @@ async def _read_inspection_upload_text(file: UploadFile) -> tuple[str, bytes, st
         raise HTTPException(status_code=400, detail="文件内容过短，无法体检")
 
     return filename, content, text
+
+
+async def _read_bounded_inspection_upload(file: UploadFile) -> tuple[str, str, bytes]:
+    """流式读取受界上传：校验扩展名、大小与 magic bytes，不做内容解析。
+
+    返回 ``(filename, ext, content_bytes)``。解析（PDF/Word → Markdown）交由
+    后台 worker 的统一文档管线完成，避免请求线程同步调用解析器。
+    """
+    filename = file.filename or "unknown"
+    _validate_inspection_filename(filename)
+    ext = _inspection_file_format(filename)
+    try:
+        content = await file.read(MAX_INSPECTION_FILE_SIZE + 1)
+    except Exception as exc:
+        _logger.exception("文件读取失败: %s", filename)
+        raise HTTPException(status_code=400, detail="文件无法解析") from exc
+    if len(content) > MAX_INSPECTION_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="文件大小超过 20MB 限制")
+    try:
+        validate_file_magic(filename, content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return filename, ext, content
 
 
 def _extract_inspection_text(filename: str, content: bytes) -> str:
@@ -268,6 +301,7 @@ class InspectionParseResponse(BaseModel):
     """文件解析会话响应"""
 
     session_id: str
+    job_id: str
     file: InspectionParseFileResponse
 
 
@@ -436,47 +470,71 @@ async def upload_and_inspect(
     )
 
 
-@router.post("/parse", response_model=InspectionParseResponse)
+@router.post("/parse", status_code=202, response_model=InspectionParseResponse)
 async def parse_inspection_file(
     file: UploadFile = File(..., description="待解析的工程文档"),
     db=Depends(get_db_session),
     user: CurrentUserContext = Depends(get_current_user),
 ) -> InspectionParseResponse:
-    """上传并解析文档基础信息，创建后续体检使用的会话。"""
-    filename, content_bytes, text = await _read_inspection_upload_text(file)
+    """上传文档到受控存储并创建异步审查任务（DocumentProcessingJob）。
+
+    解析与审查统一由后台 worker 完成；前端通过返回的 ``job_id`` 轮询
+    ``/api/v1/document-jobs/{job_id}`` 跟踪进度。PDF/Word 不再在请求线程内
+    同步解析直达审查引擎。``/upload`` 仍保留同步体检入口以向后兼容。
+    """
+    filename, ext, content = await _read_bounded_inspection_upload(file)
     user_id = _current_user_id(user)
-    detected_type = _detect_document_type(filename, text)
-    file_format = _inspection_file_format(filename)
-    record = await create_pending_inspection_record(
-        db=db,
-        user_id=user_id,
-        document_name=filename,
-        document_type=detected_type["document_type"],
-        document_type_label=detected_type["document_type_label"],
-        text=text,
-    )
+
+    content_hash = hashlib.sha256(content).hexdigest()
+    source_path = f"users/{user_id}/documents/{uuid4().hex}.{ext}"
+    save_file(source_path, content)
+
+    try:
+        source = await prepare_source_artifact(user_id, source_path, content_hash)
+        record = await add_pending_inspection_record(
+            db=db,
+            user_id=user_id,
+            document_name=filename,
+            document_type="unknown",
+            document_type_label=DOCUMENT_TYPE_LABELS["unknown"],
+            text="",
+        )
+        job = await create_document_job(
+            db,
+            source=source,
+            job_type="inspection",
+            file_type=ext,
+            inspection_record_id=record.id,
+        )
+        await db.commit()
+    except Exception:
+        # 复核或事务失败时清理已落盘的源文件，避免产生无人认领的孤儿产物。
+        delete_file(source_path)
+        raise
+
     session = _create_inspection_session(
         user_id=user_id,
         filename=filename,
-        file_size=len(content_bytes),
-        file_format=file_format,
-        document_type=detected_type["document_type"],
-        document_type_label=detected_type["document_type_label"],
-        text=text,
+        file_size=len(content),
+        file_format=ext,
+        document_type="unknown",
+        document_type_label=DOCUMENT_TYPE_LABELS["unknown"],
+        text="",
         record_id=record.id,
     )
 
     return InspectionParseResponse(
         session_id=session["id"],
+        job_id=job.job_id,
         file=InspectionParseFileResponse(
             name=filename,
-            size=len(content_bytes),
-            format=file_format,
-            document_type=session["document_type"],
-            documentType=session["document_type"],
-            document_type_label=session["document_type_label"],
-            text_preview=session["text_preview"],
-            parsed_content=text,
+            size=len(content),
+            format=ext,
+            document_type="unknown",
+            documentType="unknown",
+            document_type_label=DOCUMENT_TYPE_LABELS["unknown"],
+            text_preview="",
+            parsed_content="",
         ),
     )
 

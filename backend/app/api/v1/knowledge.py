@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -23,8 +24,8 @@ from app.models.knowledge import (
     DocumentVersion,
     IndexNode,
 )
+from app.services.document_job_service import SourceArtifact, create_document_job
 from app.services.file_storage import build_storage_path, save_file, safe_path_segment
-from app.services.knowledge_ingestion import ingest_document_content
 
 MAX_FILE_SIZE = 50 * 1024 * 1024
 
@@ -108,6 +109,7 @@ class UploadResponse(BaseModel):
     application_scenario: str
     node_count: int
     error: str | None
+    job_id: str
 
 
 class OverviewDocument(BaseModel):
@@ -371,8 +373,18 @@ async def upload_and_ingest(
 
     save_file(original_storage_path, content)
 
-    node_count, error_msg = await ingest_document_content(
-        db, document, version, original_storage_path, safe_stem, original_content=content,
+    content_hash = hashlib.sha256(content).hexdigest()
+    source = SourceArtifact(
+        user_id=owner_user_id,
+        source_path=original_storage_path,
+        content_hash=content_hash,
+    )
+    job = await create_document_job(
+        db,
+        source=source,
+        job_type="knowledge",
+        file_type=ext,
+        knowledge_version_id=version.id,
     )
     await db.commit()
     await db.refresh(version)
@@ -382,12 +394,13 @@ async def upload_and_ingest(
         version_id=version.id,
         version_number=version.version_number,
         display_name=version.display_name,
-        status=version.status,
+        status="pending",
         category=category_label,
         subcategory=sub.name,
         application_scenario=application_scenario,
-        node_count=node_count,
-        error=error_msg,
+        node_count=0,
+        error=None,
+        job_id=job.job_id,
     )
 
 

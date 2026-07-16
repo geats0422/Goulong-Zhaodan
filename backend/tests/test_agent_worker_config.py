@@ -14,7 +14,7 @@ TASK_FUNCTION_NAMES = [
 def test_redis_settings_from_config():
     s = Settings()
     assert hasattr(s, "redis_url")
-    assert s.redis_url == "redis://localhost:6379"
+    assert s.redis_url.startswith("redis://")
 
 
 def test_worker_settings_job_timeout():

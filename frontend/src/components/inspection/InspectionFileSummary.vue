@@ -1,13 +1,25 @@
 <script setup>
-defineProps({
+const props = defineProps({
   file: { type: Object, default: null },
+  parserEngine: { type: String, default: null },
 })
+
+const PARSER_ENGINE_LABELS = {
+  mineru: 'MinerU 高质量解析',
+  markitdown: '本地解析',
+  plain: '纯文本读取',
+}
 
 function formatFileSize(bytes) {
   if (!bytes) return '0 B'
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+function engineLabel() {
+  if (!props.parserEngine) return ''
+  return PARSER_ENGINE_LABELS[props.parserEngine] || props.parserEngine
 }
 </script>
 
@@ -30,7 +42,10 @@ function formatFileSize(bytes) {
       <span class="material-symbols-outlined">task_alt</span>
       <div>
         <strong>解析完成</strong>
-        <p>左侧已生成只读文档预览，可确认后进入审查准备。</p>
+        <p v-if="engineLabel()" class="parse-engine-hint">
+          <span class="material-symbols-outlined engine-icon">memory</span>{{ engineLabel() }}
+        </p>
+        <p v-else>左侧已生成只读文档预览，可确认后进入审查准备。</p>
       </div>
     </div>
   </div>
@@ -111,6 +126,23 @@ function formatFileSize(bytes) {
   line-height: 1.6;
 }
 
+.parse-engine-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  background: rgba(212, 175, 55, 0.06);
+  color: #d4af37;
+  font-family: "Geist", monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.parse-engine-hint .engine-icon {
+  font-size: 13px;
+}
+
 [data-theme="light"] .file-summary {
   border-color: rgba(111, 86, 48, 0.2);
   background: #faf8f4;
@@ -142,5 +174,11 @@ function formatFileSize(bytes) {
 
 [data-theme="light"] .parse-status p {
   color: #8a7a66;
+}
+
+[data-theme="light"] .parse-engine-hint {
+  border-color: rgba(197, 150, 26, 0.3);
+  background: rgba(197, 150, 26, 0.06);
+  color: #c5961a;
 }
 </style>

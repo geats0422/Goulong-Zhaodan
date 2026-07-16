@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import logging
+import re
 
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.model_config import (
@@ -12,6 +14,11 @@ from app.core.model_config import (
 )
 
 _logger = logging.getLogger(__name__)
+
+DEFAULT_MINERU_TRUSTED_HOSTS = ""
+_HOST_PATTERN = re.compile(
+    r"^(?:\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))+$"
+)
 
 
 class Settings(BaseSettings):
@@ -31,7 +38,40 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379"
 
+    document_job_retry_rate_limit: int = Field(default=5, ge=1)
+    document_job_retry_rate_limit_window: int = Field(default=3600, ge=1)
+    # 加密 Markdown artifact 缓存保留策略；当前不执行无边界的存储全量扫描。
+    document_artifact_retention_days: int = Field(default=30, ge=1, le=3650)
+
     pageindex_vendor_path: str = "vendor/pageindex"
+
+    # 文档质量门禁
+    document_min_non_whitespace_chars: int = Field(default=50, ge=1, le=1_000_000)
+    document_min_printable_ratio: float = Field(default=0.95, ge=0, le=1)
+    document_max_replacement_character_ratio: float = Field(default=0.01, ge=0, le=1)
+    document_max_garbled_character_ratio: float = Field(default=0.05, ge=0, le=1)
+    document_max_image_placeholder_ratio: float = Field(default=0.4, ge=0, le=1)
+    document_min_valid_pdf_page_chars: int = Field(default=20, ge=1, le=100_000)
+    document_max_parse_bytes: int = Field(
+        default=50 * 1024 * 1024,
+        gt=0,
+        le=500 * 1024 * 1024,
+    )
+
+    # MinerU 文档解析 API v4
+    mineru_api_token: str = ""
+    mineru_model_version: str = "pipeline"
+    mineru_enable_ocr: bool = True
+    mineru_language: str = "ch"
+    mineru_request_timeout_seconds: float = Field(default=60, gt=0, le=300)
+    mineru_poll_interval_seconds: float = Field(default=3, ge=0, le=60)
+    mineru_total_timeout_seconds: float = Field(default=600, gt=0, le=3600)
+    mineru_max_zip_bytes: int = Field(default=50 * 1024 * 1024, gt=0, le=500 * 1024 * 1024)
+    mineru_max_zip_members: int = Field(default=100, gt=0, le=10_000)
+    mineru_max_compression_ratio: float = Field(default=100, gt=1, le=10_000)
+    mineru_max_markdown_bytes: int = Field(default=20 * 1024 * 1024, gt=0, le=200 * 1024 * 1024)
+    mineru_max_json_bytes: int = Field(default=1024 * 1024, gt=0, le=10 * 1024 * 1024)
+    mineru_trusted_hosts: str = DEFAULT_MINERU_TRUSTED_HOSTS
 
     # CORS 跨域配置（逗号分隔）
     cors_origins: str = "http://localhost:5174,http://localhost:5173"
@@ -110,6 +150,14 @@ class Settings(BaseSettings):
         extra="ignore",          # 忽略未知环境变量
     )
 
+    @field_validator("mineru_trusted_hosts")
+    @classmethod
+    def validate_mineru_trusted_hosts(cls, value: str) -> str:
+        normalized = ",".join(item.strip().lower() for item in value.split(",") if item.strip())
+        if normalized and any(not _HOST_PATTERN.fullmatch(item) for item in normalized.split(",")):
+            raise ValueError("MINERU_TRUSTED_HOSTS 必须是逗号分隔的 hostname 或 .suffix")
+        return normalized
+
 
 # 全局配置实例
 settings = Settings()
@@ -149,10 +197,14 @@ def assert_production_security() -> None:
             raise RuntimeError(f"生产环境不允许使用默认 {attr}")
     if not settings.model_api_key:
         raise RuntimeError("生产环境必须配置 MODEL_API_KEY")
+    if not settings.mineru_api_token.strip():
+        raise RuntimeError("生产环境必须配置 MINERU_API_TOKEN")
+    if not settings.mineru_trusted_hosts.strip():
+        raise RuntimeError("生产环境必须配置 MINERU_TRUSTED_HOSTS")
     validate_official_deepseek_configuration(
         settings.model_base_url, settings.model_name
     )
-    if not settings.data_encryption_key:
+    if not settings.data_encryption_key.strip():
         raise RuntimeError("生产环境必须配置 DATA_ENCRYPTION_KEY")
     if "your-password" in settings.database_url:
         raise RuntimeError("生产环境必须修改 DATABASE_URL 中的默认密码")

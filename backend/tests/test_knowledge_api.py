@@ -316,6 +316,83 @@ class TestUploadAndIngest:
         assert "owner_user_id" in existing_doc_query
         assert "application_scenario" in existing_doc_query
 
+    def test_upload_creates_background_job_and_returns_job_id(
+        self, client, mock_db, monkeypatch
+    ):
+        import hashlib
+
+        import app.api.v1.knowledge as knowledge_router
+        import app.services.knowledge_ingestion as ingestion_mod
+
+        sub = _make_subcategory(id=7, category_key="traditional", name="房建")
+        mock_db.execute.side_effect = [
+            _result_scalar(None),  # subcategory does not exist, create it
+            _result_scalar(None),  # no existing document for owner/scenario
+        ]
+
+        captured: dict = {}
+
+        def assign_ids(obj):
+            name = obj.__class__.__name__
+            if name == "EngineeringSubcategory":
+                obj.id = 7
+            elif name == "KnowledgeDocument":
+                obj.id = 11
+            elif name == "DocumentVersion":
+                obj.id = 13
+                captured["version"] = obj
+
+        mock_db.refresh.side_effect = assign_ids
+        monkeypatch.setattr(knowledge_router, "build_storage_path", lambda *a, **k: "test/dir")
+        monkeypatch.setattr(
+            knowledge_router,
+            "save_file",
+            lambda path, content: captured.setdefault("saved_content", content),
+        )
+        monkeypatch.setattr(knowledge_router, "validate_file_magic", lambda *a, **k: None)
+
+        job_mock = MagicMock()
+        job_mock.job_id = "doc_job_background_123"
+        create_job_mock = AsyncMock(return_value=job_mock)
+        monkeypatch.setattr(knowledge_router, "create_document_job", create_job_mock)
+
+        ingest_mock = AsyncMock()
+        monkeypatch.setattr(ingestion_mod, "ingest_document_content", ingest_mock)
+
+        response = client.post(
+            "/api/v1/knowledge/upload",
+            data={
+                "category": "traditional",
+                "subcategory_name": sub.name,
+                "application_scenario": "contract",
+            },
+            files={"file": ("合同文件.pdf", b"content", "application/pdf")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # 1) 文件保存
+        assert captured["saved_content"] == b"content"
+        # 2) version 创建 status=pending
+        assert captured["version"].status == "pending"
+        # 3) job创建 job_type=knowledge, knowledge_version_id, source artifact
+        create_job_mock.assert_awaited_once()
+        _, kwargs = create_job_mock.call_args
+        assert kwargs["job_type"] == "knowledge"
+        assert kwargs["knowledge_version_id"] == 13
+        assert kwargs["file_type"] == ".pdf"
+        source = kwargs["source"]
+        assert source.user_id == uuid.UUID("00000000-0000-0000-0000-000000000042")
+        assert source.source_path.startswith("test/dir/")
+        assert source.content_hash == hashlib.sha256(b"content").hexdigest()
+        # 4) UploadResponse 含 job_id, status=pending
+        assert data["job_id"] == "doc_job_background_123"
+        assert data["status"] == "pending"
+        assert data["version_id"] == 13
+        # 5) 不调用 ingest 同步
+        ingest_mock.assert_not_called()
+
     def test_upload_rejects_invalid_application_scenario(self, client, mock_db):
         response = client.post(
             "/api/v1/knowledge/upload",

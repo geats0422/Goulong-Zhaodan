@@ -356,3 +356,125 @@ async def test_run_knowledge_upload_raises_on_missing_content():
         pytest.raises(ValueError, match="content_base64"),
     ):
         await _run_knowledge_upload({}, "job_knowledge_empty")
+
+
+@pytest.mark.asyncio
+async def test_run_parse_creates_document_job_with_content_base64():
+    """含 content_base64 的 _run_parse 应派发统一文档任务并返回 document_job_id，不内联解析。"""
+    import base64
+    import hashlib
+    import uuid
+    from types import SimpleNamespace
+
+    mock_session, mock_ctx = _make_mock_session_ctx()
+    user_id = uuid.UUID("12345678-1234-1234-1234-123456789012")
+    content = b"%PDF-1.4 fake pdf body content for parse"
+    mock_job = SimpleNamespace(
+        job_id="job_parse_file",
+        user_id=user_id,
+        input_payload={
+            "document_name": "招标文件.pdf",
+            "content_base64": base64.b64encode(content).decode("ascii"),
+        },
+    )
+    mock_db_result = MagicMock()
+    mock_db_result.scalar_one_or_none = MagicMock(return_value=mock_job)
+    mock_session.execute = AsyncMock(return_value=mock_db_result)
+    # ``async with db.begin():`` 占位，create_document_job 在其中被调用。
+    mock_session.begin = MagicMock(return_value=AsyncMock())
+
+    fake_source = SimpleNamespace(
+        user_id=user_id,
+        source_path="users/.../documents/abc.pdf",
+        content_hash=hashlib.sha256(content).hexdigest(),
+    )
+    fake_doc_job = SimpleNamespace(job_id="doc_job_xyz")
+
+    with (
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        patch("app.services.file_storage.save_file") as mock_save,
+        patch("app.services.file_storage.delete_file") as mock_delete,
+        patch(
+            "app.services.document_job_service.prepare_source_artifact",
+            new_callable=AsyncMock,
+            return_value=fake_source,
+        ) as mock_prepare,
+        patch(
+            "app.services.document_job_service.create_document_job",
+            new_callable=AsyncMock,
+            return_value=fake_doc_job,
+        ) as mock_create,
+    ):
+        result = await _run_parse({}, "job_parse_file")
+
+    assert result["document_job_id"] == "doc_job_xyz"
+    assert result["document_name"] == "招标文件.pdf"
+    assert result["file_type"] == "pdf"
+    # 源文件应先落盘，再由 prepare_source_artifact 复核哈希。
+    mock_save.assert_called_once()
+    saved_path = mock_save.call_args.args[0]
+    mock_prepare.assert_awaited_once()
+    assert mock_prepare.call_args.args[0] == user_id
+    assert mock_prepare.call_args.args[1] == saved_path
+    assert mock_prepare.call_args.args[2] == hashlib.sha256(content).hexdigest()
+    # 统一文档任务类型应为 agent_parse，复用统一解析服务。
+    mock_create.assert_awaited_once()
+    create_kwargs = mock_create.call_args.kwargs
+    assert create_kwargs["job_type"] == "agent_parse"
+    assert create_kwargs["source"] is fake_source
+    assert create_kwargs["file_type"] == "pdf"
+    # 成功路径不应删除已落盘源文件。
+    mock_delete.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_parse_cleans_up_source_when_document_job_create_fails():
+    """create_document_job 失败时应删除已落盘源文件，避免产生孤儿产物。"""
+    import base64
+    import hashlib
+    import uuid
+    from types import SimpleNamespace
+
+    mock_session, mock_ctx = _make_mock_session_ctx()
+    user_id = uuid.UUID("12345678-1234-1234-1234-123456789012")
+    content = b"%PDF-1.4 fake pdf body content for parse"
+    mock_job = SimpleNamespace(
+        job_id="job_parse_fail",
+        user_id=user_id,
+        input_payload={
+            "document_name": "招标文件.pdf",
+            "content_base64": base64.b64encode(content).decode("ascii"),
+        },
+    )
+    mock_db_result = MagicMock()
+    mock_db_result.scalar_one_or_none = MagicMock(return_value=mock_job)
+    mock_session.execute = AsyncMock(return_value=mock_db_result)
+    mock_session.begin = MagicMock(return_value=AsyncMock())
+
+    fake_source = SimpleNamespace(
+        user_id=user_id,
+        source_path="users/.../documents/abc.pdf",
+        content_hash=hashlib.sha256(content).hexdigest(),
+    )
+
+    with (
+        patch("app.workers.tasks.async_session", return_value=mock_ctx),
+        patch("app.services.file_storage.save_file") as mock_save,
+        patch("app.services.file_storage.delete_file") as mock_delete,
+        patch(
+            "app.services.document_job_service.prepare_source_artifact",
+            new_callable=AsyncMock,
+            return_value=fake_source,
+        ),
+        patch(
+            "app.services.document_job_service.create_document_job",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("db down"),
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="db down"):
+            await _run_parse({}, "job_parse_fail")
+
+    mock_save.assert_called_once()
+    saved_path = mock_save.call_args.args[0]
+    mock_delete.assert_called_once_with(saved_path)

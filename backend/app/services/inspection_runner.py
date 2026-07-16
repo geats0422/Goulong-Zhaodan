@@ -82,7 +82,7 @@ def append_history_record(record: InspectionRecord) -> None:
     _inspection_records.append(inspection_record_to_history_dict(record))
 
 
-async def create_pending_inspection_record(
+async def add_pending_inspection_record(
     *,
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -92,7 +92,13 @@ async def create_pending_inspection_record(
     text: str,
     project_id: str = "default",
 ) -> InspectionRecord:
-    """落库一条 pending 记录（已解析、待审查），并更新内存缓存。"""
+    """在调用方事务中追加一条 pending 记录（仅 ``flush``，不 commit/refresh）。
+
+    异步文档处理入口（如 ``/inspection/parse``）需要把 InspectionRecord 的创建
+    与 DocumentProcessingJob 的创建编排进同一事务，原子落库以避免悬空记录或孤儿
+    任务。调用方负责 ``commit`` / ``refresh`` / 更新内存缓存。同步入口仍应使用
+    :func:`create_pending_inspection_record`。
+    """
     record = InspectionRecord(
         user_id=user_id,
         document_name=document_name,
@@ -108,6 +114,30 @@ async def create_pending_inspection_record(
         quota_consumed=0,
     )
     db.add(record)
+    await db.flush()
+    return record
+
+
+async def create_pending_inspection_record(
+    *,
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    document_name: str,
+    document_type: str,
+    document_type_label: str,
+    text: str,
+    project_id: str = "default",
+) -> InspectionRecord:
+    """落库一条 pending 记录（已解析、待审查），并更新内存缓存。"""
+    record = await add_pending_inspection_record(
+        db=db,
+        user_id=user_id,
+        document_name=document_name,
+        document_type=document_type,
+        document_type_label=document_type_label,
+        text=text,
+        project_id=project_id,
+    )
     await db.commit()
     await db.refresh(record)
     append_history_record(record)

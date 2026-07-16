@@ -4,6 +4,7 @@ from goulong_auth.models import Membership, RefreshToken, User
 
 from app.models.api_keys import AgentJob, ApiKey
 from app.models.delegated_deduction import DeductionOrder, SubscriptionContract
+from app.models.document_job import DocumentProcessingJob
 from app.models.knowledge import (
     Base,
     DocumentVersion,
@@ -25,6 +26,7 @@ __all__ = [
     "EngineeringSubcategory",
     "KnowledgeDocument",
     "DocumentVersion",
+    "DocumentProcessingJob",
     "IndexNode",
     "InspectionRecord",
     "Membership",

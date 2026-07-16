@@ -3,11 +3,12 @@ from __future__ import annotations
 import os
 import re
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
+
+from app.lib.private_temp import create_private_temp_file, secure_unlink, snapshot_file_identity
 
 _DEPTH_NODE_TYPES = ("chapter", "section", "paragraph", "sentence")
 
@@ -28,13 +29,23 @@ _SENTENCE_END = re.compile(r"(?<=[。！？；])")
 
 
 async def build_index_nodes(
-    markdown_text: str, md_path: str | None = None
+    markdown_text: str,
+    md_path: str | None = None,
+    *,
+    strict: bool = False,
 ) -> list[IndexNodeCreate]:
     if not markdown_text or not markdown_text.strip():
+        if strict:
+            raise IndexingError("PageIndex returned no nodes")
         return []
     try:
-        return await _parse_with_pageindex(markdown_text, md_path)
-    except Exception:
+        nodes = await _parse_with_pageindex(markdown_text, md_path)
+        if strict and not nodes:
+            raise IndexingError("PageIndex returned no nodes")
+        return nodes
+    except Exception as exc:
+        if strict:
+            raise IndexingError("PageIndex failed") from exc
         return _fallback_parse(markdown_text)
 
 
@@ -45,21 +56,20 @@ async def _parse_with_pageindex(
         raise IndexingError("no md_path provided for pageindex")
 
     target_path = md_path
-    tmp_file: tempfile._TemporaryFileWrapper | None = None
+    temporary_path: Path | None = None
+    temporary_identity = None
 
     if not Path(md_path).exists():
-        tmp_file = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".md", delete=False, encoding="utf-8"
-        )
-        tmp_file.write(markdown_text)
-        tmp_file.close()
-        target_path = tmp_file.name
+        temporary_path = create_private_temp_file(prefix="pageindex-", suffix=".md")
+        temporary_identity = snapshot_file_identity(temporary_path)
+        temporary_path.write_text(markdown_text, encoding="utf-8")
+        target_path = str(temporary_path)
 
     try:
         return await _run_pageindex_md_to_tree(target_path)
     finally:
-        if tmp_file is not None:
-            os.unlink(tmp_file.name)
+        if temporary_path is not None:
+            secure_unlink(temporary_path, identity=temporary_identity)
 
 
 async def _run_pageindex_md_to_tree(md_path: str) -> list[IndexNodeCreate]:

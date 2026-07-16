@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import types
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -32,7 +33,7 @@ if "markitdown" not in sys.modules or not hasattr(sys.modules.get("markitdown"),
 
 from app.core.database import async_session  # noqa: E402
 from main import app  # noqa: E402
-from app.models.knowledge import TabooWord  # noqa: E402
+from app.models.knowledge import InspectionRecord, TabooWord  # noqa: E402
 from app.api.v1 import inspection as inspection_router  # noqa: E402
 from app.services import inspection_runner  # noqa: E402
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
@@ -74,8 +75,36 @@ async def register_and_auth(client: AsyncClient, username: str = "inspection_use
     return {"Authorization": f"Bearer {data['access_token']}"}, data["id"]
 
 
+async def register_and_create_parse_session(
+    client: AsyncClient,
+    username: str,
+    *,
+    filename: str,
+    text: str,
+    document_type: str = "bidding",
+    document_type_label: str = "招投标文件",
+) -> tuple[dict[str, str], str]:
+    """注册用户并直接构造一个已解析会话，绕过异步 /parse。
+
+    /parse 改为异步文档处理后不再在请求线程内同步解析正文，会话级审查测试
+    需要预注入解析文本来聚焦 ``inspect_session`` 端点的场景路由逻辑。
+    """
+    headers, user_id = await register_and_auth(client, username)
+    file_format = Path(filename).suffix.lstrip(".").lower()
+    session = inspection_router._create_inspection_session(
+        user_id=uuid.UUID(user_id),
+        filename=filename,
+        file_size=len(text.encode("utf-8")),
+        file_format=file_format,
+        document_type=document_type,
+        document_type_label=document_type_label,
+        text=text,
+    )
+    return headers, session["id"]
+
+
 @pytest.mark.asyncio
-async def test_parse_returns_session_and_file_metadata(client: AsyncClient):
+async def test_parse_returns_job_id_and_pending_record(client: AsyncClient):
     headers, _ = await register_and_auth(client, "parse_metadata_user")
     file_content = "这是一个足够长的招标文件内容，用于解析案卷并生成文件摘要。".encode("utf-8")
 
@@ -85,17 +114,19 @@ async def test_parse_returns_session_and_file_metadata(client: AsyncClient):
         files={"file": ("A区数据中心项目招标文件_v2.txt", file_content, "text/plain")},
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json()
+    assert data["job_id"]
     assert data["session_id"]
     file_meta = data["file"]
     assert file_meta["name"] == "A区数据中心项目招标文件_v2.txt"
     assert file_meta["size"] == len(file_content)
     assert file_meta["format"] == "txt"
-    assert file_meta["document_type"] == "bidding"
-    assert file_meta["document_type_label"] == "招投标文件"
-    assert file_meta["text_preview"] == "这是一个足够长的招标文件内容，用于解析案卷并生成文件摘要。"
-    assert file_meta["parsed_content"] == "这是一个足够长的招标文件内容，用于解析案卷并生成文件摘要。"
+    # 异步入口不再同步检测文档类型/解析正文，交由后台 worker 填充。
+    assert file_meta["document_type"] == "unknown"
+    assert file_meta["document_type_label"] == "未知类型"
+    assert file_meta["text_preview"] == ""
+    assert file_meta["parsed_content"] == ""
 
     records_response = await client.get("/inspection/records", headers=headers)
     assert records_response.status_code == 200
@@ -106,7 +137,8 @@ async def test_parse_returns_session_and_file_metadata(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_parse_detects_contract_document_type(client: AsyncClient):
+async def test_parse_defers_document_type_detection_to_worker(client: AsyncClient):
+    """异步 /parse 不再同步解析正文，文档类型统一由后台 worker 解析后判定。"""
     headers, _ = await register_and_auth(client, "parse_contract_user")
 
     response = await client.post(
@@ -121,32 +153,24 @@ async def test_parse_detects_contract_document_type(client: AsyncClient):
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     file_meta = response.json()["file"]
-    assert file_meta["document_type"] == "contract"
-    assert file_meta["document_type_label"] == "合同"
+    assert file_meta["document_type"] == "unknown"
 
 
 @pytest.mark.asyncio
-async def test_parse_detects_bidding_document_type(client: AsyncClient):
-    headers, _ = await register_and_auth(client, "parse_bidding_user")
+async def test_parse_accepts_short_text_deferring_quality_check_to_worker(client: AsyncClient):
+    """内容长度/质量校验已下沉到后台 worker 统一解析管线，/parse 仅落盘建 job。"""
+    headers, _ = await register_and_auth(client, "parse_short_user")
 
     response = await client.post(
         "/inspection/parse",
         headers=headers,
-        files={
-            "file": (
-                "数据中心采购招标文件.txt",
-                "本项目采用公开招标方式，投标人需按评标办法提交投标文件。".encode("utf-8"),
-                "text/plain",
-            )
-        },
+        files={"file": ("短文件.txt", b"hi", "text/plain")},
     )
 
-    assert response.status_code == 200
-    file_meta = response.json()["file"]
-    assert file_meta["document_type"] == "bidding"
-    assert file_meta["document_type_label"] == "招投标文件"
+    assert response.status_code == 202
+    assert response.json()["job_id"]
 
 
 def test_detect_document_type_identifies_contract_keywords():
@@ -436,20 +460,6 @@ async def test_parse_rejects_unsupported_format(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_parse_rejects_short_text(client: AsyncClient):
-    headers, _ = await register_and_auth(client, "parse_short_user")
-
-    response = await client.post(
-        "/inspection/parse",
-        headers=headers,
-        files={"file": ("短文件.txt", b"hi", "text/plain")},
-    )
-
-    assert response.status_code == 400
-    assert "过短" in response.json()["detail"]
-
-
-@pytest.mark.asyncio
 async def test_parse_rejects_oversized_file(client: AsyncClient):
     headers, _ = await register_and_auth(client, "parse_oversize_user")
     big_content = b"x" * (inspection_router.MAX_INSPECTION_FILE_SIZE + 1)
@@ -521,16 +531,14 @@ async def test_upload_rejects_invalid_application_scenario(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_session_inspect_uses_document_type_from_parse_session(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
-    headers, user_id = await register_and_auth(client, "session_inspect_user")
-    file_content = "甲方与乙方签订工程施工合同，约定违约责任条款。".encode("utf-8")
-
-    parse_response = await client.post(
-        "/inspection/parse",
-        headers=headers,
-        files={"file": ("工程施工合同.txt", file_content, "text/plain")},
+    headers, session_id = await register_and_create_parse_session(
+        client,
+        "session_inspect_user",
+        filename="工程施工合同.txt",
+        text="甲方与乙方签订工程施工合同，约定违约责任条款。",
+        document_type="contract",
+        document_type_label="合同",
     )
-    assert parse_response.status_code == 200
-    session_id = parse_response.json()["session_id"]
 
     captured = {}
 
@@ -570,18 +578,15 @@ async def test_session_inspect_uses_document_type_from_parse_session(client: Asy
 
 @pytest.mark.asyncio
 async def test_session_inspect_unknown_type_falls_back_to_bidding(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
-    headers, user_id = await register_and_auth(client, "unknown_fallback_user")
-    file_content = "这是普通项目说明文本，没有明确类型线索。".encode("utf-8")
-
-    parse_response = await client.post(
-        "/inspection/parse",
-        headers=headers,
-        files={"file": ("项目资料.txt", file_content, "text/plain")},
+    headers, session_id = await register_and_create_parse_session(
+        client,
+        "unknown_fallback_user",
+        filename="项目资料.txt",
+        text="这是普通项目说明文本，没有明确类型线索。",
+        document_type="unknown",
+        document_type_label="未知类型",
     )
-    assert parse_response.status_code == 200
-    assert parse_response.json()["file"]["document_type"] == "unknown"
 
-    session_id = parse_response.json()["session_id"]
     captured = {}
 
     async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
@@ -611,16 +616,14 @@ async def test_session_inspect_unknown_type_falls_back_to_bidding(client: AsyncC
 
 @pytest.mark.asyncio
 async def test_contract_inspect_only_references_contract_sources(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
-    headers, _ = await register_and_auth(client, "contract_ref_filter_user")
-    file_content = "甲方与乙方签订工程施工合同，约定付款方式与违约责任。".encode("utf-8")
-
-    parse_response = await client.post(
-        "/inspection/parse",
-        headers=headers,
-        files={"file": ("施工合同.txt", file_content, "text/plain")},
+    headers, session_id = await register_and_create_parse_session(
+        client,
+        "contract_ref_filter_user",
+        filename="施工合同.txt",
+        text="甲方与乙方签订工程施工合同，约定付款方式与违约责任。",
+        document_type="contract",
+        document_type_label="合同",
     )
-    assert parse_response.status_code == 200
-    session_id = parse_response.json()["session_id"]
 
     contract_sources = [
         {"title": "《中华人民共和国民法典》第三编合同"},
@@ -656,17 +659,14 @@ async def test_contract_inspect_only_references_contract_sources(client: AsyncCl
 
 @pytest.mark.asyncio
 async def test_session_inspect_explicit_scenario_overrides_detected(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
-    headers, _ = await register_and_auth(client, "scenario_override_user")
-    file_content = "甲方与乙方签订工程施工合同，约定付款方式与违约责任。".encode("utf-8")
-
-    parse_response = await client.post(
-        "/inspection/parse",
-        headers=headers,
-        files={"file": ("施工合同.txt", file_content, "text/plain")},
+    headers, session_id = await register_and_create_parse_session(
+        client,
+        "scenario_override_user",
+        filename="施工合同.txt",
+        text="甲方与乙方签订工程施工合同，约定付款方式与违约责任。",
+        document_type="contract",
+        document_type_label="合同",
     )
-    assert parse_response.status_code == 200
-    assert parse_response.json()["file"]["document_type"] == "contract"
-    session_id = parse_response.json()["session_id"]
 
     captured = {}
 
@@ -697,15 +697,14 @@ async def test_session_inspect_explicit_scenario_overrides_detected(client: Asyn
 
 @pytest.mark.asyncio
 async def test_session_inspect_persists_record_for_paginated_desk_list(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
-    headers, _ = await register_and_auth(client, "session_records_user")
-    monkeypatch.setattr("app.api.v1.inspection.convert_to_markdown", lambda path: "甲方与乙方签署合同，约定服务范围与违约责任。")
-    monkeypatch.setattr("app.api.v1.inspection.validate_file_magic", lambda *a, **kw: None)
-    parse_response = await client.post(
-        "/inspection/parse",
-        headers=headers,
-        files={"file": ("2026标准外包合同.docx", "甲方与乙方签署合同，约定服务范围与违约责任。".encode("utf-8"), "text/plain")},
+    headers, session_id = await register_and_create_parse_session(
+        client,
+        "session_records_user",
+        filename="2026标准外包合同.docx",
+        text="甲方与乙方签署合同，约定服务范围与违约责任。",
+        document_type="contract",
+        document_type_label="合同",
     )
-    assert parse_response.status_code == 200
 
     async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
         return {"snippets": [{"content": "合同审查依据"}], "sources": [{"title": "民法典合同编"}]}
@@ -722,7 +721,7 @@ async def test_session_inspect_persists_record_for_paginated_desk_list(client: A
     monkeypatch.setattr("app.services.inspection_runner.run_inspection", fake_run_inspection)
 
     inspect_response = await client.post(
-        f"/inspection/sessions/{parse_response.json()['session_id']}/inspect",
+        f"/inspection/sessions/{session_id}/inspect",
         headers=headers,
         json={"project_id": "default"},
     )
@@ -762,19 +761,32 @@ async def test_session_inspect_persists_record_for_paginated_desk_list(client: A
 
 @pytest.mark.asyncio
 async def test_pending_record_can_be_inspected_from_history(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
-    headers, _ = await register_and_auth(client, "history_inspect_user")
+    headers, user_id = await register_and_auth(client, "history_inspect_user")
     parsed_text = "甲方与乙方签署合同，约定服务范围与违约责任。"
-    monkeypatch.setattr("app.api.v1.inspection.convert_to_markdown", lambda path: parsed_text)
-    monkeypatch.setattr("app.api.v1.inspection.validate_file_magic", lambda *a, **kw: None)
-    parse_response = await client.post(
-        "/inspection/parse",
-        headers=headers,
-        files={"file": ("待审查合同.docx", parsed_text.encode("utf-8"), "text/plain")},
-    )
-    assert parse_response.status_code == 200
 
-    records_response = await client.get("/inspection/records", headers=headers)
-    record_id = records_response.json()["items"][0]["id"]
+    # 异步管线下 record 的 parsed_content 由后台 worker 填充；这里直接模拟
+    # worker 已完成解析后的落库状态，聚焦 record 级审查入口。
+    from app.core.data_encryption import encrypt_text
+
+    async with async_session() as session:
+        record = InspectionRecord(
+            user_id=uuid.UUID(user_id),
+            document_name="待审查合同.docx",
+            document_type="contract",
+            document_type_label="合同",
+            project_id="default",
+            overall_risk="pending",
+            summary="文件已解析，等待审查",
+            issues=[],
+            regulation_refs=[],
+            text_preview=parsed_text[:500],
+            parsed_content=encrypt_text(parsed_text),
+            quota_consumed=0,
+        )
+        session.add(record)
+        await session.commit()
+        await session.refresh(record)
+        record_id = record.id
 
     detail_response = await client.get(f"/inspection/records/{record_id}", headers=headers)
     assert detail_response.status_code == 200
@@ -811,15 +823,14 @@ async def test_pending_record_can_be_inspected_from_history(client: AsyncClient,
 
 @pytest.mark.asyncio
 async def test_record_report_pdf_uses_contract_name_filename(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
-    headers, _ = await register_and_auth(client, "session_pdf_user")
-    monkeypatch.setattr("app.api.v1.inspection.convert_to_markdown", lambda path: "甲方与乙方签署合同，约定服务范围与违约责任。")
-    monkeypatch.setattr("app.api.v1.inspection.validate_file_magic", lambda *a, **kw: None)
-    parse_response = await client.post(
-        "/inspection/parse",
-        headers=headers,
-        files={"file": ("2026标准外包合同.docx", "甲方与乙方签署合同，约定服务范围与违约责任。".encode("utf-8"), "text/plain")},
+    headers, session_id = await register_and_create_parse_session(
+        client,
+        "session_pdf_user",
+        filename="2026标准外包合同.docx",
+        text="甲方与乙方签署合同，约定服务范围与违约责任。",
+        document_type="contract",
+        document_type_label="合同",
     )
-    assert parse_response.status_code == 200
 
     async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
         return {"snippets": [{"content": "合同审查依据"}], "sources": [{"title": "民法典合同编"}]}
@@ -836,7 +847,7 @@ async def test_record_report_pdf_uses_contract_name_filename(client: AsyncClient
     monkeypatch.setattr("app.services.inspection_runner.run_inspection", fake_run_inspection)
 
     inspect_response = await client.post(
-        f"/inspection/sessions/{parse_response.json()['session_id']}/inspect",
+        f"/inspection/sessions/{session_id}/inspect",
         headers=headers,
         json={"project_id": "default"},
     )
@@ -861,7 +872,7 @@ async def test_session_inspect_rejects_other_users_session(client: AsyncClient):
         headers=headers_a,
         files={"file": ("招标文件.txt", file_content, "text/plain")},
     )
-    assert parse_response.status_code == 200
+    assert parse_response.status_code == 202
     session_id = parse_response.json()["session_id"]
 
     inspect_response = await client.post(

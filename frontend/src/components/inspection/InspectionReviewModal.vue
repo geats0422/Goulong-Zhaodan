@@ -5,7 +5,14 @@ import InspectionFileSummary from './InspectionFileSummary.vue'
 import DocumentPreviewPane from './DocumentPreviewPane.vue'
 import KnowledgeTogglePanel from './KnowledgeTogglePanel.vue'
 import InspectionReportPane from './InspectionReportPane.vue'
-import { parseInspectionFile, inspectParsedSession, downloadInspectionReportPdf } from '../../services/inspectionApi.js'
+import { parseInspectionFile, fetchInspectionRecord, downloadInspectionReportPdf } from '../../services/inspectionApi.js'
+import { retryDocumentJob } from '../../services/documentJobApi.js'
+import { useDocumentJobPolling } from '../../composables/useDocumentJobPolling.js'
+import {
+  describeInspectionJobStage,
+  describeInspectionJobError,
+  isConvertToPdfRequired,
+} from '../../composables/inspectionJobStages.js'
 
 const props = defineProps({
   file: { type: File, default: null },
@@ -16,6 +23,8 @@ const emit = defineEmits(['close'])
 
 const STEP = { PARSING: 1, PREPARE: 2, REPORT: 3 }
 
+const { startPolling, cancelPolling } = useDocumentJobPolling()
+
 const currentStep = ref(STEP.PARSING)
 const stepErrors = ref([null, null, null])
 const parseData = ref(null)
@@ -24,7 +33,32 @@ const inspecting = ref(false)
 const sessionExpired = ref(false)
 const selectedScenario = ref(null)
 
+// 异步解析任务状态
+const parseJob = ref(null)            // useDocumentJobPolling 最新 job 快照
+const parseError = ref(null)          // 任务级错误消息（网络错误/轮询超时）
+const parseRetrying = ref(false)      // 用户点击重试时
+const parseHydrating = ref(false)     // succeeded 后预加载文档预览期间
+const inspectionRecordId = ref(null)  // succeeded 后的体检记录 ID
+
 const previewText = computed(() => parseData.value?.file?.parsed_content || parseData.value?.file?.text_preview || '')
+
+const parseStageInfo = computed(() => describeInspectionJobStage(parseJob.value))
+
+const parseFailedMessage = computed(() => {
+  if (parseError.value) return parseError.value
+  const status = parseJob.value?.status
+  if (status === 'failed' || status === 'cancelled') {
+    return describeInspectionJobError(parseJob.value)
+  }
+  return null
+})
+
+const parseNeedsPdf = computed(() => isConvertToPdfRequired(parseJob.value))
+
+// succeeded 后仍在预加载文档预览时，继续展示 100% 进度，避免左侧出现空白文档预览。
+const parseComplete = computed(
+  () => parseData.value && parseJob.value?.status === 'succeeded' && !parseHydrating.value,
+)
 
 watch(() => props.open, async (isOpen) => {
   if (!isOpen || !props.file) return
@@ -35,35 +69,98 @@ watch(() => props.open, async (isOpen) => {
   reportData.value = null
   inspecting.value = false
   sessionExpired.value = false
+  parseJob.value = null
+  parseError.value = null
+  parseRetrying.value = false
+  parseHydrating.value = false
+  inspectionRecordId.value = null
+  cancelPolling()
 
-  try {
-    parseData.value = await parseInspectionFile(props.file)
-    stepErrors.value[0] = null
-  } catch (e) {
-    stepErrors.value[0] = e.message
-  }
+  await startParse(props.file)
 })
+
+function startJobPolling(jobId) {
+  startPolling(jobId, {
+    onUpdate: (job) => { parseJob.value = job },
+    onComplete: handleParseComplete,
+    onError: (err) => { parseError.value = err.message },
+  })
+}
+
+async function handleParseComplete(job) {
+  parseJob.value = job
+  if (job.inspection_record_id) {
+    inspectionRecordId.value = job.inspection_record_id
+    // 解析成功后预加载 record，使左侧文档预览与文件元信息（document_type 等）就绪。
+    parseHydrating.value = true
+    try {
+      const record = await fetchInspectionRecord(job.inspection_record_id)
+      hydrateParseDataFromRecord(record)
+    } catch {
+      // 预览加载失败不阻塞流程；用户点击「开始审查」时若仍失败会展示具体错误。
+    } finally {
+      parseHydrating.value = false
+    }
+  }
+  currentStep.value = STEP.PREPARE
+}
+
+function hydrateParseDataFromRecord(record) {
+  if (!parseData.value?.file || !record) return
+  const file = parseData.value.file
+  file.parsed_content = record.parsed_content || file.parsed_content || ''
+  file.text_preview = record.text_preview || file.text_preview || ''
+  if (record.document_type) file.document_type = record.document_type
+  if (record.document_type_label) file.document_type_label = record.document_type_label
+}
+
+async function startParse(file) {
+  parseError.value = null
+  parseJob.value = null
+  try {
+    const data = await parseInspectionFile(file)
+    parseData.value = data
+    startJobPolling(data.job_id)
+  } catch (e) {
+    parseError.value = e.message
+  }
+}
+
+async function retryParse() {
+  const jobId = parseData.value?.job_id
+  if (!jobId || parseRetrying.value) return
+  parseRetrying.value = true
+  parseError.value = null
+  parseJob.value = null
+  try {
+    const job = await retryDocumentJob(jobId)
+    parseJob.value = job
+    startJobPolling(jobId)
+  } catch (e) {
+    parseError.value = e.message
+  } finally {
+    parseRetrying.value = false
+  }
+}
 
 function goToStep(step) {
   currentStep.value = step
 }
 
 async function startInspection(scenario) {
-  if (!parseData.value || inspecting.value) return
+  if (!inspectionRecordId.value || inspecting.value) return
   inspecting.value = true
   stepErrors.value[1] = null
   stepErrors.value[2] = null
   selectedScenario.value = scenario || parseData.value?.file?.document_type || 'bidding'
 
   try {
-    reportData.value = await inspectParsedSession(parseData.value.session_id, {
-      project_id: 'default',
-      application_scenario: selectedScenario.value,
-    })
+    // worker 完成时已生成完整审查报告，直接通过 record_id 拉取。
+    reportData.value = await fetchInspectionRecord(inspectionRecordId.value)
     currentStep.value = STEP.REPORT
   } catch (e) {
     stepErrors.value[2] = e.message
-    if (e.message.includes('解析会话已失效')) {
+    if (e.message.includes('记录不存在')) {
       sessionExpired.value = true
     }
   } finally {
@@ -99,17 +196,33 @@ function handleClose() {
         <div class="modal-body">
           <!-- Step 1: 解析文件 -->
           <template v-if="currentStep === STEP.PARSING">
-            <div v-if="stepErrors[0]" class="step-error">
+            <div v-if="parseFailedMessage" class="step-error">
               <span class="material-symbols-outlined">error</span>
-              <p>{{ stepErrors[0] }}</p>
-              <button class="action-btn" @click="handleClose">关闭</button>
+              <p>{{ parseFailedMessage }}</p>
+              <p v-if="parseNeedsPdf" class="step-error-hint">请将文档转为 PDF 后重新上传。</p>
+              <div class="step-error-actions">
+                <button class="action-btn secondary" type="button" @click="handleClose">关闭</button>
+                <button
+                  v-if="!parseNeedsPdf && parseData?.job_id"
+                  class="action-btn primary"
+                  type="button"
+                  :disabled="parseRetrying"
+                  @click="retryParse"
+                >
+                  <span class="material-symbols-outlined">refresh</span>
+                  {{ parseRetrying ? '正在重试...' : '重试' }}
+                </button>
+              </div>
             </div>
-            <template v-else-if="parseData">
+            <template v-else-if="parseComplete">
               <div class="step-content step-parse-layout">
                 <DocumentPreviewPane :text="previewText" />
                 <aside class="parse-sidebar">
                   <div class="parse-info">
-                    <InspectionFileSummary :file="parseData.file" />
+                    <InspectionFileSummary
+                      :file="parseData.file"
+                      :parser-engine="parseStageInfo.parserEngine"
+                    />
                   </div>
                   <div class="step-actions parse-actions">
                     <button class="action-btn secondary" type="button" @click="handleClose">
@@ -122,9 +235,16 @@ function handleClose() {
                 </aside>
               </div>
             </template>
-            <div v-else class="step-loading">
+            <div v-else class="step-loading step-loading-progress">
               <div class="spinner" />
-              <p>正在解析文件...</p>
+              <p class="progress-message">{{ parseStageInfo.message }}</p>
+              <div v-if="parseStageInfo.progress > 0" class="progress-bar" role="progressbar" :aria-valuenow="parseStageInfo.progress" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar-fill" :style="{ width: parseStageInfo.progress + '%' }" />
+              </div>
+              <p v-if="parseStageInfo.progress > 0" class="progress-percent">{{ parseStageInfo.progress }}%</p>
+              <p v-if="parseStageInfo.isMineru" class="progress-engine">
+                <span class="material-symbols-outlined">memory</span>MinerU 高质量解析
+              </p>
             </div>
           </template>
 
@@ -398,6 +518,75 @@ function handleClose() {
   font-size: 13px;
 }
 
+.step-loading-progress {
+  gap: 14px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.progress-message {
+  margin: 0;
+  color: #e5e2e1;
+  font-family: "Geist", monospace;
+  font-size: 14px;
+  text-align: center;
+}
+
+.progress-bar {
+  width: 100%;
+  max-width: 360px;
+  height: 4px;
+  border: 1px solid rgba(77, 70, 53, 0.35);
+  background: rgba(77, 70, 53, 0.2);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #d4af37, #f2ca50);
+  transition: width 0.4s ease;
+}
+
+.progress-percent {
+  margin: 0;
+  color: #99907c;
+  font-family: "Geist", monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.progress-engine {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  background: rgba(212, 175, 55, 0.08);
+  color: #d4af37;
+  font-family: "Geist", monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.progress-engine .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.step-error-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.step-error-hint {
+  margin: -4px 0 0;
+  color: #d0c5af;
+  font-family: "Geist", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .spinner {
   width: 32px;
   height: 32px;
@@ -537,6 +726,33 @@ function handleClose() {
 }
 
 [data-theme="light"] .session-expired-dialog p {
+  color: #6f5630;
+}
+
+[data-theme="light"] .progress-message {
+  color: #2c2416;
+}
+
+[data-theme="light"] .progress-bar {
+  border-color: rgba(111, 86, 48, 0.2);
+  background: rgba(111, 86, 48, 0.08);
+}
+
+[data-theme="light"] .progress-bar-fill {
+  background: linear-gradient(90deg, #c5961a, #d4af37);
+}
+
+[data-theme="light"] .progress-percent {
+  color: #8a7a66;
+}
+
+[data-theme="light"] .progress-engine {
+  border-color: rgba(197, 150, 26, 0.3);
+  background: rgba(197, 150, 26, 0.08);
+  color: #c5961a;
+}
+
+[data-theme="light"] .step-error-hint {
   color: #6f5630;
 }
 

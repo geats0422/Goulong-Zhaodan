@@ -15,15 +15,26 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 
 from app.core import database as db_mod
-from app.core.config import settings
-
 TEST_DB_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql+asyncpg://postgres:990715@localhost:5432/goulong_test",
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://localhost:5432/goulong_test",
 )
+
+
+def assert_safe_database_for_cleanup(database_url: str = TEST_DB_URL) -> None:
+    parsed = urlparse(database_url.replace("+asyncpg", ""))
+    database_name = parsed.path.lstrip("/")
+    if parsed.scheme not in {"postgresql", "postgres"}:
+        raise RuntimeError("测试套件要求独立 PostgreSQL 测试数据库")
+    if not (database_name.endswith("_test") or database_name == "test"):
+        raise RuntimeError(f"拒绝清理非测试数据库: {database_name}")
+
+
+assert_safe_database_for_cleanup()
 
 # Children first, parents last — respects FK constraints.
 _CLEANUP_TABLES = [
+    "zhaodan.document_processing_jobs",
     "zhaodan.agent_jobs",
     "zhaodan.deduction_orders",
     "zhaodan.subscription_contracts",
@@ -71,19 +82,6 @@ async def _cleanup_tables(engine: AsyncEngine) -> None:
         await conn.execute(text("UPDATE zhaodan.knowledge_documents SET current_version_id = NULL"))
         for table in _CLEANUP_TABLES:
             await conn.execute(text(f"DELETE FROM {table}"))
-
-
-def assert_safe_database_for_cleanup() -> None:
-    database_url = settings.database_url.replace("+asyncpg", "")
-    parsed = urlparse(database_url)
-    if parsed.scheme.startswith("sqlite"):
-        return
-
-    database_name = parsed.path.lstrip("/")
-    if database_name.endswith("_test") or database_name == "test":
-        return
-
-    raise RuntimeError(f"拒绝清理非测试数据库: {database_name}")
 
 
 @pytest_asyncio.fixture(autouse=True, scope="session")
