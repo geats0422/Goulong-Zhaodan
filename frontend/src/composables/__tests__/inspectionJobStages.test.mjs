@@ -26,7 +26,7 @@ test('describeInspectionJobStage: 无 job 时返回上传中默认信息', () =>
 test('STAGE_MESSAGES: 覆盖体检弹窗需要的所有阶段', () => {
   assert.equal(STAGE_MESSAGES.detecting, '正在识别文档类型')
   assert.equal(STAGE_MESSAGES.parsing_local, '正在解析文档')
-  assert.equal(STAGE_MESSAGES.parsing_mineru, '正在进行高质量文档解析')
+  assert.equal(STAGE_MESSAGES.parsing_mineru, '正在进行备份文件增强识别')
   assert.equal(STAGE_MESSAGES.indexing, '正在构建文档索引')
   assert.equal(STAGE_MESSAGES.inspecting, '正在审查文档')
   assert.equal(STAGE_MESSAGES.succeeded, '文档处理完成')

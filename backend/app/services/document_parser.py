@@ -183,13 +183,14 @@ async def parse_document(
     thresholds: QualityThresholds | None = None,
     max_parse_bytes: int | None = None,
     process_context: Any | None = None,
+    job_type: str = "knowledge",
     stage_callback: StageCallback | None = None,
     existing_mineru_task_id: str | None = None,
     mineru_task_created_callback: TaskCreatedCallback | None = None,
 ) -> ParseResult:
     """Parse a bounded private snapshot of a validated local document."""
     try:
-        route_document(suffix)
+        route_document(suffix, job_type=job_type)
     except UnsupportedDocumentTypeError:
         raise
     except ValueError:
@@ -209,7 +210,7 @@ async def parse_document(
         async with asyncio.timeout(effective_deadline):
             snapshot = await _create_snapshot(Path(file_path), suffix, effective_max_bytes, context)
             _require_snapshot_identity(snapshot.path, snapshot.identity)
-            decision = await _route_snapshot(snapshot.path, suffix, effective_thresholds, context)
+            decision = await _route_snapshot(snapshot.path, suffix, effective_thresholds, context, job_type)
             return await _execute_route(
                 snapshot,
                 suffix,
@@ -297,10 +298,11 @@ async def _route_snapshot(
     suffix: str,
     thresholds: QualityThresholds,
     process_context: Any,
+    job_type: str,
 ) -> DocumentRouteDecision:
     _require_snapshot_identity(path)
     if suffix.strip().lower().lstrip(".") != "pdf":
-        return route_document(suffix)
+        return route_document(suffix, job_type=job_type)
     kind = await _run_isolated(
         "classify_pdf",
         path,
@@ -309,7 +311,7 @@ async def _route_snapshot(
         process_context,
     )
     try:
-        return route_document(suffix, PdfDocumentKind(kind))
+        return route_document(suffix, PdfDocumentKind(kind), job_type=job_type)
     except ValueError:
         raise DocumentParseError("pdf_read", "无法读取 PDF 文档") from None
 

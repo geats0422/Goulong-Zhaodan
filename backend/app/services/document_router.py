@@ -48,6 +48,7 @@ def route_document(
     suffix: str,
     pdf_document_kind: PdfDocumentKind | None = None,
     *,
+    job_type: str = "knowledge",
     pdf_page_texts: Sequence[str] | None = None,
     thresholds: QualityThresholds | None = None,
 ) -> DocumentRouteDecision:
@@ -56,6 +57,8 @@ def route_document(
     if normalized_suffix in _DIRECT_TEXT_SUFFIXES:
         return DocumentRouteDecision(primary_engine=ParserEngine.DIRECT_TEXT)
     if normalized_suffix in _WORD_SUFFIXES:
+        if job_type == "inspection":
+            return DocumentRouteDecision(primary_engine=ParserEngine.MARKITDOWN)
         return _markitdown_with_mineru_fallback()
     if normalized_suffix == ".pdf":
         if pdf_document_kind is None and pdf_page_texts is not None:
@@ -63,6 +66,8 @@ def route_document(
             pdf_document_kind = assess_pdf_text_layer(pdf_page_texts, effective_thresholds).document_kind
         if pdf_document_kind is None:
             raise ValueError("路由 PDF 前必须提供 PDF 文本层分类")
+        if job_type == "inspection":
+            return DocumentRouteDecision(primary_engine=ParserEngine.MARKITDOWN)
         if pdf_document_kind is PdfDocumentKind.TEXT:
             return _markitdown_with_mineru_fallback()
         return DocumentRouteDecision(primary_engine=ParserEngine.MINERU)

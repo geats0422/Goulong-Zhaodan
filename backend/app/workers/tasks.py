@@ -254,6 +254,7 @@ async def _parse_stored_document(job: _DocumentJobSnapshot) -> _ParsedDocument:
         result = await parse_document(
             stored.path,
             job.file_type,
+            job_type=job.job_type,
             stage_callback=on_stage,
             existing_mineru_task_id=(
                 job.mineru_task_id if job.mineru_upload_state == "uploaded" else None

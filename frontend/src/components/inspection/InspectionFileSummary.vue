@@ -5,7 +5,7 @@ const props = defineProps({
 })
 
 const PARSER_ENGINE_LABELS = {
-  mineru: 'MinerU 高质量解析',
+  mineru: '备份文件增强识别',
   markitdown: '本地解析',
   plain: '纯文本读取',
 }

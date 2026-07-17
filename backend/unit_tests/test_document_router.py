@@ -29,25 +29,39 @@ def test_plain_text_files_are_read_directly(suffix: str) -> None:
 
 
 @pytest.mark.parametrize("suffix", [".doc", ".docx"])
-def test_word_uses_markitdown_with_mineru_quality_fallback(suffix: str) -> None:
-    decision = route_document(suffix)
+def test_knowledge_word_uses_markitdown_with_mineru_quality_fallback(suffix: str) -> None:
+    decision = route_document(suffix, job_type="knowledge")
 
     assert decision.primary_engine is ParserEngine.MARKITDOWN
     assert decision.fallback_engine is ParserEngine.MINERU
     assert decision.requires_quality_gate is True
 
 
-def test_low_quality_word_or_text_pdf_falls_back_to_mineru() -> None:
-    word_decision = route_document(".docx")
-    pdf_decision = route_document(".pdf", PdfDocumentKind.TEXT)
+def test_knowledge_low_quality_word_or_text_pdf_falls_back_to_mineru() -> None:
+    word_decision = route_document(".docx", job_type="knowledge")
+    pdf_decision = route_document(".pdf", PdfDocumentKind.TEXT, job_type="knowledge")
 
     assert select_engine_after_quality_gate(word_decision, is_acceptable=False) is ParserEngine.MINERU
     assert select_engine_after_quality_gate(pdf_decision, is_acceptable=False) is ParserEngine.MINERU
     assert select_engine_after_quality_gate(pdf_decision, is_acceptable=True) is ParserEngine.MARKITDOWN
 
 
-def test_text_pdf_uses_markitdown_with_a_second_quality_gate() -> None:
-    decision = route_document(".pdf", PdfDocumentKind.TEXT)
+def test_inspection_word_and_text_pdf_never_fall_back_to_mineru() -> None:
+    word_decision = route_document(".docx", job_type="inspection")
+    pdf_decision = route_document(".pdf", PdfDocumentKind.TEXT, job_type="inspection")
+
+    assert word_decision.primary_engine is ParserEngine.MARKITDOWN
+    assert word_decision.fallback_engine is None
+    assert word_decision.requires_quality_gate is False
+    assert select_engine_after_quality_gate(word_decision, is_acceptable=False) is ParserEngine.MARKITDOWN
+    assert pdf_decision.primary_engine is ParserEngine.MARKITDOWN
+    assert pdf_decision.fallback_engine is None
+    assert pdf_decision.requires_quality_gate is False
+    assert select_engine_after_quality_gate(pdf_decision, is_acceptable=False) is ParserEngine.MARKITDOWN
+
+
+def test_knowledge_text_pdf_uses_markitdown_with_a_second_quality_gate() -> None:
+    decision = route_document(".pdf", PdfDocumentKind.TEXT, job_type="knowledge")
 
     assert decision.primary_engine is ParserEngine.MARKITDOWN
     assert decision.fallback_engine is ParserEngine.MINERU
@@ -55,10 +69,19 @@ def test_text_pdf_uses_markitdown_with_a_second_quality_gate() -> None:
 
 
 @pytest.mark.parametrize("kind", [PdfDocumentKind.SCANNED, PdfDocumentKind.MIXED])
-def test_scanned_and_mixed_pdf_go_directly_to_mineru(kind: PdfDocumentKind) -> None:
-    decision = route_document("pdf", kind)
+def test_knowledge_scanned_and_mixed_pdf_go_directly_to_mineru(kind: PdfDocumentKind) -> None:
+    decision = route_document("pdf", kind, job_type="knowledge")
 
     assert decision.primary_engine is ParserEngine.MINERU
+    assert decision.fallback_engine is None
+    assert decision.requires_quality_gate is False
+
+
+@pytest.mark.parametrize("kind", [PdfDocumentKind.SCANNED, PdfDocumentKind.MIXED])
+def test_inspection_scanned_and_mixed_pdf_use_local_parser_without_mineru(kind: PdfDocumentKind) -> None:
+    decision = route_document("pdf", kind, job_type="inspection")
+
+    assert decision.primary_engine is ParserEngine.MARKITDOWN
     assert decision.fallback_engine is None
     assert decision.requires_quality_gate is False
 

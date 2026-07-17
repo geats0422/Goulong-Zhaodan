@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -133,6 +134,30 @@ def test_artifact_retention_defaults_to_thirty_days():
     from app.core.config import Settings
 
     assert Settings(_env_file=None).document_artifact_retention_days == 30
+
+
+@pytest.mark.asyncio
+async def test_parse_stored_document_passes_job_type_to_parser(monkeypatch: pytest.MonkeyPatch):
+    job = _job(job_type="inspection")
+    stored = SimpleNamespace(path=Path("/tmp/source.docx"), identity=object())
+    parsed = SimpleNamespace(
+        markdown="# 标题\n\n" + "有效正文。" * 30,
+        markdown_hash="b" * 64,
+        content_hash=job.content_hash,
+        parser_engine=SimpleNamespace(value="markitdown"),
+    )
+    parse = AsyncMock(return_value=parsed)
+
+    monkeypatch.setattr("app.services.file_storage.copy_storage_to_private_temp", lambda *_args, **_kwargs: stored)
+    monkeypatch.setattr("app.services.file_storage.validate_document_snapshot", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("app.workers.tasks.parse_document", parse)
+    monkeypatch.setattr("app.workers.tasks.secure_unlink", lambda *_args, **_kwargs: None)
+
+    result = await tasks._parse_stored_document(job)
+
+    assert result.result is parsed
+    assert result.job is job
+    assert parse.await_args.kwargs["job_type"] == "inspection"
 
 
 @pytest.mark.asyncio

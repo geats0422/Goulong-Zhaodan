@@ -14,7 +14,7 @@ export const STAGE_MESSAGES = {
   queued: '任务已排队，等待处理',
   detecting: '正在识别文档类型',
   parsing_local: '正在解析文档',
-  parsing_mineru: '正在进行高质量文档解析',
+  parsing_mineru: '正在进行备份文件增强识别',
   indexing: '正在构建文档索引',
   inspecting: '正在审查文档',
   succeeded: '文档处理完成',
