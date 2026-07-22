@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --surface: #ffffff;
+      --border: #e8e6dc;
+      --text: #141413;
+      --text-muted: #b0aea5;
+      --accent: #d97757;
+      --accent-hover: #c4613f;
+      --green: #788c5d;
+      --green-bg: #eef2e8;
+      --red: #c44;
+      --red-bg: #fceaea;
+      --header-bg: #141413;
+      --header-text: #faf9f5;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lora', Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .header .instructions {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 0.25rem;
+    }
+    .header .progress {
+      font-size: 0.875rem;
+      opacity: 0.8;
+      text-align: right;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ---- Sections ---- */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .section-header {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .section-body {
+      padding: 1rem;
+    }
+
+    /* ---- Config badge ---- */
+    .config-badge {
+      display: inline-block;
+      padding: 0.2rem 0.625rem;
+      border-radius: 9999px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-left: 0.75rem;
+      vertical-align: middle;
+    }
+    .config-badge.config-primary {
+      background: rgba(33, 150, 243, 0.12);
+      color: #1976d2;
+    }
+    .config-badge.config-baseline {
+      background: rgba(255, 193, 7, 0.15);
+      color: #f57f17;
+    }
+
+    /* ---- Prompt ---- */
+    .prompt-text {
+      white-space: pre-wrap;
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+
+    /* ---- Outputs ---- */
+    .output-file {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .output-file + .output-file {
+      margin-top: 1rem;
+    }
+    .output-file-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .output-file-header .dl-btn {
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+    .output-file-header .dl-btn:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    .output-file-content {
+      padding: 0.75rem;
+      overflow-x: auto;
+    }
+    .output-file-content pre {
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    .output-file-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    .output-file-content iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+    .output-file-content table {
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      width: 100%;
+    }
+    .output-file-content table td,
+    .output-file-content table th {
+      border: 1px solid var(--border);
+      padding: 0.375rem 0.5rem;
+      text-align: left;
+    }
+    .output-file-content table th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+    .output-file-content .download-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .output-file-content .download-link:hover {
+      background: var(--border);
+    }
+    .empty-state {
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    /* ---- Feedback ---- */
+    .prev-feedback {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.625rem 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .prev-feedback-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.25rem;
+      color: var(--text-muted);
+    }
+    .feedback-textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      resize: vertical;
+      color: var(--text);
+    }
+    .feedback-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .feedback-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      min-height: 1.1em;
+    }
+
+    /* ---- Grades (collapsible) ---- */
+    .grades-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .grades-toggle:hover {
+      color: var(--accent);
+    }
+    .grades-toggle .arrow {
+      margin-right: 0.5rem;
+      transition: transform 0.15s;
+      font-size: 0.75rem;
+    }
+    .grades-toggle .arrow.open {
+      transform: rotate(90deg);
+    }
+    .grades-content {
+      display: none;
+      margin-top: 0.75rem;
+    }
+    .grades-content.open {
+      display: block;
+    }
+    .grades-summary {
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .grade-badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .grade-pass { background: var(--green-bg); color: var(--green); }
+    .grade-fail { background: var(--red-bg); color: var(--red); }
+    .assertion-list {
+      list-style: none;
+    }
+    .assertion-item {
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+    }
+    .assertion-item:last-child { border-bottom: none; }
+    .assertion-status {
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .assertion-status.pass { color: var(--green); }
+    .assertion-status.fail { color: var(--red); }
+    .assertion-evidence {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      padding-left: 1.5rem;
+    }
+
+    /* ---- View tabs ---- */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 2rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .view-tab {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .view-tab:hover { color: var(--text); }
+    .view-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* ---- Benchmark view ---- */
+    .benchmark-view {
+      padding: 1.5rem 2rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .benchmark-table {
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    .benchmark-table th, .benchmark-table td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .benchmark-table th {
+      font-family: 'Poppins', sans-serif;
+      background: var(--header-bg);
+      color: var(--header-text);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .benchmark-table tr:hover { background: var(--bg); }
+    .benchmark-table tr.benchmark-row-with { background: rgba(33, 150, 243, 0.06); }
+    .benchmark-table tr.benchmark-row-without { background: rgba(255, 193, 7, 0.06); }
+    .benchmark-table tr.benchmark-row-with:hover { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-without:hover { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-table tr.benchmark-row-avg { font-weight: 600; border-top: 2px solid var(--border); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-with { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-without { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-delta-positive { color: var(--green); font-weight: 600; }
+    .benchmark-delta-negative { color: var(--red); font-weight: 600; }
+    .benchmark-notes {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .benchmark-notes h3 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+    .benchmark-notes ul {
+      list-style: disc;
+      padding-left: 1.25rem;
+    }
+    .benchmark-notes li {
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      margin-bottom: 0.375rem;
+    }
+    .benchmark-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      text-align: center;
+      padding: 3rem;
+    }
+
+    /* ---- Navigation ---- */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .nav-btn:hover:not(:disabled) {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .done-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .done-btn:hover {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .done-btn.ready {
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+    }
+    .done-btn.ready:hover {
+      background: var(--accent-hover);
+    }
+    /* ---- Done overlay ---- */
+    .done-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .done-overlay.visible {
+      display: flex;
+    }
+    .done-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 2rem 3rem;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+    }
+    .done-card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .done-card p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .done-card .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .done-card button {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .done-card button:hover {
+      background: var(--bg);
+    }
+    /* ---- Toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 0.625rem 1.25rem;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    .toast.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" style="height:100vh; display:flex; flex-direction:column;">
+    <div class="header">
+      <div>
+        <h1>Eval Review: <span id="skill-name"></span></h1>
+        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into Claude Code.</div>
+      </div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <!-- View tabs (only shown when benchmark data exists) -->
+    <div class="view-tabs" id="view-tabs" style="display:none;">
+      <button class="view-tab active" onclick="switchView('outputs')">Outputs</button>
+      <button class="view-tab" onclick="switchView('benchmark')">Benchmark</button>
+    </div>
+
+    <!-- Outputs panel (qualitative review) -->
+    <div class="view-panel active" id="panel-outputs">
+    <div class="main">
+      <!-- Prompt -->
+      <div class="section">
+        <div class="section-header">Prompt <span class="config-badge" id="config-badge" style="display:none;"></span></div>
+        <div class="section-body">
+          <div class="prompt-text" id="prompt-text"></div>
+        </div>
+      </div>
+
+      <!-- Outputs -->
+      <div class="section">
+        <div class="section-header">Output</div>
+        <div class="section-body" id="outputs-body">
+          <div class="empty-state">No output files found</div>
+        </div>
+      </div>
+
+      <!-- Previous Output (collapsible) -->
+      <div class="section" id="prev-outputs-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="togglePrevOutputs()">
+            <span class="arrow" id="prev-outputs-arrow">&#9654;</span>
+            Previous Output
+          </div>
+        </div>
+        <div class="grades-content" id="prev-outputs-content"></div>
+      </div>
+
+      <!-- Grades (collapsible) -->
+      <div class="section" id="grades-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="toggleGrades()">
+            <span class="arrow" id="grades-arrow">&#9654;</span>
+            Formal Grades
+          </div>
+        </div>
+        <div class="grades-content" id="grades-content"></div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="section">
+        <div class="section-header">Your Feedback</div>
+        <div class="section-body">
+          <textarea
+            class="feedback-textarea"
+            id="feedback"
+            placeholder="What do you think of this output? Any issues, suggestions, or things that look great?"
+          ></textarea>
+          <div class="feedback-status" id="feedback-status"></div>
+          <div class="prev-feedback" id="prev-feedback" style="display:none;">
+            <div class="prev-feedback-label">Previous feedback</div>
+            <div id="prev-feedback-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav" id="outputs-nav">
+      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)">&#8592; Previous</button>
+      <button class="done-btn" id="done-btn" onclick="showDoneDialog()">Submit All Reviews</button>
+      <button class="nav-btn" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+    </div>
+    </div><!-- end panel-outputs -->
+
+    <!-- Benchmark panel (quantitative stats) -->
+    <div class="view-panel" id="panel-benchmark">
+      <div class="benchmark-view" id="benchmark-content">
+        <div class="benchmark-empty">No benchmark data available. Run a benchmark to see quantitative results here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done overlay -->
+  <div class="done-overlay" id="done-overlay">
+    <div class="done-card">
+      <h2>Review Complete</h2>
+      <p>Your feedback has been saved. Go back to your Claude Code session and tell Claude you're done reviewing.</p>
+      <div class="btn-row">
+        <button onclick="closeDoneDialog()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ---- Embedded data (injected by generate_review.py) ----
+    const EMBEDDED_DATA = {"skill_name": "creem-preflight-review", "runs": [{"id": "eval-0-saas-go-live-preflight-with_skill", "prompt": "\u6211\u4eec\u51c6\u5907\u628a\u4e00\u4e2a SaaS \u5207\u5230 Creem live/product mode\u3002\u8bf7\u5e2e\u6211\u505a\u4e0a\u7ebf\u524d\u5ba1\u6838\u9884\u68c0\u3002\u9879\u76ee\u91cc\u6709\u524d\u7aef\u843d\u5730\u9875\u3001pricing\u3001privacy/terms\u3001Creem checkout \u548c webhook \u4ee3\u7801\u3002\u8bf7\u8f93\u51fa\u963b\u585e\u9879\u3001\u4fee\u590d\u4efb\u52a1\u548c\u63d0\u4ea4\u5ba1\u6838\u90ae\u4ef6\u8349\u7a3f\u3002", "eval_id": 0, "outputs": [{"name": "report.md", "type": "text", "content": "## Creem \u5ba1\u6838\u9884\u68c0\u7ed3\u8bba\n- \u603b\u4f53\u72b6\u6001: Not Ready\n- \u5efa\u8bae\u52a8\u4f5c: Fix blockers first / Stay in test mode\n- \u6700\u5927\u98ce\u9669: \u516c\u5f00\u7f51\u7ad9\u5b58\u5728 `#` \u793e\u4ea4\u5360\u4f4d\u94fe\u63a5\uff0c\u5bb9\u6613\u89e6\u53d1 Creem \u5bf9\u65e0\u6548\u94fe\u63a5/\u865a\u5047\u793e\u533a\u5165\u53e3\u7684\u5ba1\u6838\u95ee\u9898\u3002\n- \u6700\u5927\u98ce\u9669: \u652f\u6301\u90ae\u7bb1\u4f7f\u7528\u4e2a\u4eba\u90ae\u7bb1\u6216 `.local` \u5360\u4f4d\u90ae\u7bb1\uff0c\u672a\u6ee1\u8db3 Creem \u63a8\u8350\u7684\u54c1\u724c\u5316\u3001\u516c\u5f00\u4e14\u4e00\u81f4\u7684\u652f\u6301\u90ae\u7bb1\u8981\u6c42\u3002\n- \u6700\u5927\u98ce\u9669: \u524d\u7aef\u5c55\u793a\u4ef7\u683c\u3001\u540e\u7aef\u533a\u57df\u4ef7\u683c\u3001Creem \u4ea7\u54c1\u914d\u7f6e\u65e0\u6cd5\u4ece\u4ed3\u5e93\u786e\u8ba4\u4e00\u81f4\uff1b\u5207 live \u524d\u5fc5\u987b\u9010\u9879\u5bf9\u9f50 Creem dashboard \u4ea7\u54c1\u3002\n\n## \u5ba1\u6838\u4f9d\u636e\n- Skill: `D:\\work\\Huanyu Code\\Project\\Xirang\\.opencode\\skills\\creem-preflight-review\\SKILL.md`\n- Creem \u5f53\u524d\u6587\u6863: `https://docs.creem.io/merchant-of-record`\uff0c\u5df2\u786e\u8ba4\u8d26\u53f7\u5ba1\u6838\u8981\u6c42\u5305\u62ec\u4ea7\u54c1 live\u3001\u65e0\u865a\u5047\u4fe1\u606f\u3001\u9690\u79c1\u653f\u7b56\u4e0e\u670d\u52a1\u6761\u6b3e\u53ef\u8bbf\u95ee\u3001\u4ea7\u54c1\u6e05\u6670\u3001\u4ef7\u683c\u53ef\u89c1\u3001\u652f\u6301\u90ae\u7bb1\u3001\u8ba2\u9605\u53ef\u53d6\u6d88\u3001AI \u56fe\u7247/\u89c6\u9891\u751f\u6210\u9700 Moderation API\u3002\n- \u4ed3\u5e93\u8303\u56f4: \u524d\u7aef `frontend/`\uff0c\u540e\u7aef `backend/`\uff1b\u672a\u8bfb\u53d6\u771f\u5b9e `.env`\uff0c\u672a\u6253\u5370\u4efb\u4f55\u5bc6\u94a5\u6216 webhook secret\u3002\n- \u9650\u5236: \u672a\u63d0\u4f9b\u516c\u7f51 URL\u3001Creem Store ID\u3001Creem dashboard \u4ea7\u54c1\u914d\u7f6e\u3001Business Details \u652f\u6301\u90ae\u7bb1\uff0c\u56e0\u6b64\u516c\u7f51\u53ef\u8bbf\u95ee\u6027\u548c dashboard \u4e00\u81f4\u6027\u4e3a\u4eba\u5de5\u786e\u8ba4\u9879\u3002\n\n## \u963b\u585e\u9879\n| \u98ce\u9669 | \u4f4d\u7f6e | \u8bc1\u636e | \u4e3a\u4ec0\u4e48\u5f71\u54cd Creem \u5ba1\u6838 | \u4fee\u590d\u5efa\u8bae |\n|---|---|---|---|---|\n| BLOCKER | `frontend/src/pages/EasternFantasyLandingPage.vue:107-116`\u3001`frontend/src/pages/DungeonScholarPricingPage.vue:95-103` | Footer \u5305\u542b Twitter\u3001Discord\uff0c`href: \"#\"` | Creem \u6587\u6863\u5c06\u65e0\u6548\u793e\u4ea4/\u793e\u533a\u94fe\u63a5\u5217\u4e3a\u5e38\u89c1\u98ce\u9669\uff1b\u7a7a\u94fe\u63a5\u4f1a\u8ba9\u5ba1\u6838\u5458\u8ba4\u4e3a\u7ad9\u70b9\u672a\u5b8c\u6210\u6216\u5b58\u5728\u865a\u5047\u793e\u533a\u5165\u53e3 | \u4e0a\u7ebf\u524d\u5220\u9664 Twitter/Discord \u5360\u4f4d\u9879\uff0c\u6216\u66ff\u6362\u4e3a\u771f\u5b9e\u3001\u6d3b\u8dc3\u4e14\u4e0e\u4ea7\u54c1\u4e00\u81f4\u7684\u8d26\u53f7\u94fe\u63a5\uff1b\u540c\u65f6\u5904\u7406 nav \u7684 `/community`\uff0c\u907f\u514d\u8df3\u8f6c\u5230\u4e0d\u5b58\u5728\u8def\u7531 |\n| BLOCKER | `frontend/src/pages/DungeonScholarPrivacyPolicyPage.vue:145-147`\u3001`frontend/src/pages/DungeonScholarTermsPage.vue:210-216`\u3001`frontend/src/pages/DungeonScholarHelpCenterPage.vue:222-231`\u3001`frontend/src/i18n/index.ts:433/1749/2902/3979/5386` | \u6cd5\u52a1/\u5e2e\u52a9\u9875\u9762\u663e\u793a `huanyugezhishe@hotmail.com`\uff0c\u591a\u8bed\u8a00\u77ed\u9690\u79c1\u6587\u6848\u663e\u793a `support@xirang.local` | Creem \u8981\u6c42\u516c\u5f00\u7f51\u7ad9\u548c dashboard \u4e2d\u6709\u53ef\u8fbe\u652f\u6301\u90ae\u7bb1\uff0c\u4e14\u5efa\u8bae\u4f7f\u7528\u54c1\u724c\u5316\u90ae\u7bb1\uff1b`.local` \u660e\u663e\u662f\u5360\u4f4d\uff0c\u4e2a\u4eba\u90ae\u7bb1\u4e0e\u54c1\u724c/Business Details \u4e0d\u4e00\u81f4\u4f1a\u5bfc\u81f4\u8fd4\u4fee | \u7edf\u4e00\u4e3a\u54c1\u724c\u5316\u90ae\u7bb1\uff0c\u5982 `support@<\u6b63\u5f0f\u57df\u540d>`\uff1b\u66f4\u65b0\u9690\u79c1\u3001\u6761\u6b3e\u3001\u5e2e\u52a9\u4e2d\u5fc3\u3001\u8bbe\u7f6e\u9875\u3001\u6240\u6709 locale \u6587\u6848\uff0c\u5e76\u786e\u4fdd Creem Business Details/receipt \u652f\u6301\u90ae\u7bb1\u4e00\u81f4 |\n| BLOCKER | `frontend/src/config/pricing.ts:17-39`\u3001`backend/app/services/payments/service.py:17-21`\u3001`backend/app/services/payments/service.py:63-77` | \u524d\u7aef\u8ba2\u9605\u5c55\u793a `$8/$20/$70` \u4e0e coin `$6/$30/$68/$120/$245`\uff1b\u540e\u7aef\u533a\u57df\u4ef7\u5b58\u5728 premium `$9.6/$24/$84`\u3001standard `$8/$20/$70`\u3001developing `$4/$10/$35`\uff1bCreem product IDs \u53ea\u901a\u8fc7\u73af\u5883\u53d8\u91cf\u914d\u7f6e | Creem \u8981\u6c42 checkout \u524d\u4ef7\u683c\u6e05\u6670\u4e14\u4e0e\u4ea7\u54c1\u4e00\u81f4\uff1b\u533a\u57df\u4ef7\u3001\u524d\u7aef\u4ef7\u548c Creem dashboard \u5b9e\u9645\u4ef7\u683c\u82e5\u4e0d\u4e00\u81f4\uff0c\u5ba1\u6838\u5458/\u7528\u6237\u4f1a\u770b\u5230\u4e0d\u540c\u91d1\u989d | \u5728 Creem dashboard \u4e2d\u4e3a monthly/quarterly/yearly \u4e0e coin \u5305\u9010\u4e00\u6838\u5bf9\u4ef7\u683c\u3001\u5e01\u79cd\u3001\u5468\u671f\uff1b\u82e5\u4f7f\u7528\u533a\u57df\u4ef7\uff0c\u5e94\u5728 pricing \u9875\u8bf4\u660e\u533a\u57df\u5b9a\u4ef7\u6216\u79fb\u9664\u672a\u5c55\u793a\u7684\u533a\u57df\u500d\u7387\uff1b\u4fdd\u5b58\u4e00\u4efd\u4e0a\u7ebf\u6838\u5bf9\u8868 |\n| HIGH | `backend/app/services/payments/service.py:55-59`\u3001`backend/app/core/config.py:108-109` | Checkout payload \u53ea\u4f20 `success_url`\uff0c\u672a\u4f20 `cancel_url`\uff1b\u914d\u7f6e\u4e2d `creem_checkout_cancel_url` \u5b58\u5728\u4f46\u672a\u4f7f\u7528 | Creem \u5ba1\u6838\u5173\u6ce8 checkout success/failure/cancel \u4f53\u9a8c\uff1b\u672a\u4f20 cancel URL \u53ef\u80fd\u5bfc\u81f4\u53d6\u6d88\u540e\u7528\u6237\u4f53\u9a8c\u4e0d\u53ef\u63a7 | \u5728 checkout payload \u4e2d\u4f20\u9012 `cancel_url` \u6216\u786e\u8ba4 Creem dashboard \u5df2\u914d\u7f6e\u53d6\u6d88\u8df3\u8f6c\uff1b\u4e0a\u7ebf\u524d\u7528 test mode \u5b9e\u6d4b\u6210\u529f\u3001\u53d6\u6d88\u3001\u5931\u8d25\u8def\u5f84 |\n| HIGH | `backend/app/services/payments/webhook_handler.py:79-86` | webhook \u5904\u7406 `subscription.paid/active/trialing/canceled/expired/past_due`\uff0c\u672a\u770b\u5230 `subscription.paused` \u6216 payment failure \u4e8b\u4ef6\u5904\u7406 | Creem \u6280\u80fd\u8981\u6c42 webhook \u5e94 grant/revoke access for subscription paid/trialing/expired/paused\uff1b\u6682\u505c/\u5931\u8d25\u72b6\u6001\u4e0d\u5904\u7406\u53ef\u80fd\u5bfc\u81f4\u8ba2\u9605\u6743\u76ca\u4e0d\u51c6\u786e | \u5bf9\u7167 Creem \u5f53\u524d webhook \u4e8b\u4ef6\u540d\u8865\u9f50 paused/unpaid/payment_failed \u7b49\u72b6\u6001\u6620\u5c04\uff0c\u6216\u786e\u8ba4 Creem \u4e0d\u4f1a\u53d1\u9001\u8fd9\u4e9b\u4e8b\u4ef6\uff1b\u589e\u52a0\u6d4b\u8bd5\u8986\u76d6 |\n\n## Checklist\n| \u9879\u76ee | \u72b6\u6001 | \u8bc1\u636e | \u4e0b\u4e00\u6b65 |\n|---|---|---|---|\n| \u4ea7\u54c1\u53ef\u7406\u89e3 | PASS | \u843d\u5730\u9875 hero/feature \u6587\u6848\u5b58\u5728\uff0c`EasternFantasyLandingPage.vue:426-449`\uff1b\u529f\u80fd\u5361\u8bf4\u660e\u5728 `EasternFantasyLandingPage.vue:82-104` | \u4eba\u5de5\u786e\u8ba4\u516c\u7f51\u57df\u540d\u53ef\u8bbf\u95ee\u4e14\u65e0\u9700\u767b\u5f55\u5373\u53ef\u770b\u5230\u4ea7\u54c1\u8bf4\u660e |\n| \u4ea7\u54c1 live/\u751f\u4ea7\u53ef\u7528 | UNKNOWN | \u516c\u5171\u8def\u7531\u542b landing/pricing/legal\uff0c`frontend/src/main.ts:12-21`\uff1b\u672a\u63d0\u4f9b\u516c\u7f51 URL | \u90e8\u7f72\u540e\u7528\u65e0\u75d5\u7a97\u53e3\u8bbf\u95ee\u6b63\u5f0f\u57df\u540d\uff0c\u786e\u8ba4\u4e0d\u662f\u5bc6\u7801\u4fdd\u62a4\u3001\u4e0d\u662f 5xx\u3001\u4e0d\u662f\u4ec5 waitlist |\n| Pricing \u53ef\u89c1 | PASS | `/pricing` \u516c\u5f00\uff0c`frontend/src/main.ts:20`\uff1b\u4ef7\u683c\u5361\u4e0e coin \u5305\u663e\u793a\u5728 `DungeonScholarPricingPage.vue:409-567` | \u4e0e Creem dashboard \u4ea7\u54c1\u4ef7\u683c\u9010\u9879\u6838\u5bf9 |\n| \u8ba2\u9605\u7eed\u8d39/\u53d6\u6d88\u8bf4\u660e | MEDIUM | FAQ \u663e\u793a\u53ef\u968f\u65f6\u53d6\u6d88\uff0ci18n `pricing.faq1Answer`\uff1b\u8bbe\u7f6e\u9875\u6709\u8ba2\u9605\u7ba1\u7406\u5165\u53e3 `SettingsSupportPanel.vue:24-33`\uff1bAPI \u6709 `/subscription/cancel` `backend/app/api/v1/payments.py:72-77` | \u786e\u8ba4\u767b\u5f55\u540e\u53d6\u6d88\u8def\u5f84\u5bf9\u771f\u5b9e Creem live subscription \u53ef\u7528\uff0c\u5e76\u8865\u5145\u201c\u7eed\u8d39\u5468\u671f/\u53d6\u6d88\u540e\u6743\u76ca\u5230\u671f\u201d\u8bf4\u660e |\n| Refund policy | MEDIUM | Terms \u5199\u660e case-by-case refund\uff0c`frontend/src/i18n/index.ts:768`\uff1bpricing FAQ \u5199 coin non-refundable\uff0c`frontend/src/i18n/index.ts:1320-1321` | \u5c06\u9000\u6b3e/\u652f\u6301\u8def\u5f84\u5728 pricing \u6216 footer \u66f4\u76f4\u63a5\u66b4\u9732\uff0c\u907f\u514d\u5ba1\u6838\u5458\u627e\u4e0d\u5230 |\n| Privacy Policy | HIGH | `/privacy-policy` \u516c\u5f00\uff0c`router/index.ts:115-118`\uff1b\u9875\u9762\u6709\u516c\u53f8\u4e0e\u8054\u7cfb\u90ae\u7bb1\uff0c`DungeonScholarPrivacyPolicyPage.vue:136-148` | \u66ff\u6362\u5360\u4f4d/\u4e2a\u4eba\u90ae\u7bb1\uff0c\u786e\u8ba4\u516c\u53f8\u7edf\u4e00\u793e\u4f1a\u4fe1\u7528\u4ee3\u7801\u4e0d\u518d\u663e\u793a\u201cto be filled in\u201d\u7c7b\u5360\u4f4d\u6587\u6848 |\n| Terms of Service | PASS | `/terms-of-service` \u516c\u5f00\uff0c`router/index.ts:135-138`\uff1b\u8ba2\u9605/\u53d6\u6d88/\u9000\u6b3e\u6761\u6b3e\u5b58\u5728\uff0c`DungeonScholarTermsPage.vue:177-184` | \u5982\u4ea7\u54c1\u652f\u6301\u7528\u6237\u4e0a\u4f20\u5185\u5bb9\u548c AI \u751f\u6210\uff0c\u8865\u5f3a\u53ef\u63a5\u53d7\u4f7f\u7528\u6761\u6b3e |\n| \u652f\u6301\u90ae\u7bb1 | BLOCKER | `huanyugezhishe@hotmail.com` \u4e0e `support@xirang.local` \u540c\u65f6\u5b58\u5728 | \u7edf\u4e00\u54c1\u724c\u5316\u90ae\u7bb1\u5e76\u4e0e Creem Business Details \u4fdd\u6301\u4e00\u81f4 |\n| Footer/legal links | HIGH | privacy/terms/help links\u5b58\u5728\uff1bTwitter/Discord \u4e3a `#`\uff1bnav \u5305\u542b `ROUTES.community` \u4f46 router \u672a\u5b9a\u4e49 community \u8def\u7531\uff0c`constants/routes.ts:24`\u3001`router/index.ts:155-156` fallback | \u5220\u9664\u6216\u4fee\u590d\u5360\u4f4d/\u6b7b\u94fe\uff1b\u68c0\u67e5\u6240\u6709\u8bed\u8a00\u7248\u672c |\n| \u865a\u5047\u80cc\u4e66/\u8bc4\u4ef7 | PASS | \u672a\u53d1\u73b0 Product Hunt\u3001as seen\u3001testimonial\u3001\u865a\u5047\u5ba2\u6237 logo\uff1b\u201cscholars joined\u201d\u662f\u6587\u6848\u53d8\u91cf\u800c\u975e\u660e\u786e\u4eba\u6570 | \u82e5\u4e0a\u7ebf\u9875\u9762\u540e\u65b0\u589e\u8bc4\u4ef7/Logo\uff0c\u4fdd\u7559\u6388\u6743\u8bc1\u636e\u6216\u5148\u79fb\u9664 |\n| \u7981\u6b62/\u9650\u5236\u4ea7\u54c1 | PASS | \u4ea7\u54c1\u662f\u5b66\u4e60\u578b SaaS/\u6587\u6863\u89e3\u6790/\u6e38\u620f\u5316\u5b66\u4e60\uff1b\u672a\u53d1\u73b0 NSFW\u3001deepfake\u3001face-swap\u3001IPTV\u3001crypto\u3001dating \u7b49\u8425\u9500\u8bcd | \u4eba\u5de5\u786e\u8ba4\u7528\u6237\u4e0a\u4f20\u8d44\u6599\u4e0d\u7528\u4e8e\u7b2c\u4e09\u65b9\u5185\u5bb9\u4e0b\u8f7d/\u4fb5\u6743\u5206\u53d1 |\n| AI wrapper \u5408\u89c4 | MEDIUM | \u4f7f\u7528 OpenAI-compatible LLM\uff0c`backend/app/integrations/agents/client.py`\uff1b\u8bbe\u7f6e\u9875\u5c55\u793a GPT-4o/GPT-4o Mini\uff0c`backend/app/api/v1/settings.py:180-189`\uff1b\u672a\u53d1\u73b0\u56fe\u7247/\u89c6\u9891\u751f\u6210 | \u82e5\u8425\u9500\u9875\u63d0\u53ca OpenAI/GPT\uff0c\u589e\u52a0\u201c\u72ec\u7acb\u4ea7\u54c1\uff0c\u975e OpenAI \u5173\u8054/\u80cc\u4e66\u201d\u514d\u8d23\u58f0\u660e\uff1b\u786e\u8ba4\u4e0d\u662f AI \u56fe\u7247/\u89c6\u9891\u751f\u6210\uff0c\u65e0\u9700 Creem Moderation API |\n| Creem API \u5bc6\u94a5 | UNKNOWN | \u914d\u7f6e\u9879\u5b58\u5728\u4e8e `backend/app/core/config.py:97-109`\uff0c\u4ea7\u54c1 ID \u901a\u8fc7\u73af\u5883\u53d8\u91cf\u914d\u7f6e\uff1b\u672a\u8bfb\u53d6\u771f\u5b9e `.env` | live \u73af\u5883\u8bbe\u7f6e production API key\u3001webhook secret\u30018 \u4e2a product IDs\uff1b\u4e0d\u8981\u63d0\u4ea4\u5bc6\u94a5 |\n| Creem test/live mode | UNKNOWN | `CreemApiClient` \u68c0\u6d4b `creem_test_` \u81ea\u52a8\u4f7f\u7528 test API\uff0c`backend/app/integrations/creem/client.py:19-24` | \u5ba1\u6838\u524d\u4fdd\u6301 test mode\uff1b\u83b7\u6279\u540e\u518d\u5207 live key \u548c live product IDs |\n| Webhook \u7b7e\u540d | PASS | raw body + HMAC SHA256\uff0c`backend/app/api/v1/payments.py:113-119`\u3001`webhook_handler.py:31-36`\uff1b\u6d4b\u8bd5\u8986\u76d6 invalid/valid signature | \u5bf9\u7167 Creem \u5b98\u65b9\u7b7e\u540d\u7b97\u6cd5\u786e\u8ba4 header/\u7b7e\u540d\u683c\u5f0f\u662f\u5426\u5b8c\u5168\u4e00\u81f4 |\n| Checkout metadata/reference | PASS | checkout metadata \u5305\u542b `user_id`\u3001`pricing_region`\u3001`product_type`\u3001`plan`\uff0c`backend/app/services/payments/service.py:55-59` | \u82e5 Creem \u652f\u6301\u72ec\u7acb `reference_id` \u5b57\u6bb5\uff0c\u53ef\u540c\u6b65\u4f20\u9012\uff0c\u4fbf\u4e8e dashboard \u6392\u67e5 |\n| Customer Portal/\u53d6\u6d88 | MEDIUM | \u5f53\u524d\u7528 Cancel Subscription API\uff0c`backend/app/services/payments/service.py:104-113` | \u786e\u8ba4 Creem API endpoint \u4e0e live \u6743\u9650\u53ef\u7528\uff1b\u5982\u4f7f\u7528 Portal\uff0c\u8865\u5145\u8df3\u8f6c\u5165\u53e3 |\n\n## \u4fee\u590d\u4efb\u52a1\n1. `frontend/src/pages/EasternFantasyLandingPage.vue` \u548c `frontend/src/pages/DungeonScholarPricingPage.vue` - \u5220\u9664 `href: \"#\"` \u7684 Twitter/Discord footer \u9879\uff0c\u6216\u66ff\u6362\u4e3a\u771f\u5b9e\u6d3b\u8dc3\u8d26\u53f7\uff1b\u540c\u65f6\u5220\u9664/\u4fee\u590d `/community` \u5bfc\u822a - \u9a8c\u8bc1\u65b9\u5f0f: \u672c\u5730\u6253\u5f00 landing/pricing\uff0c\u70b9\u51fb footer/nav \u65e0\u6b7b\u94fe\u3002\n2. `frontend/src/i18n/index.ts`\u3001`DungeonScholarPrivacyPolicyPage.vue`\u3001`DungeonScholarTermsPage.vue`\u3001`DungeonScholarHelpCenterPage.vue`\u3001\u8bbe\u7f6e\u9875\u76f8\u5173\u6587\u6848 - \u5c06 `support@xirang.local` \u548c `huanyugezhishe@hotmail.com` \u7edf\u4e00\u66ff\u6362\u4e3a\u6b63\u5f0f\u54c1\u724c\u652f\u6301\u90ae\u7bb1 - \u9a8c\u8bc1\u65b9\u5f0f: \u5168\u4ed3\u641c\u7d22\u4e0d\u518d\u51fa\u73b0 `.local` \u652f\u6301\u90ae\u7bb1\uff0c\u6240\u6709\u516c\u5f00 legal/support \u9875\u9762\u663e\u793a\u540c\u4e00\u90ae\u7bb1\u3002\n3. Creem dashboard + `frontend/src/config/pricing.ts` + `backend/app/services/payments/service.py` - \u6838\u5bf9 monthly/quarterly/yearly \u548c coin pack \u4ef7\u683c\u3001\u5e01\u79cd\u3001\u5468\u671f\u3001\u4ea7\u54c1 ID\uff1b\u51b3\u5b9a\u662f\u5426\u5c55\u793a\u533a\u57df\u5b9a\u4ef7 - \u9a8c\u8bc1\u65b9\u5f0f: test mode \u521b\u5efa\u6bcf\u4e2a checkout\uff0ccheckout \u9875\u9762\u91d1\u989d\u4e0e pricing \u9875\u4e00\u81f4\u3002\n4. `backend/app/services/payments/service.py` - \u5728 checkout payload \u4e2d\u63a5\u5165\u53d6\u6d88\u8df3\u8f6c URL\uff0c\u6216\u8bb0\u5f55 dashboard \u5df2\u914d\u7f6e cancel URL \u7684\u8bc1\u636e - \u9a8c\u8bc1\u65b9\u5f0f: test mode \u70b9\u51fb\u53d6\u6d88\u540e\u8fd4\u56de `/pricing` \u6216\u6307\u5b9a\u5931\u8d25\u9875\u3002\n5. `backend/app/services/payments/webhook_handler.py` \u548c\u5bf9\u5e94 tests - \u5bf9\u7167 Creem live webhook \u4e8b\u4ef6\u8865\u9f50 subscription paused/unpaid/payment_failed \u7b49\u72b6\u6001\u5904\u7406 - \u9a8c\u8bc1\u65b9\u5f0f: pytest \u8986\u76d6 paused/expired/canceled/past_due/paid \u7684\u6743\u76ca\u53d8\u66f4\u3002\n6. Legal \u5185\u5bb9 - \u786e\u8ba4 Privacy Policy \u4e2d\u516c\u53f8\u4fe1\u606f\u4e0d\u542b \u201cto be filled in\u201d \u5360\u4f4d\uff0cTerms/AUP \u5bf9\u7528\u6237\u4e0a\u4f20\u3001AI \u751f\u6210\u9898\u76ee\u3001\u8fdd\u6cd5/\u4fb5\u6743/\u6ee5\u7528\u5185\u5bb9\u6709\u660e\u786e\u9650\u5236 - \u9a8c\u8bc1\u65b9\u5f0f: \u516c\u5f00\u9875\u9762\u65e0\u5360\u4f4d\u6587\u672c\uff0c\u6761\u6b3e\u80fd\u8bf4\u660e\u670d\u52a1\u8fb9\u754c\u3002\n7. \u4e0a\u7ebf\u73af\u5883 - \u914d\u7f6e live `CREEM_API_KEY`\u3001`CREEM_WEBHOOK_SECRET`\u3001\u5168\u90e8 `CREEM_PRODUCT_*`\u3001\u6b63\u5f0f success/cancel URLs\u3001Creem webhook URL `/api/v1/payments/webhook/creem` - \u9a8c\u8bc1\u65b9\u5f0f: \u4e0d\u8bfb\u53d6/\u6253\u5370\u5bc6\u94a5\uff0c\u4ec5\u5728\u5e73\u53f0\u786e\u8ba4\u53d8\u91cf\u5b58\u5728\u5e76\u5b8c\u6210 test/live smoke\u3002\n\n## \u63d0\u4ea4\u5ba1\u6838\u90ae\u4ef6\u8349\u7a3f\nSubject: Creem account review request for Xi Rang\n\nDear Creem Team,\n\nWe are preparing to switch Xi Rang to live mode and would like to submit our store for account review.\n\nProduct summary: Xi Rang is a SaaS learning product that lets users upload learning materials, generate study quests, review mistakes, and use game-like learning modes. We sell digital SaaS subscriptions and optional in-app coin packages fulfilled inside the product.\n\nPublic product URL: [\u6b63\u5f0f\u4ea7\u54c1 URL]\nPricing URL: [\u6b63\u5f0f\u4ea7\u54c1 URL]/pricing\nPrivacy Policy: [\u6b63\u5f0f\u4ea7\u54c1 URL]/privacy-policy\nTerms of Service: [\u6b63\u5f0f\u4ea7\u54c1 URL]/terms-of-service\nSupport email: support@[\u6b63\u5f0f\u57df\u540d]\nStore ID: [Creem Store ID]\n\nPre-review confirmations:\n\n1. The product website, pricing page, Privacy Policy, Terms of Service, and support page are publicly accessible.\n2. Pricing is shown before checkout and matches the Creem products configured in the dashboard.\n3. Users can manage or cancel subscriptions from inside the product.\n4. Checkout metadata maps purchases to internal users, and webhook handling grants or revokes access for subscription events.\n5. The website does not use fake testimonials, unearned badges, or inflated user/customer counts.\n6. Xi Rang is an independent SaaS product. It may use third-party AI/LLM providers for learning assistance, but it is not affiliated with, endorsed by, or sponsored by those providers.\n7. The product does not provide AI image/video generation, NSFW generation, face-swap, deepfake, IPTV, crypto/NFT, gambling, dating, or other prohibited products.\n\nWe will remain in test mode until the account review is approved. Please let us know if you need any additional information.\n\nBest regards,\n[Name]\n[Role / Company]\n\n## \u4ecd\u9700\u4eba\u5de5\u786e\u8ba4\n- \u6b63\u5f0f\u516c\u7f51 URL \u662f\u5426\u53ef\u8bbf\u95ee\u3001\u65e0\u5bc6\u7801\u4fdd\u62a4\u3001\u65e0 4xx/5xx\u3001\u79fb\u52a8\u7aef\u53ef\u6b63\u5e38\u52a0\u8f7d\u3002\n- Creem Store ID\u3001Product IDs\u3001dashboard \u4ea7\u54c1\u540d\u79f0\u3001\u4ef7\u683c\u3001\u5e01\u79cd\u3001\u5468\u671f\u662f\u5426\u4e0e `/pricing` \u5b8c\u5168\u4e00\u81f4\u3002\n- Creem Business Details \u4e2d\u7684 support email \u662f\u5426\u4e0e\u7f51\u7ad9\u5c55\u793a\u90ae\u7bb1\u4e00\u81f4\uff0c\u5e76\u4f1a\u663e\u793a\u5728 receipt \u4e0a\u3002\n- live \u73af\u5883\u53d8\u91cf\u662f\u5426\u5df2\u5728\u90e8\u7f72\u5e73\u53f0\u914d\u7f6e\uff0c\u5c24\u5176\u662f `CREEM_API_KEY`\u3001`CREEM_WEBHOOK_SECRET`\u3001`CREEM_PRODUCT_COIN_60/300/680/1500/3500`\u3001`CREEM_PRODUCT_SUB_MONTHLY/QUARTERLY/YEARLY`\u3001\u6b63\u5f0f success/cancel URLs\u3002\n- Creem webhook endpoint \u662f\u5426\u5df2\u5728 dashboard \u914d\u7f6e\u4e3a `https://<api-domain>/api/v1/payments/webhook/creem`\uff0c\u5e76\u8ba2\u9605\u4e86 payment/checkout/subscription \u76f8\u5173\u4e8b\u4ef6\u3002\n- \u662f\u5426\u786e\u8ba4\u4ea7\u54c1\u4e0d\u5c5e\u4e8e AI \u56fe\u7247/\u89c6\u9891\u751f\u6210\uff1b\u5982\u679c\u672a\u6765\u52a0\u5165 prompt-to-image/video\uff0c\u5fc5\u987b\u5148\u63a5\u5165 Creem Moderation API\uff0c\u5e76\u5728 Terms/AUP \u660e\u786e\u7981\u6b62 NSFW\u3001sexually explicit\u3001harmful\u3001illegal \u548c abusive generation\u3002\n- \u662f\u5426\u786e\u8ba4\u516c\u53f8\u4e3b\u4f53\u3001\u9690\u79c1\u653f\u7b56\u4e2d\u7684\u516c\u53f8\u6ce8\u518c\u4fe1\u606f\u3001\u57df\u540d\u6240\u6709\u6743\u548c Creem \u7533\u8bf7\u4e3b\u4f53\u4e00\u81f4\u3002\n"}], "grading": {"expectations": [{"text": "The report has an explicit overall readiness status and submit/stay-in-test-mode recommendation.", "passed": true, "evidence": "Lines 1-6 state Not Ready and recommend Fix blockers first / Stay in test mode."}, {"text": "The report checks legal pages, pricing visibility, support email, footer/social links, and product-readiness risks.", "passed": true, "evidence": "Checklist covers Privacy Policy, Terms, pricing, support email, footer/legal links, product live/readiness."}, {"text": "The report checks Creem checkout/webhook/subscription cancellation readiness with repo evidence.", "passed": true, "evidence": "Findings and checklist cover checkout cancel URL, webhook status handling, signature verification, subscription cancellation, metadata/reference mapping."}, {"text": "The report lists prioritized blockers or tasks with concrete file/page/config references.", "passed": true, "evidence": "Blocker table and repair tasks cite frontend/backend file paths and config locations."}, {"text": "The report includes a Creem review submission email draft.", "passed": true, "evidence": "Lines 53-83 include a review submission email draft."}], "summary": {"passed": 5, "failed": 0, "total": 5, "pass_rate": 1.0}, "execution_metrics": {"tool_calls": {}, "total_tool_calls": 0, "total_steps": 0, "errors_encountered": 0, "output_chars": 0, "transcript_chars": 0}, "timing": {"total_duration_seconds": 0}, "user_notes_summary": {"uncertainties": ["Task tool did not expose token/duration metrics."], "needs_review": [], "workarounds": []}}}, {"id": "eval-0-saas-go-live-preflight-without_skill", "prompt": "\u6211\u4eec\u51c6\u5907\u628a\u4e00\u4e2a SaaS \u5207\u5230 Creem live/product mode\u3002\u8bf7\u5e2e\u6211\u505a\u4e0a\u7ebf\u524d\u5ba1\u6838\u9884\u68c0\u3002\u9879\u76ee\u91cc\u6709\u524d\u7aef\u843d\u5730\u9875\u3001pricing\u3001privacy/terms\u3001Creem checkout \u548c webhook \u4ee3\u7801\u3002\u8bf7\u8f93\u51fa\u963b\u585e\u9879\u3001\u4fee\u590d\u4efb\u52a1\u548c\u63d0\u4ea4\u5ba1\u6838\u90ae\u4ef6\u8349\u7a3f\u3002", "eval_id": 0, "outputs": [{"name": "report.md", "type": "text", "content": "# SaaS \u5207\u6362 Creem Live/Product Mode \u4e0a\u7ebf\u524d\u5ba1\u6838\u9884\u68c0\u62a5\u544a\n\n\u5ba1\u6838\u65e5\u671f\uff1a2026-05-18\n\n\u5ba1\u6838\u8303\u56f4\uff1a\u5f53\u524d\u4ed3\u5e93\u4e2d\u7684\u524d\u7aef\u843d\u5730\u9875\u3001pricing\u3001privacy/terms\u3001Creem checkout\u3001Creem webhook\u3001\u652f\u4ed8\u914d\u7f6e\u4e0e\u90e8\u7f72\u6587\u6863\u3002\u672a\u8bfb\u53d6\u771f\u5b9e `.env` secret\uff0c\u672a\u4fee\u6539\u5e94\u7528\u4ee3\u7801\u3002\n\n## \u7ed3\u8bba\n\n\u5f53\u524d\u4e0d\u5efa\u8bae\u76f4\u63a5\u5207\u6362\u5230 Creem live/product mode\u3002\n\n\u4e3b\u8981\u963b\u585e\u6765\u81ea\u4e09\u7c7b\u95ee\u9898\uff1a\u652f\u4ed8\u914d\u7f6e\u4e0e\u4ee3\u7801\u73af\u5883\u53d8\u91cf\u547d\u540d\u4e0d\u4e00\u81f4\u3001checkout/webhook \u95ed\u73af\u5c1a\u672a\u8fbe\u5230\u751f\u4ea7\u53ef\u9760\u6027\u3001\u516c\u5f00\u6cd5\u52a1/\u5ba2\u670d\u4fe1\u606f\u4ecd\u5305\u542b\u5360\u4f4d\u6216\u672c\u5730\u57df\u540d\u3002\u5efa\u8bae\u5b8c\u6210\u4e0b\u5217 P0 \u963b\u585e\u9879\u5e76\u7528 Creem test mode \u8dd1\u901a\u7aef\u5230\u7aef\u540e\uff0c\u518d\u63d0\u4ea4 live/product mode \u5ba1\u6838\u3002\n\n## \u963b\u585e\u9879\n\n| \u4f18\u5148\u7ea7 | \u963b\u585e\u9879 | \u8bc1\u636e | \u98ce\u9669 | \u5efa\u8bae\u5904\u7406 |\n|---|---|---|---|---|\n| P0 | \u751f\u4ea7\u56de\u8df3 URL \u914d\u7f6e\u5b58\u5728\u547d\u540d\u4e0d\u4e00\u81f4\uff0c\u53ef\u80fd\u5bfc\u81f4 live checkout \u4ecd\u8df3\u56de localhost \u6216\u914d\u7f6e\u5931\u6548 | `backend/app/core/config.py:108-109` \u4f7f\u7528 `creem_checkout_success_url`\u3001`creem_checkout_cancel_url`\uff1b`docs/env-matrix.md:115-116` \u8bb0\u5f55\u7684\u662f `CREEM_DEFAULT_SUCCESS_URL`\u3001`CREEM_DEFAULT_CANCEL_URL` | live \u652f\u4ed8\u6210\u529f\u540e\u7528\u6237\u56de\u8df3\u5230\u672c\u5730\u5730\u5740\uff0c\u5ba1\u6838\u6216\u771f\u5b9e\u652f\u4ed8\u5931\u8d25 | \u7edf\u4e00\u73af\u5883\u53d8\u91cf\u547d\u540d\uff0c\u5e76\u5728 Render/Vercel \u751f\u4ea7\u914d\u7f6e\u4e2d\u660e\u786e\u8bbe\u7f6e\u771f\u5b9e HTTPS \u524d\u7aef\u57df\u540d |\n| P0 | checkout payload \u672a\u4f20\u53d6\u6d88 URL\uff0c\u4e14\u914d\u7f6e\u9879 `creem_checkout_cancel_url` \u672a\u88ab\u4f7f\u7528 | `backend/app/services/payments/service.py:55-59` \u53ea\u4f20 `product_id`\u3001`success_url`\u3001`metadata` | \u7528\u6237\u53d6\u6d88\u652f\u4ed8\u540e\u7684\u56de\u8df3\u4f53\u9a8c\u4e0d\u53ef\u63a7\uff0cCreem \u5ba1\u6838\u53ef\u80fd\u8981\u6c42\u6e05\u6670 cancel flow | \u5728\u521b\u5efa checkout \u65f6\u52a0\u5165 cancel URL\uff0c\u5e76\u7528\u751f\u4ea7\u57df\u540d\u9a8c\u8bc1\u6210\u529f/\u53d6\u6d88\u4e24\u6761\u8def\u5f84 |\n| P0 | live product ID\u3001\u4ef7\u683c\u4e0e\u524d\u7aef\u5c55\u793a\u4ef7\u683c\u6ca1\u6709\u53ef\u9a8c\u8bc1\u6620\u5c04 | \u524d\u7aef\u4ef7\u683c\u6765\u81ea `frontend/src/config/pricing.ts:17-39`\uff1b\u540e\u7aef\u4ea7\u54c1 ID \u6765\u81ea `backend/app/services/payments/service.py:63-77`\uff1b\u6ca1\u6709 live product/price \u5bf9\u7167\u6e05\u5355 | \u7528\u6237\u770b\u5230\u7684\u4ef7\u683c\u53ef\u80fd\u4e0e Creem checkout \u5b9e\u6536\u4ef7\u683c\u4e0d\u4e00\u81f4\uff0c\u9020\u6210\u5ba1\u6838\u3001\u6295\u8bc9\u6216\u9000\u6b3e\u98ce\u9669 | \u5efa\u7acb live product ID \u5bf9\u7167\u8868\uff0c\u9010\u9879\u6838\u5bf9\u6708/\u5b63/\u5e74\u8ba2\u9605\u4e0e 5 \u4e2a\u4ee3\u5e01\u5305\u7684\u4ef7\u683c\u3001\u5e01\u79cd\u3001\u7a0e\u8d39\u5c55\u793a |\n| P0 | Webhook \u7b7e\u540d\u5b9e\u73b0\u5047\u8bbe\u4e3a `hmac_sha256(secret, raw_body).hexdigest()`\uff0c\u672a\u89c1\u4e0e Creem \u5b98\u65b9 live \u7b7e\u540d\u683c\u5f0f\u7684\u9002\u914d\u786e\u8ba4 | `backend/app/services/payments/webhook_handler.py:31-36`\uff1b\u6d4b\u8bd5\u4ec5\u8986\u76d6\u540c\u4e00\u5047\u8bbe `backend/tests/api/test_payments_api.py:77-132` | live webhook \u53ef\u80fd\u5168\u90e8 401\uff0c\u5bfc\u81f4\u4ed8\u8d39\u540e\u4e0d\u5230\u8d26\u6216\u8ba2\u9605\u4e0d\u751f\u6548 | \u7528 Creem test mode \u771f\u5b9e webhook \u6837\u672c\u786e\u8ba4 header \u540d\u3001\u7b7e\u540d\u7b97\u6cd5\u3001\u65f6\u95f4\u6233/\u524d\u7f00\u683c\u5f0f\uff0c\u5e76\u8865\u5145\u6d4b\u8bd5 |\n| P0 | \u6cd5\u52a1\u4e0e\u516c\u5f00\u652f\u6301\u4fe1\u606f\u4ecd\u542b\u5360\u4f4d/\u975e\u751f\u4ea7\u90ae\u7bb1 | `frontend/src/i18n/index.ts:433`\u3001`1749` \u7b49\u4f7f\u7528 `support@xirang.local`\uff1b`frontend/src/i18n/index.ts:444` \u542b `Unified Social Credit Code to be filled in` | Merchant of Record \u5ba1\u6838\u901a\u5e38\u4f1a\u68c0\u67e5\u771f\u5b9e\u5546\u6237\u4fe1\u606f\u3001\u652f\u6301\u90ae\u7bb1\u3001\u9690\u79c1/\u6761\u6b3e\u53ef\u8054\u7cfb\u6027\uff1b\u5360\u4f4d\u4fe1\u606f\u4f1a\u5bfc\u81f4\u9a73\u56de | \u66ff\u6362\u4e3a\u771f\u5b9e\u652f\u6301\u90ae\u7bb1\u3001\u516c\u53f8\u6ce8\u518c\u4fe1\u606f\u3001\u6709\u6548\u8054\u7cfb\u65b9\u5f0f\uff0c\u5e76\u540c\u6b65\u591a\u8bed\u8a00\u6587\u6848 |\n| P0 | \u670d\u52a1\u6761\u6b3e\u9000\u6b3e\u63cf\u8ff0\u8fc7\u4e8e\u4e3b\u89c2\uff0c\u672a\u4e0e Creem/MoR \u9000\u6b3e\u3001\u7a0e\u8d39\u3001\u8ba2\u9605\u7eed\u8d39\u89c4\u5219\u5bf9\u9f50 | `frontend/src/i18n/index.ts:768` \u5199\u660e\u9000\u6b3e\u7531\u6211\u4eec\u81ea\u884c\u51b3\u5b9a\uff1b\u6761\u6b3e\u4ec5\u6cdb\u8ff0\u8ba2\u9605 | \u5ba1\u6838\u6750\u6599\u4e0e\u5b9e\u9645 MoR \u653f\u7b56\u4e0d\u4e00\u81f4\uff0c\u5bb9\u6613\u89e6\u53d1\u5408\u89c4\u98ce\u9669 | \u66f4\u65b0 Terms/Pricing FAQ\uff1a\u81ea\u52a8\u7eed\u8d39\u3001\u53d6\u6d88\u751f\u6548\u65f6\u95f4\u3001\u9000\u6b3e\u6e20\u9053\u3001\u7a0e\u8d39\u7531 Creem/MoR \u8ba1\u7b97\u4e0e\u5c55\u793a |\n\n## \u9ad8\u98ce\u9669\u975e\u963b\u585e\u9879\n\n| \u4f18\u5148\u7ea7 | \u95ee\u9898 | \u8bc1\u636e | \u5f71\u54cd | \u5efa\u8bae\u5904\u7406 |\n|---|---|---|---|---|\n| P1 | `CreemApiError` \u672a\u5728 checkout API \u5c42\u7edf\u4e00\u6620\u5c04 | `backend/app/api/v1/payments.py:55-60` \u53ea\u6355\u83b7 timeout \u4e0e\u914d\u7f6e\u9519\u8bef\uff1b`backend/app/integrations/creem/client.py:56-59` \u4f1a\u629b `CreemApiError` | Creem 4xx/5xx \u53ef\u80fd\u66b4\u9732\u4e3a 500\uff0c\u524d\u7aef\u63d0\u793a\u5dee\uff0c\u6392\u969c\u56f0\u96be | \u5c06 Creem \u975e\u8d85\u65f6\u9519\u8bef\u6620\u5c04\u4e3a 502/503\uff0c\u5e76\u8bb0\u5f55 request context |\n| P1 | checkout \u54cd\u5e94\u6ca1\u6709\u6821\u9a8c `checkout_url` \u4e3a\u7a7a\u7684\u5f02\u5e38 | `backend/app/services/payments/service.py:60-61` \u76f4\u63a5 `data.get(\"checkout_url\", \"\")` | \u524d\u7aef\u53ef\u80fd\u8df3\u8f6c\u7a7a URL\uff0c\u7528\u6237\u505c\u7559\u6216\u8df3\u5230\u5f53\u524d\u9875 | \u7a7a URL \u89c6\u4e3a\u4e0a\u6e38\u9519\u8bef\u5e76\u8fd4\u56de\u53ef\u8bfb\u9519\u8bef |\n| P1 | \u8ba2\u9605\u72b6\u6001\u547d\u540d\u524d\u540e\u7aef\u4e0d\u4e00\u81f4 | Webhook \u6fc0\u6d3b\u5199 `subscription_status = \"pro\"`\uff1a`backend/app/services/payments/webhook_handler.py:115`\uff1b\u8bbe\u7f6e\u5f39\u7a97\u7528 `props.subscriptionStatus === \"active\"` \u5224\u65ad Pro\uff1a`frontend/src/components/settings/SubscriptionManageModal.vue:80` | \u5df2\u4ed8\u7528\u6237\u5728\u8bbe\u7f6e\u9875\u53ef\u80fd\u4ecd\u663e\u793a Free \u6216\u9519\u8bef CTA | \u7edf\u4e00\u72b6\u6001\u679a\u4e3e\uff1a\u5efa\u8bae\u540e\u7aef\u8fd4\u56de `active/trialing/past_due/canceled/free`\uff0c\u6743\u76ca\u5c42\u5355\u72ec\u6620\u5c04 Pro |\n| P1 | \u4ef7\u683c\u9875\u672a\u63a5\u5165\u5730\u533a\u5b9a\u4ef7 API\uff0c\u4e0e\u8bbe\u8ba1\u6587\u6863\u4e0d\u4e00\u81f4 | \u8bbe\u8ba1\u8981\u6c42 `docs/designs/2026-05-15-creem-payment-integration-design.md:20-23`\uff1b\u5b9e\u9645 pricing \u9875\u4f7f\u7528\u9759\u6001 `PRICING_CONFIG` | pricing \u9875\u5c55\u793a\u4e0d\u968f\u7528\u6237\u5730\u533a\u53d8\u5316\uff0c\u53ef\u80fd\u4e0e checkout product \u4ef7\u683c\u4e0d\u4e00\u81f4 | \u5728 pricing \u9875\u52a0\u8f7d `/payments/region` \u5e76\u4ee5\u540e\u7aef\u4ef7\u683c\u4e3a\u51c6 |\n| P1 | \u4ee3\u5e01\u53d1\u653e\u4f9d\u8d56 `coin_amount` metadata\uff0c\u4f46\u521b\u5efa checkout \u65f6\u672a\u8bbe\u7f6e\u8be5\u5b57\u6bb5 | \u521b\u5efa checkout metadata\uff1a`backend/app/services/payments/service.py:58`\uff1bWebhook \u53d1\u5e01\u8bfb\u53d6 `coin_amount`\uff1a`backend/app/services/payments/webhook_handler.py:67-75` | \u4ee3\u5e01\u8d2d\u4e70\u6210\u529f\u540e\u53ef\u80fd\u4e0d\u4f1a\u5230\u8d26 | \u5bf9 coin checkout \u5199\u5165 `coin_amount`\uff0c\u5e76\u4e3a\u5404 coin \u5305\u8865\u771f\u5b9e webhook \u6837\u672c\u6d4b\u8bd5 |\n| P1 | \u53d6\u6d88\u8ba2\u9605\u8bed\u4e49\u53ef\u80fd\u662f\u7acb\u5373\u53d6\u6d88\u800c\u975e\u671f\u672b\u53d6\u6d88 | \u8bbe\u8ba1\u6587\u6863\u5199 scheduled\uff1a`docs/designs/2026-05-15-creem-payment-integration-design.md:59`\uff1b\u5b9e\u73b0\u8c03\u7528 cancel \u540e\u7acb\u5373\u8bbe canceled\uff1a`backend/app/services/payments/service.py:104-113` | \u4ed8\u8d39\u7528\u6237\u53ef\u80fd\u63d0\u524d\u5931\u53bb\u6743\u76ca\uff0c\u6216 UI \u4e0e Creem \u5b9e\u9645\u72b6\u6001\u4e0d\u4e00\u81f4 | \u786e\u8ba4 Creem cancel API \u884c\u4e3a\uff0c\u6309 period end \u4fdd\u7559\u6743\u76ca\u5e76\u5c55\u793a\u5230\u671f\u65f6\u95f4 |\n| P1 | \u73af\u5883\u77e9\u9635\u5217\u51fa\u7684 Creem timeout\u3001\u4ef7\u683c\u7cfb\u6570\u3001\u5730\u533a\u53d8\u91cf\u672a\u5728\u914d\u7f6e\u7c7b\u4e2d\u5b9e\u73b0 | `docs/env-matrix.md:114-122`\uff1b`backend/app/core/config.py:97-119` | \u8fd0\u7ef4\u914d\u7f6e\u4e0e\u4ee3\u7801\u4e0d\u4e00\u81f4\uff0clive \u5207\u6362\u65f6\u5bb9\u6613\u8bef\u914d | \u66f4\u65b0\u4ee3\u7801\u6216\u6587\u6863\uff0c\u4fdd\u7559\u771f\u5b9e\u4f1a\u751f\u6548\u7684\u53d8\u91cf\u6e05\u5355 |\n| P1 | pricing/landing footer \u793e\u4ea4\u94fe\u63a5\u4e3a `#` | `frontend/src/pages/DungeonScholarPricingPage.vue:101-102`\uff0c`frontend/src/pages/EasternFantasyLandingPage.vue:114-115` | \u5ba1\u6838\u89c2\u611f\u5dee\uff0c\u516c\u5f00\u7ad9\u70b9\u5b8c\u6574\u6027\u4e0d\u8db3 | \u66ff\u6362\u4e3a\u771f\u5b9e\u94fe\u63a5\u6216\u79fb\u9664 |\n\n## \u5df2\u5177\u5907\u7684\u4e0a\u7ebf\u57fa\u7840\n\n| \u9879\u76ee | \u73b0\u72b6 |\n|---|---|\n| \u540e\u7aef\u8def\u7531 | \u5df2\u6ce8\u518c `/api/v1/payments/checkout`\u3001`/subscription`\u3001`/subscription/cancel`\u3001`/region`\u3001`/webhook/creem` |\n| Creem API client | \u5df2\u5c01\u88c5 checkout\u3001\u67e5\u8be2\u8ba2\u9605\u3001\u53d6\u6d88\u8ba2\u9605\uff0c\u4e14\u6839\u636e `creem_test_` key \u81ea\u52a8\u8d70 test API |\n| Webhook \u5e42\u7b49 | \u4f7f\u7528 `payment_transactions.external_transaction_id` \u548c wallet idempotency key \u907f\u514d\u91cd\u590d\u53d1\u5e01 |\n| \u8ba2\u9605\u5b57\u6bb5 | `users` \u8868\u8fc1\u79fb\u5df2\u5305\u542b\u8ba2\u9605\u72b6\u6001\u3001tier\u3001\u5230\u671f\u65f6\u95f4\u3001Creem customer/subscription ID\u3001pricing region |\n| \u524d\u7aef\u5165\u53e3 | pricing\u3001shop\u3001settings \u5df2\u8c03\u7528 checkout/\u8ba2\u9605/\u5730\u533a API |\n| \u6cd5\u52a1\u9875\u9762 | privacy \u4e0e terms \u9875\u9762\u5b58\u5728\uff0c\u5e76\u4ece\u843d\u5730\u9875/pricing footer \u53ef\u8bbf\u95ee |\n\n## \u4fee\u590d\u4efb\u52a1\u6e05\u5355\n\n| \u7f16\u53f7 | \u4f18\u5148\u7ea7 | \u4efb\u52a1 | \u6d89\u53ca\u6587\u4ef6 | \u9a8c\u6536\u6807\u51c6 |\n|---|---|---|---|---|\n| T1 | P0 | \u7edf\u4e00 Creem \u751f\u4ea7\u73af\u5883\u53d8\u91cf\u547d\u540d\u4e0e\u6587\u6863 | `backend/app/core/config.py`\u3001`docs/env-matrix.md`\u3001\u90e8\u7f72\u5e73\u53f0\u53d8\u91cf | \u751f\u4ea7\u914d\u7f6e\u4e2d success/cancel URL \u5747\u4e3a\u771f\u5b9e HTTPS \u57df\u540d\uff0c\u4ee3\u7801\u4e0e\u6587\u6863\u53d8\u91cf\u540d\u4e00\u81f4 |\n| T2 | P0 | \u5b8c\u5584 checkout payload | `backend/app/services/payments/service.py`\u3001\u76f8\u5173\u6d4b\u8bd5 | payload \u5305\u542b success URL\u3001cancel URL\u3001user metadata\u3001coin amount\uff1b\u7a7a checkout URL \u4f1a\u62a5\u9519 |\n| T3 | P0 | \u5efa\u7acb live product/price \u5bf9\u7167\u5e76\u6838\u5bf9 | \u65b0\u589e\u8fd0\u7ef4\u5ba1\u6838\u6587\u6863\u6216 release checklist | 8 \u4e2a\u4ea7\u54c1 ID \u4e0e\u524d\u7aef\u4ef7\u683c\u3001\u5e01\u79cd\u3001\u5468\u671f\u3001\u4ee3\u5e01\u6570\u4e00\u4e00\u5339\u914d |\n| T4 | P0 | \u7528\u771f\u5b9e Creem test webhook \u6837\u672c\u6821\u9a8c\u7b7e\u540d\u4e0e\u4e8b\u4ef6\u7ed3\u6784 | `backend/app/services/payments/webhook_handler.py`\u3001`backend/tests/api/test_payments_api.py` | test mode \u771f\u5b9e\u4e8b\u4ef6\u53ef\u9a8c\u7b7e\u901a\u8fc7\uff0c\u8ba2\u9605\u548c\u4ee3\u5e01\u4e8b\u4ef6\u5747\u80fd\u6b63\u786e\u56de\u5199 |\n| T5 | P0 | \u66ff\u6362\u5360\u4f4d\u6cd5\u52a1\u4e0e\u652f\u6301\u4fe1\u606f | `frontend/src/i18n/index.ts`\u3001privacy/terms \u5c55\u793a\u9875 | \u65e0 `support@xirang.local`\u3001\u65e0 `to be filled in`\uff1b\u652f\u6301\u90ae\u7bb1\u53ef\u6536\u4fe1\uff0c\u516c\u53f8\u4fe1\u606f\u771f\u5b9e |\n| T6 | P0 | \u66f4\u65b0\u9000\u6b3e\u3001\u8ba2\u9605\u3001\u7a0e\u8d39\u6761\u6b3e | `frontend/src/i18n/index.ts`\u3001pricing FAQ | \u660e\u786e\u7eed\u8d39\u3001\u53d6\u6d88\u3001\u9000\u6b3e\u5904\u7406\u6e20\u9053\u3001\u7a0e\u8d39\u7531 Creem/MoR \u7ed3\u8d26\u9875\u5c55\u793a |\n| T7 | P1 | \u7edf\u4e00\u8ba2\u9605\u72b6\u6001\u8bed\u4e49 | \u540e\u7aef payments service/webhook\u3001\u524d\u7aef settings modal | \u5df2\u4ed8\u8ba2\u9605\u5728\u8bbe\u7f6e\u9875\u663e\u793a\u4e3a Pro\uff0c\u53d6\u6d88\u540e\u5c55\u793a\u5230\u671f\u6743\u76ca\u72b6\u6001 |\n| T8 | P1 | pricing \u9875\u4ee5\u540e\u7aef\u5730\u533a\u4ef7\u683c\u4e3a\u51c6 | `frontend/src/pages/DungeonScholarPricingPage.vue`\u3001\u76f8\u5173\u6d4b\u8bd5 | \u5207\u6362/\u52a0\u8f7d\u5730\u533a\u540e\u4ef7\u683c\u4e0e `/payments/region` \u4e00\u81f4 |\n| T9 | P1 | \u6539\u5584 Creem API \u9519\u8bef\u6620\u5c04\u4e0e\u524d\u7aef\u63d0\u793a | `backend/app/api/v1/payments.py`\u3001\u524d\u7aef\u8c03\u7528\u5904 | Creem 4xx/5xx \u8fd4\u56de\u660e\u786e 502/503\uff0c\u524d\u7aef\u663e\u793a\u53ef\u8bfb\u9519\u8bef |\n| T10 | P1 | \u5b8c\u6210\u4e0a\u7ebf\u70df\u6d4b\u811a\u672c/\u6e05\u5355 | `docs/smoke-checklist.md` \u6216\u65b0\u589e\u652f\u4ed8 smoke checklist | \u8986\u76d6 checkout \u521b\u5efa\u3001\u53d6\u6d88\u56de\u8df3\u3001\u6210\u529f\u56de\u8df3\u3001webhook \u56de\u5199\u3001\u91cd\u590d webhook\u3001\u8ba2\u9605\u53d6\u6d88 |\n\n## \u4e0a\u7ebf\u524d\u9a8c\u8bc1\u5efa\u8bae\n\n| \u9636\u6bb5 | \u9a8c\u8bc1\u9879 | \u901a\u8fc7\u6807\u51c6 |\n|---|---|---|\n| \u914d\u7f6e | Render API \u73af\u5883\u53d8\u91cf | `CREEM_API_KEY` \u4e3a live key\uff0cwebhook secret \u4e0e Creem dashboard \u4e00\u81f4\uff0cproduct IDs \u4e3a live product |\n| \u914d\u7f6e | Vercel/\u524d\u7aef\u57df\u540d | pricing\u3001privacy\u3001terms\u3001help/support \u5747\u4e3a\u516c\u5f00 HTTPS \u53ef\u8bbf\u95ee |\n| Creem test mode | checkout \u521b\u5efa | \u6708/\u5b63/\u5e74\u8ba2\u9605\u4e0e 5 \u4e2a\u4ee3\u5e01\u5305\u5747\u80fd\u8df3\u8f6c\u5230\u6b63\u786e checkout |\n| Creem test mode | webhook | \u652f\u4ed8\u6210\u529f\u540e\u4ee3\u5e01\u5230\u8d26\u3001\u8ba2\u9605\u53d8 Pro\uff1b\u91cd\u590d\u4e8b\u4ef6\u4e0d\u91cd\u590d\u53d1\u5e01 |\n| Creem test mode | \u53d6\u6d88 | \u7528\u6237\u53d6\u6d88\u652f\u4ed8\u8fd4\u56de pricing\uff1b\u53d6\u6d88\u8ba2\u9605\u540e\u6743\u76ca\u4e0e\u5230\u671f\u65f6\u95f4\u7b26\u5408\u9884\u671f |\n| \u5408\u89c4 | \u6cd5\u52a1 | \u9690\u79c1\u653f\u7b56\u3001\u670d\u52a1\u6761\u6b3e\u3001\u9000\u6b3e/\u8ba2\u9605\u8bf4\u660e\u3001\u652f\u6301\u90ae\u7bb1\u3001\u516c\u53f8\u4fe1\u606f\u65e0\u5360\u4f4d |\n| \u751f\u4ea7\u9884\u6f14 | live \u5c0f\u989d\u9a8c\u8bc1 | \u7528\u5185\u90e8\u8d26\u53f7\u5b8c\u6210\u4e00\u6b21 live \u771f\u5b9e\u652f\u4ed8\u5e76\u786e\u8ba4\u8d26\u5355\u3001\u7a0e\u8d39\u3001\u5230\u8d26\u3001\u56de\u8df3\u3001\u90ae\u4ef6\u901a\u77e5 |\n\n## \u63d0\u4ea4 Creem \u5ba1\u6838\u90ae\u4ef6\u8349\u7a3f\n\n\u4e3b\u9898\uff1aRequest to enable live/product mode for Xi Rang SaaS\n\n\u6b63\u6587\uff1a\n\nHi Creem Team,\n\nWe would like to request live/product mode approval for our SaaS product, Xi Rang.\n\nProduct name: Xi Rang\n\nWebsite: [\u586b\u5199\u751f\u4ea7\u843d\u5730\u9875 URL]\n\nPricing page: [\u586b\u5199\u751f\u4ea7 pricing URL]\n\nPrivacy Policy: [\u586b\u5199\u751f\u4ea7 privacy policy URL]\n\nTerms of Service: [\u586b\u5199\u751f\u4ea7 terms URL]\n\nSupport email: [\u586b\u5199\u771f\u5b9e\u652f\u6301\u90ae\u7bb1]\n\nCompany/legal entity: Hangzhou Huanyu Gezhi Intelligent Technology Co., Ltd. [\u8865\u5145\u771f\u5b9e\u6ce8\u518c\u4fe1\u606f]\n\nBusiness model: SaaS subscription with optional virtual coin purchases for in-product learning/gameplay features.\n\nProducts to enable:\n\n| Product | Billing | Price | Creem live product ID |\n|---|---|---|---|\n| Pro Monthly | Monthly subscription | [\u586b\u5199] | [\u586b\u5199] |\n| Pro Quarterly | Quarterly subscription | [\u586b\u5199] | [\u586b\u5199] |\n| Pro Yearly | Yearly subscription | [\u586b\u5199] | [\u586b\u5199] |\n| 60 Coins | One-time purchase | [\u586b\u5199] | [\u586b\u5199] |\n| 300 Coins | One-time purchase | [\u586b\u5199] | [\u586b\u5199] |\n| 680 Coins | One-time purchase | [\u586b\u5199] | [\u586b\u5199] |\n| 1500 Coins | One-time purchase | [\u586b\u5199] | [\u586b\u5199] |\n| 3500 Coins | One-time purchase | [\u586b\u5199] | [\u586b\u5199] |\n\nCheckout success URL: [\u586b\u5199]\n\nCheckout cancel URL: [\u586b\u5199]\n\nWebhook endpoint: [\u586b\u5199\uff0c\u4f8b\u5982 https://api.example.com/api/v1/payments/webhook/creem]\n\nWe have completed test mode validation for checkout creation, success/cancel redirects, webhook signature verification, subscription activation/cancellation, and one-time coin purchase fulfillment. Our privacy policy, terms of service, refund/subscription disclosures, and customer support contact are publicly available at the URLs above.\n\nPlease let us know if you need any additional information for review.\n\nBest regards,\n\n[\u59d3\u540d]\n\n[\u804c\u4f4d / \u56e2\u961f]\n\n## \u5ba1\u6838\u5907\u6ce8\n\n\u672c\u62a5\u544a\u662f\u4ee3\u7801\u4e0e\u6587\u6863\u9759\u6001\u5ba1\u6838\u7ed3\u679c\uff0c\u4e0d\u5305\u542b\u771f\u5b9e dashboard \u914d\u7f6e\u6838\u9a8c\u3002\u5207\u6362 live/product mode \u524d\u5fc5\u987b\u5728 Creem dashboard\u3001Render\u3001Vercel \u4e0a\u9010\u9879\u6838\u5bf9\u771f\u5b9e\u503c\uff0c\u5e76\u4fdd\u5b58 test mode \u7aef\u5230\u7aef\u9a8c\u8bc1\u8bc1\u636e\u3002\n"}], "grading": {"expectations": [{"text": "The report has an explicit overall readiness status and submit/stay-in-test-mode recommendation.", "passed": true, "evidence": "Conclusion says current state should not switch to live/product mode and recommends Creem test mode validation before review."}, {"text": "The report checks legal pages, pricing visibility, support email, footer/social links, and product-readiness risks.", "passed": true, "evidence": "Findings include legal/support placeholders, product/price mapping, refund terms, and social placeholder links."}, {"text": "The report checks Creem checkout/webhook/subscription cancellation readiness with repo evidence.", "passed": true, "evidence": "Findings cover cancel URL, webhook signature assumptions, subscription status semantics, coin metadata, and cancellation behavior."}, {"text": "The report lists prioritized blockers or tasks with concrete file/page/config references.", "passed": true, "evidence": "P0/P1 tables and T1-T10 tasks cite specific files and acceptance criteria."}, {"text": "The report includes a Creem review submission email draft.", "passed": true, "evidence": "Lines 75-128 include a review email draft."}], "summary": {"passed": 5, "failed": 0, "total": 5, "pass_rate": 1.0}, "execution_metrics": {"tool_calls": {}, "total_tool_calls": 0, "total_steps": 0, "errors_encountered": 0, "output_chars": 0, "transcript_chars": 0}, "timing": {"total_duration_seconds": 0}, "user_notes_summary": {"uncertainties": ["Task tool did not expose token/duration metrics."], "needs_review": [], "workarounds": []}}}, {"id": "eval-1-rejection-triage-with_skill", "prompt": "Creem \u62d2\u4e86\u6211\u4eec\uff0c\u8bf4\u7f51\u7ad9\u4e0a\u6709 misleading information \u548c links not working\u3002\u5e2e\u6211\u6309\u5b98\u65b9\u5ba1\u6838\u8981\u6c42\u590d\u76d8\uff0c\u7279\u522b\u770b testimonials\u3001Product Hunt badge\u3001footer \u7684 Twitter/Discord/GitHub \u94fe\u63a5\uff0c\u4ee5\u53ca\u591a\u8bed\u8a00\u9875\u9762\u63cf\u8ff0\u662f\u5426\u4e00\u81f4\uff0c\u7136\u540e\u5199\u4e00\u5c01 re-review \u56de\u590d\u3002", "eval_id": 1, "outputs": [{"name": "report.md", "type": "text", "content": "## Creem \u5ba1\u6838\u9884\u68c0\u7ed3\u8bba\n- \u603b\u4f53\u72b6\u6001: Not Ready\n- \u5efa\u8bae\u52a8\u4f5c: Fix blockers first; Stay in test mode; \u4fee\u5b8c\u540e\u518d\u901a\u8fc7 Creem Dashboard \u7684 Request Re-Review \u63d0\u4ea4\u590d\u5ba1\n- \u6700\u5927\u98ce\u9669: \u9875\u811a Twitter/Discord \u94fe\u63a5\u662f `#` \u7a7a\u94fe\u63a5\uff0c\u4f1a\u76f4\u63a5\u547d\u4e2d Creem \u201clinks not working\u201d \u62d2\u5ba1\u70b9\n- \u6700\u5927\u98ce\u9669: \u843d\u5730\u9875\u591a\u8bed\u8a00\u6587\u6848\u5305\u542b `Join 10,000+ Scholars`\u3001`Join thousands of scholars` \u7b49\u672a\u9a8c\u8bc1\u7528\u6237\u6570\u91cf/\u793e\u4ea4\u8bc1\u660e\uff0c\u4f1a\u547d\u4e2d Creem \u201cNo false information / inflated user counts\u201d \u8981\u6c42\n- \u6700\u5927\u98ce\u9669: \u5bfc\u822a\u5305\u542b `Community` \u6307\u5411 `/community`\uff0c\u4f46\u8def\u7531\u672a\u6ce8\u518c\u8be5\u9875\u9762\uff0c\u5b9e\u9645\u4f1a\u88ab catch-all \u91cd\u5b9a\u5411\u56de\u9996\u9875\uff0c\u5bb9\u6613\u88ab\u5ba1\u6838\u5458\u5224\u5b9a\u4e3a\u65e0\u6548\u6216\u8bef\u5bfc\u94fe\u63a5\n\n## \u5b98\u65b9\u5ba1\u6838\u4f9d\u636e\n- Creem \u5b98\u65b9 Account Reviews \u6587\u6863\u8981\u6c42\u4ea7\u54c1\u7f51\u7ad9\u4e0d\u5f97\u5305\u542b fake reviews\u3001testimonials\u3001inflated user/customer counts\u3002\n- Creem \u5b98\u65b9\u6587\u6863\u660e\u786e\u5217\u51fa\u5e38\u89c1\u62d2\u5ba1\u539f\u56e0\u5305\u62ec false information\u3001missing/broken website content\u3001product not clear\u3001support email mismatch\u3002\n- Creem \u5b98\u65b9\u6587\u6863\u660e\u786e\u6307\u51fa unearned badges\uff0c\u4f8b\u5982 Product Hunt\u3001As Seen On\uff0c\u4f1a\u5bfc\u81f4 rejected\u3002\n- Creem \u5b98\u65b9 Customer Experience \u8981\u6c42 public website \u548c\u7528\u6237 dashboard \u6709\u53ef\u8fbe support email\uff1b\u8ba2\u9605\u4ea7\u54c1\u9700\u8981\u53ef\u53d6\u6d88\u8def\u5f84\u3002\n- \u672c\u6b21\u5ba1\u8ba1\u53ea\u57fa\u4e8e\u5f53\u524d\u672c\u5730\u4ed3\u5e93\u548c Creem \u5b98\u65b9\u6587\u6863\uff1b\u672a\u63d0\u4f9b public URL\u3001Store ID\u3001\u7ebf\u4e0a\u622a\u56fe\u6216 Creem Dashboard \u914d\u7f6e\uff0c\u7ebf\u4e0a\u72b6\u6001\u4ecd\u9700\u4eba\u5de5\u786e\u8ba4\u3002\n\n## \u963b\u585e\u9879\n| \u98ce\u9669 | \u4f4d\u7f6e | \u8bc1\u636e | \u4e3a\u4ec0\u4e48\u5f71\u54cd Creem \u5ba1\u6838 | \u4fee\u590d\u5efa\u8bae |\n|---|---|---|---|---|\n| BLOCKER | `frontend/src/pages/EasternFantasyLandingPage.vue:107-116` | Footer links \u4e2d Twitter\u3001Discord \u7684 `href` \u90fd\u662f `#` | Creem \u660e\u786e\u8981\u6c42 links should work\uff1b\u7a7a\u94fe\u63a5\u4f1a\u88ab\u89c6\u4e3a links not working | \u5220\u9664 Twitter/Discord\uff0c\u6216\u66ff\u6362\u4e3a\u771f\u5b9e\u3001\u516c\u5f00\u3001\u6d3b\u8dc3\u4e14\u4e0e Xi Rang \u7ed1\u5b9a\u7684 URL |\n| BLOCKER | `frontend/src/pages/DungeonScholarPricingPage.vue:95-103` | Pricing \u9875 footer Twitter\u3001Discord \u4e5f\u662f `#` | \u5b9a\u4ef7\u9875\u662f\u5ba1\u6838\u9ad8\u9891\u9875\u9762\uff0c\u5931\u6548\u793e\u4ea4\u94fe\u63a5\u4f1a\u76f4\u63a5\u89e6\u53d1\u62d2\u5ba1 | \u4e0e\u843d\u5730\u9875\u4e00\u81f4\u5220\u9664\u6216\u66ff\u6362\u771f\u5b9e\u94fe\u63a5 |\n| BLOCKER | `frontend/src/pages/DungeonScholarFeaturesPage.vue:121-129` | Features \u9875 footer Twitter\u3001Discord \u4e5f\u662f `#` | \u6240\u6709\u516c\u5f00\u8425\u9500\u9875\u90fd\u9700\u8981\u94fe\u63a5\u4e00\u81f4\u53ef\u7528 | \u4e0e\u843d\u5730\u9875\u4e00\u81f4\u5220\u9664\u6216\u66ff\u6362\u771f\u5b9e\u94fe\u63a5 |\n| HIGH | `frontend/src/constants/routes.ts:24`, `frontend/src/pages/EasternFantasyLandingPage.vue:71-80`, `frontend/src/pages/DungeonScholarPricingPage.vue:85-92` | \u5bfc\u822a\u6709 `Community` -> `/community`\uff0c\u4f46 `frontend/src/router/index.ts` \u672a\u6ce8\u518c `ROUTES.community` | \u5ba1\u6838\u5458\u70b9\u51fb Community \u4f1a\u88ab catch-all \u91cd\u5b9a\u5411\u9996\u9875\uff0c\u4e0d\u662f\u6709\u6548\u793e\u533a\u9875\u9762 | \u5220\u9664 Community \u5bfc\u822a\uff0c\u6216\u5b9e\u73b0\u771f\u5b9e\u793e\u533a\u9875\u9762/\u5916\u94fe\u5e76\u9a8c\u8bc1\u53ef\u8bbf\u95ee |\n| BLOCKER | `frontend/src/i18n/index.ts:1240`, `2555`, `3579`, `3772`, `4285`, `4583`, `4881`, `5179`, `5692`, `6205`, `6717` | \u591a\u8bed\u8a00 landing \u6587\u6848\u5747\u5305\u542b `10,000+` \u5b66\u8005/\u7528\u6237\u6570\u91cf | Creem \u660e\u786e\u7981\u6b62 inflated user/customer counts\uff1b\u5982\u679c\u65e0\u6cd5\u8bc1\u660e\u771f\u5b9e\u6570\u636e\uff0c\u5e94\u89c6\u4e3a\u8bef\u5bfc | \u6539\u6210\u4e0d\u53ef\u91cf\u5316\u8868\u8ff0\uff0c\u5982 \u201cJoin the beta\u201d / \u201cStart learning with Xi Rang\u201d |\n| HIGH | `frontend/src/i18n/index.ts:1276`, `1326`, `2591`, `2641`, `3615`, `3665` | \u82f1\u6587\u3001\u7b80\u4e2d\u3001\u7e41\u4e2d pricing/features CTA \u4e2d\u6709 \u201cthousands / \u6570\u5343\u540d\u201d \u7c7b\u7528\u6237\u6570\u91cf | \u4e0e\u7528\u6237\u6570/\u793e\u4ea4\u8bc1\u660e\u76f8\u5173\uff0c\u82e5\u65e0\u8bc1\u636e\u4f1a\u89e6\u53d1 misleading information | \u5168\u90e8\u66ff\u6362\u4e3a\u529f\u80fd\u5bfc\u5411\u6587\u6848\uff0c\u907f\u514d\u6570\u91cf\u627f\u8bfa |\n| HIGH | `frontend/src/i18n/index.ts:433`, `1749`, `2902`, `3979`, `5386`, `5899`, `6412`, `6924` | Help Center/settings doc \u6587\u6848\u4f7f\u7528 `support@xirang.local` | `.local` \u4e0d\u662f\u771f\u5b9e\u53ef\u8fbe\u652f\u6301\u90ae\u7bb1\uff1bCreem \u8981\u6c42 visible reachable support email | \u6539\u4e3a\u771f\u5b9e\u90ae\u7bb1\uff0c\u5e76\u786e\u4fdd\u4e0e Creem Business Details \u4e00\u81f4\uff1b\u5efa\u8bae\u4f7f\u7528\u54c1\u724c\u57df\u540d\u90ae\u7bb1 |\n| MEDIUM | `frontend/src/pages/DungeonScholarPrivacyPolicyPage.vue:146`, `516`; `DungeonScholarTermsPage.vue:212`; `DungeonScholarHelpCenterPage.vue:224` | \u6cd5\u52a1/\u5e2e\u52a9\u9875\u9762\u663e\u793a `huanyugezhishe@hotmail.com`\uff0c\u4e0e `support@xirang.local` \u4e0d\u4e00\u81f4 | Creem \u5e38\u89c1\u62d2\u5ba1\u539f\u56e0\u4e4b\u4e00\u662f support email mismatch | \u7edf\u4e00 public website\u3001app dashboard\u3001Creem Business Details \u7684\u652f\u6301\u90ae\u7bb1 |\n\n## Checklist\n| \u9879\u76ee | \u72b6\u6001 | \u8bc1\u636e | \u4e0b\u4e00\u6b65 |\n|---|---|---|---|\n| Testimonials | PASS/UNKNOWN | \u4ed3\u5e93\u641c\u7d22 `testimonial`\u3001`Testimonials`\u3001`review` \u672a\u53d1\u73b0\u516c\u5f00\u8425\u9500 testimonial \u6a21\u5757\uff1b\u5927\u91cf `review` \u662f\u5b66\u4e60\u590d\u4e60\u529f\u80fd\u6587\u6848 | \u5982\u679c\u7ebf\u4e0a/CMS/\u622a\u56fe\u4e2d\u6709 testimonials\uff0c\u9700\u5220\u9664\u6216\u4fdd\u7559\u8bc1\u660e\u6750\u6599 |\n| Product Hunt badge | PASS/UNKNOWN | \u4ed3\u5e93\u641c\u7d22 `Product Hunt`\u3001`producthunt`\u3001`as seen` \u672a\u53d1\u73b0\u5fbd\u7ae0\u6216\u76f8\u5173\u94fe\u63a5 | \u5982\u679c\u7ebf\u4e0a\u6709 Product Hunt badge\uff0c\u5fc5\u987b\u79fb\u9664\uff0c\u9664\u975e\u5df2\u6709\u53ef\u9a8c\u8bc1\u53d1\u5e03\u9875 |\n| Footer Twitter/Discord | BLOCKER | \u4e09\u4e2a\u516c\u5f00\u8425\u9500\u9875 footer \u5747\u542b `href: \"#\"` | \u5220\u9664\u6216\u66ff\u6362\u771f\u5b9e\u6d3b\u8dc3\u94fe\u63a5 |\n| Footer GitHub | PASS | \u516c\u5f00\u8425\u9500\u9875 footer \u672a\u53d1\u73b0 GitHub \u793e\u4ea4\u94fe\u63a5\uff1bGitHub \u4ec5\u7528\u4e8e OAuth \u767b\u5f55\u6587\u6848 | \u65e0\u9700\u5904\u7406\uff1b\u5982\u679c\u7ebf\u4e0a footer \u6709 GitHub\uff0c\u9700\u9a8c\u8bc1\u4ed3\u5e93/\u7ec4\u7ec7\u771f\u5b9e\u53ef\u8bbf\u95ee |\n| Community link | HIGH | \u5bfc\u822a\u6307\u5411 `/community`\uff0c\u8def\u7531\u672a\u6ce8\u518c | \u5220\u9664 Community \u5bfc\u822a\u6216\u8865\u771f\u5b9e\u9875\u9762 |\n| \u591a\u8bed\u8a00\u63cf\u8ff0\u4e00\u81f4\u6027 | HIGH | 11 \u4e2a landing locale \u90fd\u6709 `10,000+`\uff1b\u90e8\u5206 locale \u6709 `thousands/\u6570\u5343`\uff0c\u90e8\u5206\u6ca1\u6709\u5b8c\u6574 legal \u5185\u5bb9 | \u79fb\u9664\u6240\u6709\u91cf\u5316\u793e\u4ea4\u8bc1\u660e\uff1b\u8865\u9f50\u6216\u9690\u85cf\u672a\u5b8c\u6210\u8bed\u8a00\u7248\u672c |\n| Pricing visibility | PASS/MEDIUM | `frontend/src/config/pricing.ts` \u663e\u793a monthly/quarterly/yearly Pro \u4e0e coin packages\uff1bpricing \u9875\u9762\u6709 FAQ | \u9700\u786e\u8ba4 Creem Dashboard \u4ea7\u54c1\u4ef7\u683c\u4e0e\u7f51\u7ad9\u4ef7\u683c\u4e00\u81f4 |\n| Legal pages | PASS/MEDIUM | `/privacy-policy`\u3001`/terms-of-service` \u8def\u7531\u5df2\u6ce8\u518c\u5e76\u6709\u9875\u9762 | \u591a\u8bed\u8a00\u90e8\u5206\u663e\u793a \u201cFull localized content coming soon\u201d\uff0c\u590d\u5ba1\u524d\u5efa\u8bae\u9ed8\u8ba4\u82f1\u6587\u6216\u8865\u5168\u672c\u5730\u5316 |\n| Subscription cancellation | PASS/UNKNOWN | `frontend/src/api/payments.ts:18-20` \u6709 cancel API\uff1b\u8bbe\u7f6e\u9875\u6709\u8ba2\u9605\u7ba1\u7406\u6587\u6848 | \u9700\u4eba\u5de5\u786e\u8ba4\u7528\u6237 dashboard \u53ef\u4ee5\u5b9e\u9645\u53d6\u6d88\u8ba2\u9605\uff0c\u4e14 Creem webhook/portal \u5728\u751f\u4ea7\u53ef\u7528 |\n| Support email | BLOCKER | \u540c\u65f6\u5b58\u5728 `support@xirang.local` \u548c `huanyugezhishe@hotmail.com` | \u7edf\u4e00\u4e3a\u771f\u5b9e\u53ef\u8fbe\u652f\u6301\u90ae\u7bb1\uff0c\u5e76\u540c\u6b65 Creem Business Details |\n| AI image/video moderation | PASS | \u4ea7\u54c1\u662f\u6587\u6863\u8f6c\u5b66\u4e60\u6e38\u620f\uff0c\u4e0d\u662f AI image/video generation\uff1b\u672a\u89c1\u56fe\u50cf/\u89c6\u9891\u751f\u6210\u8425\u9500 | \u82e5\u672a\u6765\u52a0\u5165 AI \u56fe\u50cf/\u89c6\u9891\u751f\u6210\u529f\u80fd\uff0c\u9700\u8981 Creem Moderation API \u548c AUP |\n\n## \u591a\u8bed\u8a00\u9875\u9762\u4e00\u81f4\u6027\u590d\u76d8\n| Locale | \u843d\u5730\u9875\u4e3b\u8981\u95ee\u9898 | \u5b9a\u4ef7/\u529f\u80fd\u9875\u4e3b\u8981\u95ee\u9898 | \u5907\u6ce8 |\n|---|---|---|---|\n| `en` | `Join 10,000+ Scholars`; \u201cScholars joined this week\u201d \u672a\u5c55\u793a\u771f\u5b9e\u8ba1\u6570 | `Join thousands...` | \u9700\u8981\u5220\u9664\u91cf\u5316\u7528\u6237\u6570 |\n| `zh-CN` | `\u52a0\u5165 10,000+ \u5b66\u8005`; \u201c\u672c\u5468\u65b0\u52a0\u5165\u7684\u5b66\u8005\u201d | `\u52a0\u5165\u6570\u5343\u540d...` | \u9700\u8981\u5220\u9664\u91cf\u5316\u7528\u6237\u6570 |\n| `zh-TW` | `\u52a0\u5165 10,000+ \u5b78\u8005` | `\u52a0\u5165\u6578\u5343\u540d...` | \u9700\u8981\u5220\u9664\u91cf\u5316\u7528\u6237\u6570 |\n| `it` | `Unisciti a 10.000+ Scienziati` | \u672a\u5728\u672c\u6b21\u7247\u6bb5\u4e2d\u786e\u8ba4\u5b8c\u6574 pricing CTA | \u9700\u8981\u5168\u5c40\u66ff\u6362\u91cf\u5316\u7528\u6237\u6570 |\n| `de` | `Treten Sie 10.000+ Gelehrten bei` | \u672a\u5728\u672c\u6b21\u7247\u6bb5\u4e2d\u786e\u8ba4\u5b8c\u6574 pricing CTA | \u9700\u8981\u5168\u5c40\u66ff\u6362\u91cf\u5316\u7528\u6237\u6570 |\n| `pt` | `Junte-se a 10.000+ Estudantes` | \u672a\u5728\u672c\u6b21\u7247\u6bb5\u4e2d\u786e\u8ba4\u5b8c\u6574 pricing CTA | \u9700\u8981\u5168\u5c40\u66ff\u6362\u91cf\u5316\u7528\u6237\u6570 |\n| `es` | `\u00danete a 10.000+ Eruditos` | \u672a\u5728\u672c\u6b21\u7247\u6bb5\u4e2d\u786e\u8ba4\u5b8c\u6574 pricing CTA | \u9700\u8981\u5168\u5c40\u66ff\u6362\u91cf\u5316\u7528\u6237\u6570 |\n| `fr` | `Rejoignez 10.000+ Scholaires` | \u672a\u5728\u672c\u6b21\u7247\u6bb5\u4e2d\u786e\u8ba4\u5b8c\u6574 pricing CTA | \u9700\u8981\u5168\u5c40\u66ff\u6362\u91cf\u5316\u7528\u6237\u6570 |\n| `ru` | `\u041f\u0440\u0438\u0441\u043e\u0435\u0434\u0438\u043d\u044f\u0439\u0442\u0435\u0441\u044c \u043a 10.000+ \u0423\u0447\u0451\u043d\u044b\u043c` | \u672a\u5728\u672c\u6b21\u7247\u6bb5\u4e2d\u786e\u8ba4\u5b8c\u6574 pricing CTA | \u9700\u8981\u5168\u5c40\u66ff\u6362\u91cf\u5316\u7528\u6237\u6570 |\n| `ko-KR` | `10,000+ \ud559\uc790\uc640 \ud568\uaed8\ud558\uc138\uc694` | \u672a\u5728\u672c\u6b21\u7247\u6bb5\u4e2d\u786e\u8ba4\u5b8c\u6574 pricing CTA | \u9700\u8981\u5168\u5c40\u66ff\u6362\u91cf\u5316\u7528\u6237\u6570 |\n| `ko-KP` | `10,000+ \ud559\uc790\uc640 \ud568\uaed8\ud558\uc2dc\uc624` | \u672a\u5728\u672c\u6b21\u7247\u6bb5\u4e2d\u786e\u8ba4\u5b8c\u6574 pricing CTA | \u9700\u8981\u5168\u5c40\u66ff\u6362\u91cf\u5316\u7528\u6237\u6570 |\n\n## \u4fee\u590d\u4efb\u52a1\n1. `frontend/src/pages/EasternFantasyLandingPage.vue`, `DungeonScholarPricingPage.vue`, `DungeonScholarFeaturesPage.vue` - \u5220\u9664 footer \u4e2d Twitter/Discord \u7a7a\u94fe\u63a5\uff0c\u6216\u66ff\u6362\u6210\u771f\u5b9e URL - \u9a8c\u8bc1\u9875\u9762\u5e95\u90e8\u4e0d\u5b58\u5728 `href=\"#\"` \u793e\u4ea4\u94fe\u63a5\u3002\n2. `frontend/src/pages/*Landing/Pricing/Features*` \u548c `frontend/src/constants/routes.ts` - \u5220\u9664 `Community` \u5bfc\u822a\uff0c\u6216\u65b0\u589e\u771f\u5b9e `/community` \u8def\u7531\u9875\u9762 - \u9a8c\u8bc1\u70b9\u51fb Community \u4e0d\u4f1a\u91cd\u5b9a\u5411\u9996\u9875\u3002\n3. `frontend/src/i18n/index.ts` - \u5c06\u6240\u6709 `10,000+`\u3001`thousands/\u6570\u5343/\u6578\u5343` \u7528\u6237\u6570\u91cf\u6587\u6848\u6539\u4e3a\u975e\u91cf\u5316\u8868\u8ff0 - \u9a8c\u8bc1\u641c\u7d22 `10,000|10\\.000|thousands|\u6570\u5343|\u6578\u5343` \u65e0\u8425\u9500\u793e\u4ea4\u8bc1\u660e\u6b8b\u7559\u3002\n4. `frontend/src/i18n/index.ts`, `DungeonScholarPrivacyPolicyPage.vue`, `DungeonScholarTermsPage.vue`, `DungeonScholarHelpCenterPage.vue` - \u7edf\u4e00\u4e3a\u771f\u5b9e\u53ef\u8fbe\u652f\u6301\u90ae\u7bb1 - \u9a8c\u8bc1 public site\u3001app dashboard\u3001Creem Business Details \u4e09\u5904\u4e00\u81f4\u3002\n5. \u7ebf\u4e0a\u7ad9\u70b9/CMS/\u90e8\u7f72\u914d\u7f6e - \u4eba\u5de5\u786e\u8ba4\u6ca1\u6709 Product Hunt badge\u3001As Seen On\u3001press logos\u3001customer logos \u6216 testimonials - \u9700\u8981\u4fdd\u7559\u622a\u56fe\u6216 URL \u8bc1\u636e\u3002\n6. Creem Dashboard - \u786e\u8ba4\u4ea7\u54c1 URL\u3001\u4ef7\u683c\u3001\u652f\u6301\u90ae\u7bb1\u3001\u8ba2\u9605\u53d6\u6d88\u8def\u5f84\u4e0e\u7f51\u7ad9\u4e00\u81f4 - \u590d\u5ba1\u524d\u622a\u56fe\u7559\u6863\u3002\n\n## \u63d0\u4ea4/\u590d\u5ba1\u8bf4\u660e\u8349\u7a3f\nDear Creem Team,\n\nThank you for the review. We reviewed the site against your Merchant of Record account review requirements and addressed the issues around misleading information and non-working links.\n\n1. Content compliance: We removed unsupported social-proof claims, including inflated user-count wording such as \u201c10,000+ scholars\u201d and \u201cthousands of scholars.\u201d We also confirmed that the site does not display fake testimonials, fake reviews, or an unearned Product Hunt badge.\n2. Links and contact channels: We removed or corrected inactive footer social links, including placeholder Twitter/Discord links, and verified that public footer/legal/help links are accessible. We also aligned the visible support email with our Creem Business Details support contact.\n3. Product accuracy: We reviewed the English and localized landing/pricing/features pages to keep the product description consistent: Xi Rang is a document-to-gamified-learning SaaS that turns user-uploaded learning materials into study modes, review loops, and progress rewards. We removed wording that could be interpreted as unsupported traction or misleading social proof.\n4. Customer experience: We confirmed that Privacy Policy, Terms of Service, pricing, support, and subscription cancellation information are available from the public website and user dashboard.\n\nWe will remain in test mode until the account review is approved.\n\nStore ID: [add Store ID]\nProduct URL: [add production URL]\nSupport email: [add support email]\n\nBest regards,\n[name]\n\n## \u4ecd\u9700\u4eba\u5de5\u786e\u8ba4\n- \u5f53\u524d\u4efb\u52a1\u672a\u63d0\u4f9b public URL\uff0c\u56e0\u6b64\u65e0\u6cd5\u7528 HTTP \u72b6\u6001\u7801\u9a8c\u8bc1\u7ebf\u4e0a\u9875\u9762\u548c\u5916\u94fe\u662f\u5426\u771f\u5b9e\u53ef\u8bbf\u95ee\u3002\n- \u5f53\u524d\u4efb\u52a1\u672a\u63d0\u4f9b Store ID\u3001Creem Dashboard \u4ea7\u54c1\u914d\u7f6e\u6216\u622a\u56fe\uff0c\u56e0\u6b64\u65e0\u6cd5\u786e\u8ba4\u7f51\u7ad9\u4ef7\u683c\u4e0e Creem \u4ea7\u54c1\u4ef7\u683c\u5b8c\u5168\u4e00\u81f4\u3002\n- \u5f53\u524d\u4ed3\u5e93\u672a\u53d1\u73b0 Product Hunt badge/testimonials\uff1b\u5982\u679c\u751f\u4ea7\u7ad9\u3001CMS\u3001\u8425\u9500\u622a\u56fe\u6216\u7b2c\u4e09\u65b9\u843d\u5730\u9875\u4e2d\u5b58\u5728\uff0c\u9700\u8981\u540c\u6b65\u79fb\u9664\u6216\u63d0\u4f9b\u53ef\u9a8c\u8bc1\u8bc1\u636e\u3002\n- \u9700\u8981\u786e\u8ba4\u771f\u5b9e\u652f\u6301\u90ae\u7bb1\u53ef\u6536\u4fe1\uff0c\u5e76\u4e0e Creem Business Details \u4e2d\u7684 support email \u4e00\u81f4\u3002\n- \u9700\u8981\u786e\u8ba4\u590d\u5ba1\u524d\u7ebf\u4e0a\u90e8\u7f72\u5df2\u7ecf\u5305\u542b\u4e0a\u8ff0\u5185\u5bb9\u4fee\u590d\uff1b\u672c\u62a5\u544a\u6ca1\u6709\u4fee\u6539\u5e94\u7528\u4ee3\u7801\u3002\n"}], "grading": {"expectations": [{"text": "The report explicitly addresses misleading information and non-working links as Creem rejection causes.", "passed": true, "evidence": "Executive conclusion names broken links and unsupported social-proof claims as major risks."}, {"text": "The report checks testimonials, Product Hunt/as-seen badges, and unverifiable user-count or social-proof claims.", "passed": true, "evidence": "Checklist covers Testimonials, Product Hunt badge, and 10,000+/thousands user-count claims."}, {"text": "The report checks Twitter, Discord, GitHub, footer links, and community/navigation links with evidence.", "passed": true, "evidence": "Blockers cover Twitter/Discord href '#', Footer GitHub status, and /community missing route."}, {"text": "The report checks multi-language product-description consistency.", "passed": true, "evidence": "Includes a multi-language consistency table for 11 locales."}, {"text": "The report includes a professional Creem re-review reply draft.", "passed": true, "evidence": "Lines 65-82 include a re-review reply draft."}], "summary": {"passed": 5, "failed": 0, "total": 5, "pass_rate": 1.0}, "execution_metrics": {"tool_calls": {}, "total_tool_calls": 0, "total_steps": 0, "errors_encountered": 0, "output_chars": 0, "transcript_chars": 0}, "timing": {"total_duration_seconds": 0}, "user_notes_summary": {"uncertainties": ["Task tool did not expose token/duration metrics."], "needs_review": [], "workarounds": []}}}, {"id": "eval-1-rejection-triage-without_skill", "prompt": "Creem \u62d2\u4e86\u6211\u4eec\uff0c\u8bf4\u7f51\u7ad9\u4e0a\u6709 misleading information \u548c links not working\u3002\u5e2e\u6211\u6309\u5b98\u65b9\u5ba1\u6838\u8981\u6c42\u590d\u76d8\uff0c\u7279\u522b\u770b testimonials\u3001Product Hunt badge\u3001footer \u7684 Twitter/Discord/GitHub \u94fe\u63a5\uff0c\u4ee5\u53ca\u591a\u8bed\u8a00\u9875\u9762\u63cf\u8ff0\u662f\u5426\u4e00\u81f4\uff0c\u7136\u540e\u5199\u4e00\u5c01 re-review \u56de\u590d\u3002", "eval_id": 1, "outputs": [{"name": "report.md", "type": "text", "content": "# Creem Rejection Triage Report\n\nDate: 2026-05-18\nScope: repository-only review, no application code changes made.\n\n## Executive Summary\n\nCreem's rejection reason, \"misleading information and links not working\", is consistent with several issues in the current frontend marketing surface.\n\nHighest-risk findings:\n\n1. Footer social links are broken placeholders: `Twitter` and `Discord` use `href=\"#\"` on landing, features, and pricing pages.\n2. The marketing nav includes `Community` at `/community`, but the router does not define a `/community` page; it falls through to the catch-all redirect back to `/`.\n3. Marketing copy contains unverifiable scale claims: `Join 10,000+ Scholars`, `Join thousands of scholars`, and `Scholars joined this week` without a visible metric or proof.\n4. Pricing FAQ says the product accepts `WeChat Pay, Alipay, credit cards, and more`, while Creem's public docs currently describe cards, PayPal, Apple Pay, Google Pay, and local methods, with WeChat Pay and Alipay \"coming soon\". This is likely misleading for a Creem review.\n5. Non-English landing pages are inconsistent with English/Chinese: several locales still describe only PDFs, use old `Dungeon Scholar` branding, and show `\u00a9 2023`, while English/Chinese use `Xi Rang`, `\u00a9 2026`, and broader file format support.\n6. Product Hunt badge and testimonials were not found in the repo. If they exist on production via CMS/manual HTML, they should be removed unless verified; if not present, Creem can be told they are not displayed.\n\nRecommended re-review posture: do not ask Creem to re-review until the broken links and misleading claims are fixed or removed in production. The email draft below assumes fixes have been deployed; update the deployment URL and specific social/GitHub URLs before sending.\n\n## Official Review Lens Used\n\nCreem is acting as Merchant of Record, so public product pages should be safe for checkout review:\n\n1. No fake or unverifiable social proof, badges, logos, user counts, testimonials, or launch claims.\n2. All public links used in headers, footers, legal pages, contact pages, and pricing flows should work and should not be `#` placeholders.\n3. Product, pricing, payment methods, refunds, subscriptions, and support statements should match what the app and Creem checkout actually support.\n4. All localized pages should describe the same product, brand, supported formats, legal/contact routes, and billing terms.\n5. Privacy Policy, Terms of Service, Help/Contact, and pricing should be reachable without login.\n\n## Findings\n\n### P0 - Broken Footer Social Links\n\nStatus: confirmed.\n\nEvidence:\n\n1. `frontend/src/pages/EasternFantasyLandingPage.vue:107-116` footer links include `Twitter` and `Discord` with `href: \"#\"`.\n2. `frontend/src/pages/DungeonScholarFeaturesPage.vue:121-129` repeats the same placeholder links.\n3. `frontend/src/pages/DungeonScholarPricingPage.vue:95-103` repeats the same placeholder links.\n\nImpact:\n\nCreem reviewers can click these from the public marketing/pricing pages and observe non-working links. This directly matches the rejection reason.\n\nRequired fix before re-review:\n\nReplace placeholders with real public URLs, or remove those social links entirely until official accounts exist. Include GitHub only if there is a real public repository or organization page intended for customers.\n\nSuggested acceptance criteria:\n\n1. No marketing footer link uses `href=\"#\"`.\n2. Twitter/X, Discord, and GitHub either point to real public pages or are absent.\n3. Links open successfully in production and do not require a private invite unless clearly labeled.\n\n### P0 - `/community` Nav Link Has No Route\n\nStatus: confirmed.\n\nEvidence:\n\n1. `frontend/src/constants/routes.ts:24` defines `community: \"/community\"`.\n2. `frontend/src/pages/EasternFantasyLandingPage.vue:71-80`, `DungeonScholarFeaturesPage.vue:69-77`, and `DungeonScholarPricingPage.vue:85-93` include `Community` in the top nav.\n3. `frontend/src/router/index.ts:145-153` defines `/features` and `/pricing`, but no `/community` route.\n4. `frontend/src/router/index.ts:155-157` redirects unknown routes to `/`, so `/community` will not load a community page.\n\nImpact:\n\nThis is another public broken link. It may look like a working route in the UI, but it silently redirects to the landing page.\n\nRequired fix before re-review:\n\nEither add a real community page or remove the nav item until the page exists.\n\n### P0 - Payment Method Claim Likely Conflicts With Creem\n\nStatus: confirmed in repository copy; needs business confirmation.\n\nEvidence:\n\n1. `frontend/src/i18n/index.ts:1322-1323` English pricing FAQ says: `We accept WeChat Pay, Alipay, credit cards, and more to serve users worldwide.`\n2. Creem public docs fetched during review say payment methods include cards, PayPal, Apple Pay, Google Pay, and local payment methods based on customer location; WeChat Pay and Alipay are described as coming soon.\n\nImpact:\n\nIf checkout is through Creem, advertising WeChat Pay and Alipay before Creem supports them is misleading. It can also trigger payment-method mismatch in underwriting review.\n\nRequired fix before re-review:\n\nMake FAQ match actual production checkout methods. Suggested neutral copy: `We accept the payment methods available in Creem Checkout for your region, including major cards and supported local methods.`\n\n### P1 - Unverified User Count / Social Proof Claims\n\nStatus: confirmed.\n\nEvidence:\n\n1. `frontend/src/i18n/index.ts:1231` says `Scholars joined this week`.\n2. `frontend/src/i18n/index.ts:1240` says `Join 10,000+ Scholars`.\n3. `frontend/src/i18n/index.ts:1276` says `Join thousands of scholars who have already discovered the joy of gamified learning.`\n4. `frontend/src/i18n/index.ts:1326` says `Join thousands of scholars making learning fun with gamification.`\n5. Chinese and Traditional Chinese repeat the `10,000+` claim at `frontend/src/i18n/index.ts:2555` and `frontend/src/i18n/index.ts:3579`.\n6. Korean locales repeat `10,000+` at `frontend/src/i18n/index.ts:6205` and `frontend/src/i18n/index.ts:6717`.\n\nImpact:\n\nThese are testimonial-adjacent social proof claims. Without a visible source or real analytics backing, they can be considered misleading.\n\nRequired fix before re-review:\n\nRemove or soften all unverifiable scale claims. Suggested copy: `Start learning with Xi Rang` or `Join the open beta`.\n\n### P1 - Testimonials Not Found, But Social Proof Still Exists\n\nStatus: no testimonial components or testimonial strings found in current repo.\n\nEvidence:\n\n1. Repo search for `testimonial`, `Testimonials`, `quote`, and related marketing terms did not identify a testimonial section on the marketing pages.\n2. The closest risk is the user-count/social-proof copy above.\n\nImpact:\n\nIf Creem specifically mentioned testimonials, they may have seen production-only content, cached content, or interpreted `10,000+ Scholars` as a social proof claim.\n\nRequired fix before re-review:\n\nConfirm production does not include CMS/manual testimonials. If testimonials exist outside this repo, remove them unless each quote is real, permissioned, and attributable.\n\n### P1 - Product Hunt Badge Not Found\n\nStatus: no Product Hunt badge found in current repo.\n\nEvidence:\n\n1. Repo search for `Product Hunt`, `producthunt`, `badge`, and related variants found no Product Hunt badge implementation on marketing pages.\n\nImpact:\n\nIf production shows a Product Hunt badge, it likely comes from a different deployment source or manual embed. A Product Hunt badge is misleading unless the product has a real Product Hunt listing and the badge points to it.\n\nRequired fix before re-review:\n\nIf no real Product Hunt listing exists, ensure production does not show the badge. If a listing exists, link the badge to the real listing.\n\n### P1 - Localized Landing Pages Describe Different Product Capabilities\n\nStatus: confirmed.\n\nEvidence:\n\n1. English landing copy at `frontend/src/i18n/index.ts:1230` says Xi Rang supports `PPT, PDF, Word, Markdown, and TXT`.\n2. Simplified Chinese at `frontend/src/i18n/index.ts:2545` and Traditional Chinese at `frontend/src/i18n/index.ts:3569` match the broader file support.\n3. Italian at `frontend/src/i18n/index.ts:3762`, German at `frontend/src/i18n/index.ts:4275`, Russian at `frontend/src/i18n/index.ts:5682`, and Korean at `frontend/src/i18n/index.ts:6195` describe only PDFs on landing.\n4. Several mode descriptions also say game modes are based on PDFs only, for example Italian `frontend/src/i18n/index.ts:3767`, German `frontend/src/i18n/index.ts:4280`, Russian `frontend/src/i18n/index.ts:5687`, and Korean `frontend/src/i18n/index.ts:6200`.\n5. In-app upload support copy in multiple locales says `PDF, MD, TXT` only, for example English `frontend/src/i18n/index.ts:214-215`, German `frontend/src/i18n/index.ts:4316`, and Korean `frontend/src/i18n/index.ts:6236`.\n\nImpact:\n\nReviewers switching languages may see inconsistent supported formats. If Word/PPT support is not actually available in production, English/Chinese overstate capabilities. If Word/PPT support is available, other locales understate capabilities and look stale.\n\nRequired fix before re-review:\n\nChoose the true production-supported file list and align all locales and upload UI copy to it.\n\n### P1 - Localized Branding Is Stale\n\nStatus: confirmed.\n\nEvidence:\n\n1. English footer brand is `Xi Rang` and copyright is `\u00a9 2026 Xi Rang` at `frontend/src/i18n/index.ts:1249-1250`.\n2. Simplified/Traditional Chinese use `\u606f\u58e4` with `\u00a9 2026 Xi Rang` at `frontend/src/i18n/index.ts:2564-2565` and `frontend/src/i18n/index.ts:3588-3589`.\n3. Italian, German, Portuguese, Spanish, Russian, Korean, and North Korean Korean still use `\u2727 Dungeon Scholar` and `\u00a9 2023 Dungeon Scholar`, for example `frontend/src/i18n/index.ts:3781-3782`, `4294-4295`, `4592-4593`, `4890-4891`, `5701-5702`, `6214-6215`, and `6726-6727`.\n\nImpact:\n\nThis can make the site look like it is representing two different products or an old product identity, which is a misleading-information risk.\n\nRequired fix before re-review:\n\nStandardize all locales to the current legal/product brand and current copyright year.\n\n### P2 - Some Locale Navigation Keys Are Missing Or Inconsistent\n\nStatus: likely confirmed from landing object snippets.\n\nEvidence:\n\n1. English and Chinese landing objects define `home`, but Italian and German landing snippets start with `features`, `pricing`, and `community` and do not show `home` in the landing object.\n2. The marketing pages call `t(\"landing.home\")` for every locale.\n\nImpact:\n\nDepending on vue-i18n fallback behavior, non-English pages may show fallback English or raw key text. This is lower priority than broken links, but it contributes to inconsistent localized marketing pages.\n\nRequired fix before re-review:\n\nEnsure every `SUPPORTED_LOCALES` landing object has the same key set.\n\n## Re-Review Blockers Checklist\n\nDo not send the re-review request until all items below are true in production:\n\n1. `Twitter`, `Discord`, and `GitHub` links are either real working URLs or removed.\n2. `/community` either serves a real page or is removed from nav.\n3. Product Hunt badge is absent unless it links to a real Product Hunt listing.\n4. Testimonials are absent unless real, permissioned, and attributable.\n5. `10,000+`, `thousands of scholars`, and similar claims are removed or backed by visible evidence.\n6. Pricing FAQ payment methods match actual Creem Checkout methods.\n7. All locales use the same brand, year, product description, file support, and footer/legal links.\n8. Public legal pages `/privacy-policy`, `/terms-of-service`, `/help-center`, `/features`, and `/pricing` are reachable without login.\n\n## Suggested Fix Plan\n\n1. Replace or remove social footer placeholders in all three marketing pages.\n2. Remove `Community` from nav or implement `/community`.\n3. Replace social proof claims with beta-safe wording.\n4. Update pricing FAQ payment-method copy to match Creem-supported methods.\n5. Normalize all `landing`, `features`, and `pricing` locale strings against English.\n6. Verify the production deployment with a link checker and manual language switch pass.\n\n## Re-Review Reply Draft\n\nSubject: Re-review request for Xi Rang - misleading information and broken links fixed\n\nHi Creem team,\n\nThank you for reviewing Xi Rang and for flagging the issues around misleading information and non-working links.\n\nWe completed a full public-site compliance pass and updated the marketing pages to address the review feedback:\n\n1. Removed or replaced placeholder footer links so Twitter/X, Discord, and GitHub no longer point to non-working `#` links.\n2. Removed non-functional navigation links, including the community link until a public community page is available.\n3. Removed unverifiable social-proof claims such as `10,000+ scholars`, `thousands of scholars`, Product Hunt-style badges, and any testimonial-style claims that were not independently verifiable.\n4. Updated pricing and payment-method copy so it matches the payment methods actually available through Creem Checkout.\n5. Aligned localized marketing pages so the product name, supported formats, footer branding, legal links, and subscription/pricing descriptions are consistent across languages.\n6. Rechecked that Privacy Policy, Terms of Service, Help Center, Features, and Pricing pages are publicly reachable without login.\n\nProduction URL for re-review: [insert production URL]\n\nWe would appreciate a re-review when convenient. Please let us know if there are any remaining concerns or specific pages you would like us to adjust further.\n\nBest regards,\n\nXi Rang team\n\n## Notes For Sender\n\nBefore sending the draft:\n\n1. Replace `[insert production URL]` with the deployed production URL.\n2. Only keep the sentence about GitHub if a real public GitHub link exists or the GitHub footer item was removed.\n3. Only say Product Hunt/testimonials were removed if production actually had them; otherwise use `confirmed there are no Product Hunt badges or testimonials displayed`.\n4. Attach screenshots or a short Loom only if Creem asks for proof; the first re-review email can stay concise.\n"}], "grading": {"expectations": [{"text": "The report explicitly addresses misleading information and non-working links as Creem rejection causes.", "passed": true, "evidence": "Executive Summary ties Creem rejection to misleading information and links not working."}, {"text": "The report checks testimonials, Product Hunt/as-seen badges, and unverifiable user-count or social-proof claims.", "passed": true, "evidence": "Findings include testimonials not found, Product Hunt not found, and user-count/social-proof claims."}, {"text": "The report checks Twitter, Discord, GitHub, footer links, and community/navigation links with evidence.", "passed": true, "evidence": "Findings include Twitter/Discord placeholders, GitHub condition, and /community missing route."}, {"text": "The report checks multi-language product-description consistency.", "passed": true, "evidence": "Findings cover localized product capabilities, stale branding, years, and missing locale keys."}, {"text": "The report includes a professional Creem re-review reply draft.", "passed": true, "evidence": "Lines 224-247 include a re-review reply draft."}], "summary": {"passed": 5, "failed": 0, "total": 5, "pass_rate": 1.0}, "execution_metrics": {"tool_calls": {}, "total_tool_calls": 0, "total_steps": 0, "errors_encountered": 0, "output_chars": 0, "transcript_chars": 0}, "timing": {"total_duration_seconds": 0}, "user_notes_summary": {"uncertainties": ["Task tool did not expose token/duration metrics."], "needs_review": [], "workarounds": []}}}, {"id": "eval-2-ai-wrapper-compliance-with_skill", "prompt": "\u6211\u4eec\u7684\u4ea7\u54c1\u662f AI \u89c6\u9891\u751f\u6210 wrapper\uff0c\u843d\u5730\u9875\u5199\u4e86 Veo/Gemini \u76f8\u5173\u80fd\u529b\uff0c\u51c6\u5907\u63d0\u4ea4 Creem account review\u3002\u8bf7\u68c0\u67e5\u547d\u540d\u3001\u514d\u8d23\u58f0\u660e\u3001\u529f\u80fd\u63cf\u8ff0\u3001NSFW/AUP\u3001Moderation API\u3001\u7981\u552e\u98ce\u9669\u548c\u8ba2\u9605\u53d6\u6d88\u8def\u5f84\u3002", "eval_id": 2, "outputs": [{"name": "report.md", "type": "text", "content": "## Creem \u5ba1\u6838\u9884\u68c0\u7ed3\u8bba\n- \u603b\u4f53\u72b6\u6001: Not Ready\n- \u5efa\u8bae\u52a8\u4f5c: Fix blockers first / Stay in test mode\n- \u6700\u5927\u98ce\u9669: \u672a\u5728\u5f53\u524d\u4ed3\u5e93\u53d1\u73b0 AI \u89c6\u9891\u751f\u6210/Veo/Gemini wrapper \u7684\u843d\u5730\u9875\u4e0e\u529f\u80fd\u5b9e\u73b0\u8bc1\u636e\uff1bAI \u56fe\u50cf/\u89c6\u9891\u751f\u6210\u4ea7\u54c1\u6309 Creem \u5f53\u524d\u6587\u6863\u5fc5\u987b\u63a5\u5165 Creem Moderation API\uff1b\u73b0\u6709\u6cd5\u5f8b/\u652f\u6301/\u53d6\u6d88\u8ba2\u9605\u4fe1\u606f\u4e0e Creem \u5ba1\u6838\u8981\u6c42\u4ecd\u6709\u660e\u663e\u7f3a\u53e3\u3002\n\n\u672c\u62a5\u544a\u57fa\u4e8e\u672c\u5730\u4ed3\u5e93\u9759\u6001\u68c0\u67e5\u4e0e Creem \u5f53\u524d\u516c\u5f00\u6587\u6863\u8bfb\u53d6\u7ed3\u679c\uff0c\u4e0d\u6784\u6210\u6cd5\u5f8b\u610f\u89c1\u3002\u672a\u63d0\u4f9b\u516c\u7f51 URL\u3001Creem Dashboard \u4ea7\u54c1\u914d\u7f6e\u3001\u622a\u56fe\u6216\u771f\u5b9e\u751f\u4ea7\u73af\u5883\uff0c\u56e0\u6b64\u516c\u7f51\u53ef\u8bbf\u95ee\u6027\u3001Creem \u540e\u53f0\u652f\u6301\u90ae\u7bb1\u3001Store/Product ID\u3001\u751f\u4ea7\u5bc6\u94a5\u914d\u7f6e\u72b6\u6001\u9700\u8981\u4eba\u5de5\u786e\u8ba4\u3002\n\n## \u963b\u585e\u9879\n| \u98ce\u9669 | \u4f4d\u7f6e | \u8bc1\u636e | \u4e3a\u4ec0\u4e48\u5f71\u54cd Creem \u5ba1\u6838 | \u4fee\u590d\u5efa\u8bae |\n|---|---|---|---|---|\n| BLOCKER | \u4ea7\u54c1/\u843d\u5730\u9875\u5b9a\u4f4d | `frontend/src/i18n/index.ts:1210-1250` \u4e0e `frontend/src/pages/EasternFantasyLandingPage.vue:425-449` \u663e\u793a\u4ea7\u54c1\u4e3a `Xi Rang` \u5b66\u4e60\u6587\u6863\u6e38\u620f\u5316\u5e73\u53f0\uff1b\u4ed3\u5e93\u641c\u7d22\u672a\u53d1\u73b0 `Veo`\u3001`Gemini`\u3001AI \u89c6\u9891\u751f\u6210\u3001wrapper\u3001not affiliated/endorsed/sponsored \u7b49\u8425\u9500\u62ab\u9732\u6587\u6848\u3002 | \u7528\u6237\u76ee\u6807\u662f AI \u89c6\u9891\u751f\u6210 wrapper\uff0c\u4f46\u5f53\u524d\u53ef\u5ba1\u67e5\u7f51\u7ad9\u4e0e\u76ee\u6807\u4ea7\u54c1\u4e0d\u4e00\u81f4\u3002Creem \u8981\u6c42\u4ea7\u54c1\u6e05\u6670\u53ef\u89c1\u3001\u63cf\u8ff0\u51c6\u786e\u3001\u4e0d\u5f97\u9020\u6210\u6d88\u8d39\u8005\u8bef\u5bfc\u3002 | \u5728\u63d0\u4ea4\u524d\u786e\u4fdd\u5ba1\u6838 URL \u6307\u5411\u771f\u5b9e AI \u89c6\u9891 wrapper \u843d\u5730\u9875\uff0c\u660e\u786e\u4ea7\u54c1\u505a\u4ec0\u4e48\u3001\u4ea4\u4ed8\u4ec0\u4e48\u3001\u5982\u4f55\u8bbf\u95ee\u3001\u8ba1\u8d39\u65b9\u5f0f\uff1b\u5982\u679c\u6b64\u4ed3\u5e93\u4e0d\u662f\u5f85\u63d0\u4ea4\u7ad9\u70b9\uff0c\u9700\u8981\u63d0\u4f9b\u6b63\u786e\u4ed3\u5e93\u6216\u516c\u7f51 URL \u91cd\u65b0\u5ba1\u67e5\u3002 |\n| BLOCKER | Creem Moderation API | \u5168\u4ed3\u641c\u7d22 `moderation`/`CREEM_MODERATION` \u672a\u53d1\u73b0 Creem Moderation API \u5ba2\u6237\u7aef\u3001\u914d\u7f6e\u6216\u8c03\u7528\uff1b`backend/app/integrations/creem/client.py:28-35` \u4ec5\u6709 checkout/subscription/cancel\uff1b`backend/app/api/v1/payments.py:49-77` \u4ec5\u5904\u7406\u652f\u4ed8\u548c\u53d6\u6d88\u8ba2\u9605\u3002 | Creem \u5f53\u524d MoR \u6587\u6863\u660e\u786e\uff1aAI image/video generation products \u5fc5\u987b\u96c6\u6210 CREEM Moderation API\uff0c\u6240\u6709\u8fdb\u5165\u56fe\u50cf/\u89c6\u9891\u751f\u6210\u6a21\u578b\u7684\u7528\u6237 prompt \u90fd\u8981\u5148\u7b5b\u67e5\uff1b2026-05-01 \u8d77\u5f3a\u5236\u3002 | \u5728\u89c6\u9891\u751f\u6210\u8bf7\u6c42\u8fdb\u5165 Veo/Gemini \u7b49\u6a21\u578b\u524d\u8c03\u7528 Creem Moderation API\uff1b\u62e6\u622a\u4e0d\u5408\u89c4 prompt\uff1b\u4fdd\u5b58\u6700\u5c0f\u5ba1\u8ba1\u8bc1\u636e\uff1b\u5728\u62a5\u544a/\u590d\u5ba1\u8bf4\u660e\u4e2d\u8bf4\u660e\u6bcf\u4e2a prompt \u90fd\u5148\u7ecf\u8fc7 Moderation API\u3002 |\n| BLOCKER | Acceptable Use / NSFW \u6761\u6b3e | `frontend/src/i18n/index.ts:731-783` \u7684 Terms \u4ec5\u6cdb\u6cdb\u7981\u6b62 harmful/offensive/illegal content\uff0c\u672a\u660e\u786e\u7981\u6b62 NSFW\u3001sexually explicit\u3001sexually suggestive\u3001pornographic\u3001deepfake\u3001face-swap\u3001face manipulation\u3001abusive/illegal generation\uff1b\u4ed3\u5e93\u672a\u53d1\u73b0 AUP \u9875\u9762\u3002 | Creem \u6587\u6863\u8981\u6c42 AI \u751f\u6210\u4ea7\u54c1\u5fc5\u987b\u6709\u53ef\u89c1 AUP\uff0c\u4e14 ToS \u5fc5\u987b\u660e\u786e\u7981\u6b62 NSFW/explicit/sexually suggestive \u5185\u5bb9\uff1b\u540c\u65f6 Creem \u7981\u552e AI-generated NSFW\u3001deepfake\u3001face-swap\u3002 | \u589e\u52a0\u516c\u5f00\u53ef\u8bbf\u95ee\u7684 Acceptable Use Policy\uff1b\u5728 Terms \u4e2d\u660e\u786e\u7981\u6b62 NSFW/\u8272\u60c5/\u6027\u6697\u793a/\u672a\u6210\u5e74\u4eba\u6027\u5185\u5bb9/\u8fdd\u6cd5/\u4ec7\u6068/\u9a9a\u6270/\u81ea\u4f24/\u66b4\u529b/\u4fb5\u6743/\u6df1\u4f2a/\u6362\u8138/\u4eba\u8138\u64cd\u7eb5\u7b49\u751f\u6210\uff1b\u9875\u811a\u548c checkout \u524d\u8def\u5f84\u53ef\u8bbf\u95ee\u3002 |\n| HIGH | AI wrapper \u547d\u540d\u4e0e\u514d\u8d23\u58f0\u660e | \u5f53\u524d\u54c1\u724c\u4e3a\u72ec\u7acb `Xi Rang`\uff0c\u672a\u89c1 Veo/Gemini \u4f5c\u4e3a\u4ea7\u54c1\u540d\uff1b\u4f46\u4e5f\u672a\u89c1 AI wrapper \u72ec\u7acb\u514d\u8d23\u58f0\u660e\u3002 | Creem \u5141\u8bb8\u8425\u9500\u63d0\u53ca\u6a21\u578b\u540d\uff0c\u4f46\u5982\u679c\u4f7f\u7528 `Veo`/`Gemini`\uff0c\u5fc5\u987b\u8bf4\u660e\u4ea7\u54c1\u72ec\u7acb\uff0c\u672a\u83b7 Google/\u6a21\u578b\u63d0\u4f9b\u65b9\u5173\u8054\u3001\u80cc\u4e66\u6216\u8d5e\u52a9\uff1b\u4ea7\u54c1\u540d/\u57df\u540d\u4e0d\u80fd\u9020\u6210\u5546\u6807\u6df7\u6dc6\u3002 | \u4fdd\u6301\u4ea7\u54c1\u540d\u72ec\u7acb\uff0c\u4e0d\u8981\u4f7f\u7528 `VEO3Studio`\u3001`GeminiVideo` \u7b49\u540d\u79f0\uff1b\u82e5\u843d\u5730\u9875\u51fa\u73b0 Veo/Gemini\uff0c\u6dfb\u52a0\u9192\u76ee\u514d\u8d23\u58f0\u660e\uff1a\u5e73\u53f0\u662f\u72ec\u7acb\u4ea7\u54c1\uff0c\u4e0d\u96b6\u5c5e\u3001\u4e0d\u53d7 Google/\u6a21\u578b\u63d0\u4f9b\u65b9\u80cc\u4e66\u6216\u8d5e\u52a9\uff0c\u4ec5\u901a\u8fc7\u81ea\u5b9a\u4e49\u754c\u9762\u63a5\u5165\u76f8\u5173\u6a21\u578b\u3002 |\n| HIGH | \u529f\u80fd\u63cf\u8ff0\u4e0e\u6a21\u578b\u7248\u672c\u51c6\u786e\u6027 | \u5f53\u524d\u4ee3\u7801\u4ec5\u663e\u793a OpenAI-compatible LLM\u3001NVIDIA\u3001PageIndex\u3001\u6587\u6863\u95ee\u7b54/\u9898\u76ee\u751f\u6210\uff1b\u672a\u53d1\u73b0 Veo/Gemini \u89c6\u9891\u751f\u6210\u5b9e\u73b0\u3002`backend/app/core/config.py:70-78` \u663e\u793a LLM \u914d\u7f6e\u4e3a OpenAI-compatible/NVIDIA\uff0c\u672a\u89c1 Veo/Gemini \u89c6\u9891\u751f\u6210\u914d\u7f6e\u3002 | \u5982\u679c\u843d\u5730\u9875\u5ba3\u4f20 Veo/Gemini \u89c6\u9891\u751f\u6210\u4f46\u5b9e\u73b0\u672a\u63a5\u5165\u6216\u7248\u672c\u4e0d\u4e00\u81f4\uff0c\u5c5e\u4e8e\u80fd\u529b\u4e0d\u5b9e\u6216\u6a21\u578b\u7248\u672c\u865a\u5047\u9648\u8ff0\uff0cCreem \u5bf9 deceptive content \u654f\u611f\u3002 | \u53ea\u5ba3\u79f0\u5df2\u4e0a\u7ebf\u5e76\u53ef\u4ea4\u4ed8\u7684\u6a21\u578b/\u7248\u672c/\u9650\u5236\uff1b\u660e\u786e\u961f\u5217\u3001\u65f6\u957f\u3001\u5206\u8fa8\u7387\u3001\u989d\u5ea6\u3001\u5931\u8d25\u9000\u6b3e/\u91cd\u8bd5\u89c4\u5219\uff1b\u4e0d\u8981\u5ba3\u79f0 `Gemini 3.0`\u3001`Veo 3` \u7b49\u672a\u5b9e\u9645\u4f7f\u7528\u7248\u672c\u3002 |\n| HIGH | \u652f\u6301\u90ae\u7bb1 | `frontend/src/i18n/index.ts:431-434` \u8bbe\u7f6e\u9875\u6587\u6848\u4e3a `support@xirang.local`\uff1bTerms/Privacy \u8054\u7cfb\u90ae\u7bb1\u4e3a `huanyugezhishe@hotmail.com`\uff0c\u89c1 `DungeonScholarTermsPage.vue:207-217`\u3001`DungeonScholarPrivacyPolicyPage.vue:136-147`\u3002 | Creem \u8981\u6c42\u516c\u7f51\u7f51\u7ad9\u548c Dashboard \u4e2d\u6709\u53ef\u8fbe\u652f\u6301\u90ae\u7bb1\uff0c\u4e14\u5efa\u8bae\u4f7f\u7528\u54c1\u724c\u57df\u540d\u90ae\u7bb1\uff1b`.local` \u4e0d\u53ef\u8fbe\uff0c\u4e2a\u4eba Hotmail \u4e0e\u54c1\u724c\u4e0d\u4e00\u81f4\uff0c\u53ef\u80fd\u89e6\u53d1 support email mismatch\u3002 | \u4f7f\u7528\u53ef\u6536\u4fe1\u7684\u54c1\u724c\u90ae\u7bb1\uff0c\u4f8b\u5982 `support@yourdomain.com`\uff1b\u7edf\u4e00\u843d\u5730\u9875\u3001Help Center\u3001Terms\u3001Privacy\u3001Creem Business Details \u548c\u6536\u636e\u4e0a\u7684\u90ae\u7bb1\u3002 |\n| HIGH | \u9875\u811a/\u793e\u4ea4\u94fe\u63a5 | `frontend/src/pages/EasternFantasyLandingPage.vue:107-116` \u4e0e `DungeonScholarPricingPage.vue:95-103` \u5305\u542b Twitter/Discord `href: \"#\"`\u3002 | Creem \u6587\u6863\u8981\u6c42\u79fb\u9664\u65e0\u6548\u793e\u4ea4/\u793e\u533a\u94fe\u63a5\uff1b\u6b7b\u94fe\u6216\u5360\u4f4d\u94fe\u63a5\u4f1a\u964d\u4f4e\u5ba1\u6838\u53ef\u4fe1\u5ea6\u3002 | \u5220\u9664\u5360\u4f4d Twitter/Discord\uff0c\u6216\u66ff\u6362\u4e3a\u771f\u5b9e\u3001\u6d3b\u8dc3\u3001\u4e0e\u4ea7\u54c1\u7ed1\u5b9a\u7684\u8d26\u53f7\u94fe\u63a5\u3002 |\n| MEDIUM | \u8ba2\u9605\u53d6\u6d88\u8def\u5f84 | \u540e\u7aef\u5b58\u5728 `POST /api/v1/payments/subscription/cancel`\uff0c\u89c1 `backend/app/api/v1/payments.py:72-77`\uff1b\u5ba2\u6237\u7aef API \u5b58\u5728 `cancelSubscription`\uff0c\u89c1 `frontend/src/api/payments.ts:18-20`\uff1b\u8bbe\u7f6e\u5f39\u7a97\u6709\u53d6\u6d88\u6309\u94ae\uff0c\u89c1 `SubscriptionManageModal.vue:177-186`\u3002\u4f46\u5f39\u7a97 `currentPlan` \u4ee5 `subscriptionStatus === \"active\"` \u5224\u65ad\uff0c\u540e\u7aef\u6fc0\u6d3b\u72b6\u6001\u5199\u4e3a `\"pro\"`\uff0c\u89c1 `backend/app/services/payments/webhook_handler.py:115`\u3002 | Creem \u8981\u6c42\u8ba2\u9605\u7528\u6237\u80fd\u76f4\u63a5\u5728\u4ea7\u54c1\u5185\u53d6\u6d88\uff1b\u82e5\u72b6\u6001\u503c\u4e0d\u4e00\u81f4\u5bfc\u81f4 UI \u4e0d\u663e\u793a\u53d6\u6d88\u6309\u94ae\uff0c\u5ba1\u6838\u6216\u7528\u6237\u4f53\u9a8c\u4f1a\u5931\u8d25\u3002 | \u9a8c\u8bc1\u771f\u5b9e\u8ba2\u9605\u7528\u6237\u5728 Dashboard/Settings \u4e2d\u80fd\u770b\u5230\u53d6\u6d88\u6309\u94ae\u5e76\u6210\u529f\u8c03\u7528 Creem Cancel Subscription API\uff1b\u7edf\u4e00\u524d\u540e\u7aef\u8ba2\u9605\u72b6\u6001\u503c\u6216\u6539\u4e3a\u517c\u5bb9 `active/pro`\u3002 |\n| MEDIUM | Checkout \u53d6\u6d88/\u5931\u8d25\u56de\u8df3 | `backend/app/core/config.py:108-109` \u5b9a\u4e49\u4e86 `creem_checkout_success_url` \u548c `creem_checkout_cancel_url`\uff0c\u4f46 `PaymentService.create_checkout` payload \u53ea\u53d1\u9001 `success_url`\uff0c\u89c1 `backend/app/services/payments/service.py:55-59`\u3002 | Creem \u9884\u68c0\u5173\u6ce8 checkout success/failure/cancel handling\uff1b\u7f3a\u5c11 cancel URL \u4f1a\u8ba9\u7528\u6237\u53d6\u6d88\u652f\u4ed8\u540e\u7684\u8def\u5f84\u4e0d\u6e05\u6670\u3002 | \u5728 Creem checkout payload \u4e2d\u914d\u7f6e\u53d6\u6d88/\u5931\u8d25 URL\uff0c\u5e76\u5728 `/pricing` \u6216\u4e13\u95e8\u53d6\u6d88\u9875\u663e\u793a\u4e0b\u4e00\u6b65\u548c\u652f\u6301\u5165\u53e3\u3002 |\n| MEDIUM | \u9690\u79c1\u653f\u7b56\u7b2c\u4e09\u65b9 AI \u63d0\u4f9b\u65b9\u4e0d\u5339\u914d | Privacy \u6587\u6848\u5217\u51fa MiniMax/Kimi \u7b49 AI \u670d\u52a1\uff0c\u89c1 `frontend/src/i18n/index.ts:488-496`\uff1b\u5f53\u524d\u4ee3\u7801\u914d\u7f6e\u663e\u793a OpenAI-compatible/NVIDIA\uff0c\u89c1 `backend/app/core/config.py:70-78`\uff1b\u7528\u6237\u76ee\u6807\u53c8\u63d0\u5230 Veo/Gemini\u3002 | \u6cd5\u5f8b\u9875\u9762\u5fc5\u987b\u5339\u914d\u771f\u5b9e\u4ea7\u54c1\u548c\u7b2c\u4e09\u65b9\u5904\u7406\u8005\uff1bAI wrapper \u5c24\u5176\u9700\u8981\u62ab\u9732 prompt/video \u751f\u6210\u76f8\u5173\u6570\u636e\u5982\u4f55\u53d1\u9001\u7ed9\u6a21\u578b\u63d0\u4f9b\u65b9\u3002 | \u66f4\u65b0 Privacy\uff1a\u5217\u51fa\u5b9e\u9645\u4f7f\u7528\u7684 Google/Gemini/Veo \u6216\u5176\u4ed6\u63d0\u4f9b\u65b9\u3001\u5904\u7406\u7684\u6570\u636e\u7c7b\u578b\u3001\u7528\u9014\u3001\u4fdd\u7559\u3001\u8bad\u7ec3\u4f7f\u7528\u9650\u5236\u3001\u8de8\u5883\u4f20\u8f93\u4e0e\u7528\u6237\u6743\u5229\u3002 |\n| LOW | \u516c\u5f00\u6570\u5b57/\u793e\u4ea4\u8bc1\u660e | `frontend/src/i18n/index.ts:1240` \u5199\u6709 `Join 10,000+ Scholars`\uff0c`landing.scholarsJoined` \u4e3a `Scholars joined this week`\u3002 | Creem \u660e\u786e\u7981\u6b62\u865a\u5047\u7528\u6237\u6570\u3001\u5047\u8bc4\u8bba\u548c\u672a\u9a8c\u8bc1\u793e\u4ea4\u8bc1\u660e\uff1b\u5982\u65e0\u8bc1\u636e\uff0c\u53ef\u80fd\u88ab\u8ba4\u5b9a\u4e3a inflated user count\u3002 | \u82e5\u65e0\u6cd5\u8bc1\u660e\u771f\u5b9e\u7528\u6237\u6570\uff0c\u5220\u9664\u6216\u6539\u4e3a\u975e\u6570\u91cf\u5316\u8868\u8fbe\uff1b\u4e0d\u8981\u4f7f\u7528 fake testimonials\u3001Product Hunt/press/as seen badges\u3002 |\n\n## Checklist\n| \u9879\u76ee | \u72b6\u6001 | \u8bc1\u636e | \u4e0b\u4e00\u6b65 |\n|---|---|---|---|\n| \u4ea7\u54c1\u547d\u540d\u72ec\u7acb\u6027 | UNKNOWN | \u5f53\u524d\u4ed3\u5e93\u54c1\u724c `Xi Rang` \u72ec\u7acb\uff0c\u672a\u53d1\u73b0 Veo/Gemini \u547d\u540d\uff1b\u4f46\u76ee\u6807 AI \u89c6\u9891\u4ea7\u54c1\u7684\u5b9e\u9645\u54c1\u724c/\u57df\u540d\u672a\u63d0\u4f9b\u3002 | \u4eba\u5de5\u786e\u8ba4\u63d0\u4ea4\u7ed9 Creem \u7684\u4ea7\u54c1\u540d\u548c\u57df\u540d\u4e0d\u5305\u542b Google/Veo/Gemini \u7b49\u6613\u6df7\u6dc6\u6a21\u578b\u540d\u3002 |\n| Veo/Gemini \u514d\u8d23\u58f0\u660e | BLOCKER | \u672a\u53d1\u73b0 `not affiliated`\u3001`endorsed`\u3001`sponsored`\u3001wrapper disclosure\u3002 | \u5728\u6240\u6709\u63d0\u53ca Veo/Gemini \u7684\u9875\u9762\u9644\u8fd1\u52a0\u5165\u72ec\u7acb\u4ea7\u54c1\u514d\u8d23\u58f0\u660e\u3002 |\n| Wrapper \u6027\u8d28\u62ab\u9732 | BLOCKER | \u5f53\u524d\u4ed3\u5e93\u672a\u53d1\u73b0 AI \u89c6\u9891 wrapper \u63cf\u8ff0\uff1b\u73b0\u6709\u4ea7\u54c1\u63cf\u8ff0\u662f\u6587\u6863\u5b66\u4e60\u6e38\u620f\u3002 | \u660e\u786e\u5199\u660e\u201c\u6211\u4eec\u63d0\u4f9b\u81ea\u5b9a\u4e49\u5de5\u4f5c\u6d41/\u754c\u9762\uff0c\u5e95\u5c42\u7531\u7b2c\u4e09\u65b9 AI \u6a21\u578b\u751f\u6210\u89c6\u9891\u201d\u3002 |\n| \u529f\u80fd\u63cf\u8ff0\u51c6\u786e\u6027 | HIGH | \u4ee3\u7801\u672a\u53d1\u73b0 Veo/Gemini \u89c6\u9891\u751f\u6210\u5b9e\u73b0\uff1b\u73b0\u6709\u5b9e\u73b0\u504f\u5b66\u4e60\u3001\u6587\u6863\u3001\u9898\u76ee\u751f\u6210\u3002 | \u5bf9\u7167\u771f\u5b9e\u5b9e\u73b0\u9010\u6761\u5220\u6539\u80fd\u529b\u58f0\u660e\uff0c\u907f\u514d\u5ba3\u79f0\u672a\u4e0a\u7ebf\u6a21\u578b\u3001\u5206\u8fa8\u7387\u3001\u65f6\u957f\u3001\u65e0\u6c34\u5370\u3001\u5546\u7528\u6388\u6743\u7b49\u3002 |\n| NSFW/AUP | BLOCKER | Terms \u672a\u660e\u786e NSFW/sexually explicit/deepfake/face-swap \u7981\u6b62\uff1b\u65e0 AUP \u9875\u9762\u8bc1\u636e\u3002 | \u65b0\u589e AUP \u5e76\u94fe\u63a5\u5230\u9875\u811a\u3001\u6ce8\u518c/checkout \u524d\u8def\u5f84\u3002 |\n| Creem Moderation API | BLOCKER | \u672a\u53d1\u73b0 Moderation API \u4ee3\u7801\u6216\u914d\u7f6e\u3002 | \u5728 prompt -> \u89c6\u9891\u751f\u6210\u6a21\u578b\u524d\u5f3a\u5236\u8c03\u7528 Creem Moderation API\u3002 |\n| \u7981\u552e\u98ce\u9669 | HIGH | AI \u89c6\u9891\u751f\u6210\u672c\u8eab\u53ef\u63a5\u53d7\uff0c\u4f46\u82e5\u652f\u6301 NSFW\u3001deepfake\u3001face swap\u3001\u7b2c\u4e09\u65b9 IP \u4eff\u5192\u7b49\u4f1a\u843d\u5165\u7981\u6b62\u5217\u8868\uff1b\u5f53\u524d\u672a\u89c1\u5b89\u5168\u9650\u5236\u3002 | \u660e\u786e\u7981\u7528 deepfake/face-swap/\u4eba\u8138\u64cd\u7eb5/\u8272\u60c5/\u4fb5\u6743\u89d2\u8272\u6216\u5546\u6807\u5185\u5bb9\uff0cUI \u548c\u540e\u7aef\u5747\u9700\u9650\u5236\u3002 |\n| Pricing \u53ef\u89c1\u6027 | PASS / NEEDS MATCH | `DungeonScholarPricingPage.vue:345-499` \u516c\u5f00\u5c55\u793a\u514d\u8d39/Pro \u6708\u5b63\u5e74\u4ef7\u683c\uff1b`frontend/src/config/pricing.ts:17-39` \u6709\u8ba2\u9605\u548c\u91d1\u5e01\u4ef7\u683c\u3002 | \u786e\u8ba4\u8fd9\u4e9b\u4ef7\u683c\u4e0e Creem Dashboard \u4ea7\u54c1\u4e00\u81f4\uff1bAI \u89c6\u9891\u4ea7\u54c1\u9700\u5c55\u793a\u89c6\u9891\u989d\u5ea6\u3001\u7eed\u8d39\u5468\u671f\u3001\u8d85\u989d\u89c4\u5219\u3002 |\n| \u8ba2\u9605\u53d6\u6d88\u8def\u5f84 | MEDIUM | \u524d\u540e\u7aef\u6709\u53d6\u6d88 API \u548c\u6309\u94ae\uff0c\u4f46\u72b6\u6001\u503c\u53ef\u80fd\u5bfc\u81f4\u6309\u94ae\u4e0d\u663e\u793a\u3002 | \u7528\u771f\u5b9e\u8ba2\u9605\u8d26\u53f7\u7aef\u5230\u7aef\u9a8c\u8bc1\u53d6\u6d88\u8def\u5f84\uff1b\u5fc5\u8981\u65f6\u63a5\u5165 Creem Customer Portal\u3002 |\n| Legal pages | MEDIUM | Privacy/Terms \u8def\u7531\u5b58\u5728\uff0c\u89c1 `router/index.ts:110-137`\uff1b\u5185\u5bb9\u4e0e AI \u89c6\u9891\u4ea7\u54c1\u4e0d\u5339\u914d\u3002 | \u66f4\u65b0\u4e3a AI \u89c6\u9891 wrapper \u771f\u5b9e\u54c1\u724c\u3001\u6570\u636e\u5904\u7406\u3001AUP\u3001\u9000\u6b3e\u3001\u53d6\u6d88\u3001\u652f\u6301\u90ae\u7bb1\u3002 |\n| \u652f\u6301\u90ae\u7bb1 | HIGH | `support@xirang.local` \u4e0e `huanyugezhishe@hotmail.com` \u4e0d\u4e00\u81f4\u4e14\u524d\u8005\u4e0d\u53ef\u8fbe\u3002 | \u7edf\u4e00\u4e3a\u54c1\u724c\u57df\u540d\u652f\u6301\u90ae\u7bb1\u3002 |\n| Creem webhook | PASS / NEEDS LIVE VERIFY | `backend/app/api/v1/payments.py:97-124` \u4f7f\u7528 raw body \u9a8c\u7b7e\uff1b`webhook_handler.py:31-36` HMAC \u6bd4\u8f83\u3002 | \u786e\u8ba4\u7b7e\u540d\u7b97\u6cd5\u4e0e Creem \u5f53\u524d webhook \u89c4\u8303\u5b8c\u5168\u4e00\u81f4\uff0c\u5e76\u5728\u751f\u4ea7\u914d\u7f6e webhook secret\u3002 |\n| Checkout metadata | PASS | `PaymentService.create_checkout` \u5199\u5165 `user_id`\u3001`pricing_region`\u3001`product_type`\u3001`plan`\uff0c\u89c1 `backend/app/services/payments/service.py:55-59`\u3002 | \u4e3a AI \u89c6\u9891\u4ea7\u54c1\u589e\u52a0\u989d\u5ea6/plan/product \u660e\u786e\u6620\u5c04\u3002 |\n| \u516c\u5f00 URL \u53ef\u8bbf\u95ee | UNKNOWN | \u672a\u63d0\u4f9b\u516c\u7f51 URL\u3002 | \u63d0\u4ea4\u524d\u7528\u65e0\u767b\u5f55\u6d4f\u89c8\u5668\u68c0\u67e5 landing/pricing/legal/support \u5747\u53ef\u8bbf\u95ee\u3002 |\n| Creem \u4ea7\u54c1\u914d\u7f6e | UNKNOWN | \u672a\u8bfb\u53d6 Dashboard\uff0c\u4e14\u672a\u8bfb\u53d6 `.env`/\u5bc6\u94a5\u5185\u5bb9\u3002 | \u4eba\u5de5\u786e\u8ba4 Store/Product URL\u3001\u652f\u6301\u90ae\u7bb1\u3001\u4ea7\u54c1\u540d\u3001\u4ef7\u683c\u3001Webhook URL \u4e0e\u7f51\u7ad9\u4e00\u81f4\u3002 |\n\n## \u4fee\u590d\u4efb\u52a1\n1. \u516c\u5f00\u843d\u5730\u9875/\u4ea7\u54c1\u6587\u6848 - \u5c06\u63d0\u4ea4 Creem \u7684 URL \u6539\u4e3a\u771f\u5b9e AI \u89c6\u9891 wrapper \u9875\u9762\uff0c\u660e\u786e\u4ea7\u54c1\u540d\u3001\u76ee\u6807\u7528\u6237\u3001\u4ea4\u4ed8\u5185\u5bb9\u3001\u89c6\u9891\u751f\u6210\u6d41\u7a0b\u3001\u6a21\u578b\u9650\u5236\u3001\u989d\u5ea6\u4e0e\u8ba1\u8d39\u5468\u671f - \u7528\u65e0\u767b\u5f55\u7a97\u53e3\u8bbf\u95ee\u5e76\u622a\u56fe\u7559\u8bc1\u3002\n2. Veo/Gemini \u5408\u89c4\u6587\u6848 - \u5728\u6240\u6709\u63d0\u53ca\u6a21\u578b\u5904\u52a0\u5165\u72ec\u7acb\u514d\u8d23\u58f0\u660e\uff0c\u907f\u514d\u4ea7\u54c1\u540d/\u57df\u540d/Logo \u6df7\u6dc6 Google\u3001Veo\u3001Gemini - \u641c\u7d22 `Veo|Gemini|Google` \u9a8c\u8bc1\u6bcf\u5904\u90fd\u6709\u4e0a\u4e0b\u6587\u514d\u8d23\u58f0\u660e\u3002\n3. AUP/Terms - \u65b0\u589e\u6216\u66f4\u65b0 Acceptable Use Policy \u4e0e Terms\uff0c\u660e\u786e\u7981\u6b62 NSFW\u3001\u8272\u60c5\u3001\u6027\u6697\u793a\u3001\u8fdd\u6cd5\u3001\u4ec7\u6068\u3001\u9a9a\u6270\u3001\u81ea\u4f24\u3001\u66b4\u529b\u3001\u4fb5\u6743\u3001deepfake\u3001face-swap\u3001\u4eba\u8138\u64cd\u7eb5\u7b49 - \u4ece\u9875\u811a\u3001\u6ce8\u518c/checkout \u524d\u8def\u5f84\u53ef\u70b9\u51fb\u8bbf\u95ee\u3002\n4. Creem Moderation API - \u5728\u6bcf\u4e2a\u6587\u672c prompt \u8fdb\u5165 AI \u89c6\u9891/\u56fe\u50cf\u751f\u6210\u6a21\u578b\u524d\u8c03\u7528 Creem Moderation API\uff0c\u62d2\u7edd\u8fdd\u89c4 prompt \u5e76\u8fd4\u56de\u6e05\u6670\u63d0\u793a - \u7528\u5408\u89c4/\u8fdd\u89c4 prompt \u505a\u96c6\u6210\u6d4b\u8bd5\u6216\u624b\u52a8\u6d4b\u8bd5\u7559\u8bc1\u3002\n5. \u652f\u6301\u90ae\u7bb1 - \u66ff\u6362 `support@xirang.local` \u548c\u4e2a\u4eba\u90ae\u7bb1\u4e3a\u7edf\u4e00\u54c1\u724c\u652f\u6301\u90ae\u7bb1\uff0c\u5e76\u540c\u6b65 Creem Business Details - \u53d1\u9001\u6d4b\u8bd5\u90ae\u4ef6\u786e\u8ba4\u53ef\u6536\u4fe1\u3002\n6. \u8ba2\u9605\u53d6\u6d88\u8def\u5f84 - \u7528\u771f\u5b9e\u8ba2\u9605\u8d26\u53f7\u9a8c\u8bc1 Settings/Dashboard \u4e2d\u53d6\u6d88\u6309\u94ae\u53ef\u89c1\u5e76\u6210\u529f\u53d6\u6d88\uff0c\u4fee\u590d `active`/`pro` \u72b6\u6001\u4e0d\u4e00\u81f4 - \u8bb0\u5f55\u53d6\u6d88\u524d\u540e\u72b6\u6001\u548c Creem \u8ba2\u9605\u72b6\u6001\u3002\n7. Checkout \u53d6\u6d88\u8def\u5f84 - \u7ed9 Creem checkout payload \u589e\u52a0\u53d6\u6d88/\u5931\u8d25 URL \u6216 Customer Portal \u8def\u5f84 - \u624b\u52a8\u53d6\u6d88 checkout \u9a8c\u8bc1\u80fd\u56de\u5230\u53ef\u7406\u89e3\u9875\u9762\u3002\n8. \u5220\u9664\u5360\u4f4d\u94fe\u63a5\u548c\u4e0d\u53ef\u8bc1\u5b9e\u6570\u5b57 - \u5220\u9664 `href: \"#\"` \u793e\u4ea4\u94fe\u63a5\u53ca\u65e0\u6cd5\u8bc1\u660e\u7684 `10,000+` \u7528\u6237\u6570 - \u5168\u7ad9\u641c\u7d22\u5360\u4f4d\u94fe\u63a5\u548c\u793e\u4ea4\u8bc1\u660e\u3002\n9. Privacy \u66f4\u65b0 - \u62ab\u9732\u771f\u5b9e\u89c6\u9891\u6a21\u578b\u63d0\u4f9b\u65b9\u3001prompt/\u751f\u6210\u7ed3\u679c\u5904\u7406\u3001\u4fdd\u7559\u3001\u7b2c\u4e09\u65b9\u4f20\u8f93\u3001\u8bad\u7ec3\u4f7f\u7528\u9650\u5236\u548c\u7528\u6237\u5220\u9664\u6743\u5229 - \u4e0e\u5b9e\u9645\u540e\u7aef\u914d\u7f6e\u548c\u751f\u4ea7\u6a21\u578b\u4f9b\u5e94\u5546\u9010\u9879\u6bd4\u5bf9\u3002\n\n## \u63d0\u4ea4/\u590d\u5ba1\u8bf4\u660e\u8349\u7a3f\nDear Creem Team,\n\nWe are preparing our AI video generation wrapper for account review. Before submission, we will remain in test mode and complete the following compliance items:\n\n1. Product transparency: the public website will clearly describe the product as an independent AI video generation workflow/interface built on top of third-party models such as Veo/Gemini, with no affiliation, endorsement, or sponsorship by Google or the model providers.\n2. Content safety: every user prompt routed to AI image/video generation will be screened through the Creem Moderation API before generation.\n3. Acceptable use: our Terms and Acceptable Use Policy will explicitly prohibit NSFW, sexually explicit or suggestive content, illegal or abusive generation, deepfakes, face-swap, and face manipulation.\n4. Customer experience: the website will include accessible Privacy Policy, Terms of Service, Acceptable Use Policy, pricing, a branded support email, and an in-product subscription cancellation path through the Creem cancellation flow or Customer Portal.\n5. Product accuracy: our marketing will only claim model versions and features that are actually available in production, and our pricing will match the Creem product configuration.\n\nWe will submit for review only after these items are live and verified.\n\nProduct URL: [production URL]\nStore ID: [store id]\n\nBest regards,\n[name]\n\n## \u4ecd\u9700\u4eba\u5de5\u786e\u8ba4\n- \u63d0\u4ea4\u7ed9 Creem \u7684\u771f\u5b9e\u516c\u7f51 URL\u3001\u4ea7\u54c1\u540d\u3001\u57df\u540d\u3001Logo \u548c\u6240\u6709\u8bed\u8a00\u7248\u672c\u3002\n- \u843d\u5730\u9875\u5b9e\u9645\u662f\u5426\u5df2\u7ecf\u5305\u542b Veo/Gemini \u6587\u6848\uff1b\u5f53\u524d\u4ed3\u5e93\u672a\u53d1\u73b0\u76f8\u5173\u6587\u6848\u3002\n- Creem Dashboard \u4e2d\u7684 Store ID\u3001Product ID\u3001\u4ea7\u54c1\u540d\u79f0\u3001\u4ef7\u683c\u3001\u652f\u6301\u90ae\u7bb1\u3001Webhook URL\u3001Customer Portal/Cancel API \u914d\u7f6e\u3002\n- \u751f\u4ea7\u73af\u5883\u662f\u5426\u4ecd\u5728 test mode\uff0c\u662f\u5426\u5b58\u5728\u771f\u5b9e\u5bc6\u94a5\u3001Webhook secret\u3001Moderation API key \u7b49\u5e73\u53f0\u5bc6\u94a5\u914d\u7f6e\u3002\n- AI \u89c6\u9891\u6a21\u578b\u5b9e\u9645\u4f9b\u5e94\u5546\u3001\u7248\u672c\u3001\u80fd\u529b\u9650\u5236\u3001\u751f\u6210\u65f6\u957f/\u5206\u8fa8\u7387\u3001\u961f\u5217/\u5931\u8d25\u5904\u7406\u3001\u7528\u6237\u989d\u5ea6\u89c4\u5219\u3002\n- \u662f\u5426\u5b58\u5728\u4efb\u4f55 gallery/showcase\u3001\u793a\u4f8b prompt \u6216 SEO \u9875\u9762\u4f7f\u7528 `uncensored`\u3001`unfiltered`\u3001`NSFW`\u3001`18+`\u3001deepfake\u3001face-swap \u7b49\u9ad8\u98ce\u9669\u8bcd\u3002\n- \u662f\u5426\u6709\u53ef\u8bc1\u660e\u7684\u7528\u6237\u6570\u3001\u5ba2\u6237 Logo\u3001\u8bc4\u4ef7\u3001\u5a92\u4f53\u5fbd\u7ae0\uff1b\u65e0\u6cd5\u8bc1\u660e\u7684\u5e94\u5728\u5ba1\u6838\u524d\u5220\u9664\u3002\n"}], "grading": {"expectations": [{"text": "The report treats AI video generation as an AI wrapper review and checks model-brand naming and non-affiliation disclaimer requirements.", "passed": true, "evidence": "Findings cover AI wrapper naming, independent branding, and Veo/Gemini disclaimer requirements."}, {"text": "The report checks feature/model-version accuracy for Veo/Gemini claims against available implementation evidence.", "passed": true, "evidence": "Findings compare missing Veo/Gemini implementation evidence with current OpenAI-compatible/NVIDIA configuration."}, {"text": "The report checks NSFW, explicit content, deepfake/face-swap, and Acceptable Use Policy requirements.", "passed": true, "evidence": "Blockers and checklist cover NSFW, explicit/suggestive content, deepfake, face-swap, and AUP."}, {"text": "The report checks Creem Moderation API or equivalent prompt moderation readiness for AI image/video generation.", "passed": true, "evidence": "Blocker states Creem Moderation API was not found and must be added before AI video generation."}, {"text": "The report checks prohibited-product risk and subscription cancellation/customer-support readiness.", "passed": true, "evidence": "Checklist covers prohibited risk, support email, subscription cancellation, and checkout cancel path."}], "summary": {"passed": 5, "failed": 0, "total": 5, "pass_rate": 1.0}, "execution_metrics": {"tool_calls": {}, "total_tool_calls": 0, "total_steps": 0, "errors_encountered": 0, "output_chars": 0, "transcript_chars": 0}, "timing": {"total_duration_seconds": 0}, "user_notes_summary": {"uncertainties": ["Task tool did not expose token/duration metrics."], "needs_review": [], "workarounds": []}}}, {"id": "eval-2-ai-wrapper-compliance-without_skill", "prompt": "\u6211\u4eec\u7684\u4ea7\u54c1\u662f AI \u89c6\u9891\u751f\u6210 wrapper\uff0c\u843d\u5730\u9875\u5199\u4e86 Veo/Gemini \u76f8\u5173\u80fd\u529b\uff0c\u51c6\u5907\u63d0\u4ea4 Creem account review\u3002\u8bf7\u68c0\u67e5\u547d\u540d\u3001\u514d\u8d23\u58f0\u660e\u3001\u529f\u80fd\u63cf\u8ff0\u3001NSFW/AUP\u3001Moderation API\u3001\u7981\u552e\u98ce\u9669\u548c\u8ba2\u9605\u53d6\u6d88\u8def\u5f84\u3002", "eval_id": 2, "outputs": [{"name": "report.md", "type": "text", "content": "# AI \u89c6\u9891\u751f\u6210 Wrapper Creem Review \u5408\u89c4\u9884\u68c0\u62a5\u544a\n\n\u5ba1\u67e5\u65e5\u671f\uff1a2026-05-18\n\n\u5ba1\u67e5\u8303\u56f4\uff1a\u5f53\u524d\u4ed3\u5e93\u516c\u5f00\u9875\u9762\u3001\u670d\u52a1\u6761\u6b3e\u3001\u9690\u79c1\u653f\u7b56\u3001\u5b9a\u4ef7/\u8ba2\u9605\u7ba1\u7406\u3001Creem \u652f\u4ed8\u96c6\u6210\u4ee3\u7801\u3002\u672a\u4fee\u6539\u5e94\u7528\u4ee3\u7801\u3002\n\n## \u603b\u4f53\u7ed3\u8bba\n\n\u5f53\u524d\u4ed3\u5e93\u6ca1\u6709\u53d1\u73b0\u5b9e\u9645\u7684 AI \u89c6\u9891\u751f\u6210 wrapper\u3001Veo\u3001Gemini\u3001text-to-video\u3001image-to-video \u843d\u5730\u9875\u6216\u4ea7\u54c1\u6587\u6848\u3002\u73b0\u6709\u516c\u5f00\u9875\u9762\u4ecd\u4e3b\u8981\u63cf\u8ff0 `Xi Rang` / `\u606f\u58e4\u5b66\u8005` \u8fd9\u7c7b AI \u5b66\u4e60\u6e38\u620f\u5e73\u53f0\uff0c\u76f8\u5173\u6587\u4ef6\u5305\u62ec `frontend/src/pages/EasternFantasyLandingPage.vue`\u3001`frontend/src/pages/DungeonScholarPricingPage.vue`\u3001`frontend/src/pages/DungeonScholarFeaturesPage.vue` \u548c `frontend/src/i18n/index.ts`\u3002\n\n\u5982\u679c\u51c6\u5907\u63d0\u4ea4 Creem account review \u7684\u662f\u201cAI \u89c6\u9891\u751f\u6210 wrapper\uff0c\u843d\u5730\u9875\u5199\u4e86 Veo/Gemini \u80fd\u529b\u201d\uff0c\u5219\u5f53\u524d\u4ed3\u5e93\u8bc1\u636e\u4e0d\u8db3\uff0c\u4e0d\u80fd\u76f4\u63a5\u5224\u5b9a\u4e3a\u53ef\u63d0\u4ea4\u3002\u6309 Creem/MoR \u5ba1\u6838\u89c6\u89d2\uff0c\u5efa\u8bae\u5148\u8865\u9f50\u54c1\u724c\u5f52\u5c5e\u3001\u7b2c\u4e09\u65b9\u6a21\u578b\u514d\u8d23\u58f0\u660e\u3001AUP/NSFW \u7981\u6b62\u6761\u6b3e\u3001\u5185\u5bb9\u5ba1\u6838\u673a\u5236\u8bf4\u660e\u3001\u9000\u6b3e/\u53d6\u6d88\u8def\u5f84\u548c\u771f\u5b9e\u8054\u7cfb\u65b9\u5f0f\u540e\u518d\u63d0\u4ea4\u3002\n\n\u98ce\u9669\u7b49\u7ea7\uff1a\u9ad8\u3002\n\n\u4e3b\u8981\u539f\u56e0\uff1a\u5f53\u524d\u53ef\u89c1\u6761\u6b3e\u6ca1\u6709\u8986\u76d6 AI \u89c6\u9891\u751f\u6210\u9ad8\u98ce\u9669\u5185\u5bb9\uff1b\u6ca1\u6709 NSFW/\u6210\u4eba\u5185\u5bb9/\u6df1\u4f2a/\u672a\u6210\u5e74\u4eba/\u66b4\u529b/\u4ec7\u6068/\u7248\u6743\u4fb5\u6743\u7b49\u660e\u786e\u7981\u6b62\u9879\uff1b\u6ca1\u6709 Moderation API \u6216\u7b49\u6548\u5ba1\u6838\u6d41\u7a0b\u8bc1\u636e\uff1b\u8ba2\u9605\u53d6\u6d88\u8def\u5f84\u5b58\u5728\u4f46\u7528\u6237\u4f53\u9a8c\u548c\u6761\u6b3e\u63cf\u8ff0\u4e0d\u591f\u5b8c\u6574\uff1b\u73b0\u6709\u652f\u6301\u90ae\u7bb1\u542b `support@xirang.local` \u8fd9\u7c7b\u4e0d\u53ef\u5bf9\u5916\u5ba1\u6838\u7684\u5360\u4f4d\u57df\u540d\u3002\n\n## \u8bc1\u636e\u6458\u8981\n\n\u5df2\u68c0\u67e5\u7684\u5173\u952e\u6587\u4ef6\uff1a\n\n- `frontend/src/i18n/index.ts`\uff1a\u843d\u5730\u9875\u3001\u5b9a\u4ef7\u3001\u9690\u79c1\u653f\u7b56\u3001\u670d\u52a1\u6761\u6b3e\u4e3b\u8981\u6587\u6848\u3002\n- `frontend/src/pages/EasternFantasyLandingPage.vue`\uff1a\u516c\u5f00\u843d\u5730\u9875\u7ed3\u6784\u3002\n- `frontend/src/pages/DungeonScholarPricingPage.vue`\uff1a\u5b9a\u4ef7\u3001\u8ba2\u9605\u548c\u4e00\u6b21\u6027 coin \u8d2d\u4e70\u5165\u53e3\u3002\n- `frontend/src/pages/DungeonScholarTermsPage.vue`\uff1a\u670d\u52a1\u6761\u6b3e\u9875\u9762\u3002\n- `frontend/src/pages/DungeonScholarPrivacyPolicyPage.vue`\uff1a\u9690\u79c1\u653f\u7b56\u9875\u9762\u3002\n- `frontend/src/components/settings/SubscriptionManageModal.vue`\uff1a\u8ba2\u9605\u7ba1\u7406\u4e0e\u53d6\u6d88\u6309\u94ae\u3002\n- `frontend/src/pages/DungeonScholarSettingsPage.vue`\uff1a\u8ba2\u9605\u72b6\u6001\u8bfb\u53d6\u3001\u53d6\u6d88\u8ba2\u9605\u8c03\u7528\u3002\n- `frontend/src/api/payments.ts`\uff1a\u524d\u7aef\u652f\u4ed8 API\u3002\n- `backend/app/api/v1/payments.py`\uff1a\u652f\u4ed8/\u8ba2\u9605/Creem webhook \u540e\u7aef\u8def\u7531\u3002\n- `backend/app/services/payments/service.py`\uff1acheckout\u3001\u5730\u533a\u5b9a\u4ef7\u3001\u53d6\u6d88\u8ba2\u9605\u670d\u52a1\u903b\u8f91\u3002\n- `backend/app/integrations/creem/client.py`\uff1aCreem API \u5ba2\u6237\u7aef\u3002\n- `docs/designs/2026-05-15-creem-payment-integration-design.md`\uff1aCreem \u96c6\u6210\u8bbe\u8ba1\u8bf4\u660e\u3002\n\n\u641c\u7d22\u7ed3\u679c\uff1a\n\n- \u672a\u53d1\u73b0 `Veo` / `veo` / `AI video` / `video generation` / `text to video` / `image to video` \u7b49\u4ea7\u54c1\u6587\u6848\u3002\n- \u4ec5\u5728 `backend/app/api/v1/settings.py` \u7684\u6a21\u578b\u5173\u952e\u8bcd\u4e2d\u53d1\u73b0 `gemini`\uff0c\u4e0d\u662f\u516c\u5f00\u843d\u5730\u9875\u58f0\u660e\u3002\n- \u672a\u53d1\u73b0 `NSFW`\u3001`porn`\u3001`adult`\u3001`sexual`\u3001`nude`\u3001`self-harm`\u3001`terror`\u3001`acceptable use`\u3001`AUP`\u3001`OpenAI Moderation`\u3001`omni-moderation` \u7b49\u660e\u786e\u5408\u89c4\u5b9e\u73b0\u6216\u6761\u6b3e\u6587\u6848\u3002\n\n## \u5206\u7c7b\u8bc4\u4f30\n\n### 1. \u547d\u540d\u4e0e\u7b2c\u4e09\u65b9\u54c1\u724c\u5f52\u5c5e\n\n\u72b6\u6001\uff1a\u4e0d\u901a\u8fc7\uff0c\u9700\u8865\u5145\u3002\n\n\u5f53\u524d\u4ed3\u5e93\u6ca1\u6709 Veo/Gemini \u843d\u5730\u9875\uff0c\u56e0\u6b64\u6ca1\u6709\u770b\u5230 Google/Veo/Gemini \u54c1\u724c\u58f0\u660e\u3002\u4f46\u5982\u679c\u5b9e\u9645\u63d0\u4ea4\u9875\u9762\u5305\u542b\u201cVeo/Gemini \u76f8\u5173\u80fd\u529b\u201d\uff0c\u9700\u8981\u907f\u514d\u6697\u793a\u5b98\u65b9\u5408\u4f5c\u3001\u6388\u6743\u3001\u8f6c\u552e\u6216 Google \u81ea\u8425\u670d\u52a1\u3002\n\n\u5efa\u8bae\u8981\u6c42\uff1a\n\n- \u9875\u9762\u9996\u5c4f\u6216\u9875\u811a\u660e\u786e\u5199\u660e\uff1a\u672c\u4ea7\u54c1\u662f\u72ec\u7acb\u7b2c\u4e09\u65b9\u5de5\u5177\uff0c\u4e0d\u96b6\u5c5e\u4e8e\u3001\u4e0d\u7531 Google\u3001Gemini \u6216 Veo \u5b98\u65b9\u8d5e\u52a9\u3001\u8ba4\u53ef\u6216\u8fd0\u8425\u3002\n- \u907f\u514d\u4f7f\u7528 `Official Veo`\u3001`Google Veo platform`\u3001`Gemini official API`\u3001`powered by Google` \u7b49\u53ef\u80fd\u8bef\u5bfc\u5ba1\u6838\u7684\u8868\u8ff0\uff0c\u9664\u975e\u6709\u6388\u6743\u8bc1\u660e\u3002\n- \u63a8\u8350\u7528\u8bed\uff1a`uses third-party AI model providers, such as Google's Gemini/Veo where available`\uff0c\u5e76\u52a0 `availability may vary`\u3002\n\n### 2. AI \u80fd\u529b\u63cf\u8ff0\u4e0e\u514d\u8d23\u58f0\u660e\n\n\u72b6\u6001\uff1a\u90e8\u5206\u901a\u8fc7\uff0c\u4ec5\u9002\u7528\u4e8e\u5f53\u524d\u5b66\u4e60\u4ea7\u54c1\uff1b\u4e0d\u8986\u76d6 AI \u89c6\u9891\u751f\u6210\u3002\n\n\u5f53\u524d\u5df2\u6709 AI \u751f\u6210\u5185\u5bb9\u514d\u8d23\uff1a`frontend/src/i18n/index.ts` \u4e2d\u9690\u79c1\u653f\u7b56\u548c\u670d\u52a1\u6761\u6b3e\u58f0\u660e AI \u9898\u76ee/\u89e3\u6790\u53ef\u80fd\u4e0d\u51c6\u786e\uff0c\u4ec5\u4f9b\u5b66\u4e60\u53c2\u8003\uff0c\u4e0d\u6784\u6210\u4e13\u4e1a\u5efa\u8bae\u3002\n\n\u7f3a\u53e3\uff1a\n\n- \u514d\u8d23\u5bf9\u8c61\u662f quiz/questions/explanations\uff0c\u4e0d\u662f\u89c6\u9891\u3001\u56fe\u50cf\u3001\u97f3\u9891\u3001\u4eba\u7269\u8096\u50cf\u6216\u751f\u6210\u5a92\u4f53\u3002\n- \u6ca1\u6709\u8bf4\u660e\u751f\u6210\u7ed3\u679c\u53ef\u80fd\u5931\u8d25\u3001\u5ef6\u8fdf\u3001\u6392\u961f\u3001\u8d28\u91cf\u4e0d\u7a33\u5b9a\u3001\u7b2c\u4e09\u65b9\u6a21\u578b\u4e0d\u53ef\u7528\u3001\u8f93\u51fa\u4e0d\u4fdd\u8bc1\u552f\u4e00\u6027\u6216\u7248\u6743\u53ef\u5546\u7528\u6027\u3002\n- \u6ca1\u6709\u8bf4\u660e\u7528\u6237\u9700\u5bf9 prompt\u3001\u4e0a\u4f20\u7d20\u6750\u3001\u751f\u6210\u7ed3\u679c\u53ca\u5176\u53d1\u5e03\u627f\u62c5\u8d23\u4efb\u3002\n\n\u5efa\u8bae\u8865\u5145\uff1a\n\n- AI \u89c6\u9891\u751f\u6210\u7ed3\u679c\u53ef\u80fd\u4e0d\u51c6\u786e\u3001\u4e0d\u5b8c\u6574\u3001\u4e0d\u7b26\u5408\u9884\u671f\u6216\u4e0d\u53ef\u7528\u3002\n- \u4e0d\u4fdd\u8bc1\u7528\u6237\u751f\u6210\u89c6\u9891\u62e5\u6709\u53ef\u5546\u7528\u7248\u6743\uff1b\u7528\u6237\u9700\u786e\u4fdd\u8f93\u5165\u7d20\u6750\u3001\u4eba\u7269\u8096\u50cf\u3001\u5546\u6807\u3001\u97f3\u4e50\u3001\u6587\u672c\u548c\u8f93\u51fa\u7528\u9014\u5408\u6cd5\u3002\n- \u6a21\u578b\u80fd\u529b\u3001\u65f6\u957f\u3001\u5206\u8fa8\u7387\u3001\u751f\u6210\u901f\u5ea6\u548c\u53ef\u7528\u5730\u533a\u53ef\u80fd\u968f\u4f9b\u5e94\u5546\u53d8\u5316\u3002\n\n### 3. NSFW / AUP / \u7981\u6b62\u5185\u5bb9\u653f\u7b56\n\n\u72b6\u6001\uff1a\u4e0d\u901a\u8fc7\u3002\n\n\u5f53\u524d\u670d\u52a1\u6761\u6b3e\u53ea\u6709\u6cdb\u5316\u6761\u6b3e\uff1a\u4e0d\u5f97\u4f20\u8f93 harmful/offensive/illegal content\u3002\u8be5\u8868\u8ff0\u4e0d\u8db3\u4ee5\u8986\u76d6 AI \u89c6\u9891\u751f\u6210\u9ad8\u98ce\u9669\u7c7b\u522b\u3002\n\n\u5fc5\u987b\u8865\u9f50\u7684\u7981\u6b62\u9879\uff1a\n\n- \u6210\u4eba\u3001\u8272\u60c5\u3001\u9732\u9aa8\u6027\u5185\u5bb9\u3001\u6027\u6697\u793a\u672a\u6210\u5e74\u4eba\u3001\u4efb\u4f55\u513f\u7ae5\u6027\u8650\u5f85\u6750\u6599\u3002\n- \u975e\u81ea\u613f\u4eb2\u5bc6\u5185\u5bb9\u3001deepfake \u8272\u60c5\u3001\u672a\u7ecf\u540c\u610f\u7684\u4eba\u8138\u66ff\u6362\u6216\u8096\u50cf\u6ee5\u7528\u3002\n- \u4ec7\u6068\u3001\u9a9a\u6270\u3001\u5a01\u80c1\u3001\u66b4\u529b\u6781\u7aef\u4e3b\u4e49\u3001\u6050\u6016\u4e3b\u4e49\u5ba3\u4f20\u3002\n- \u8840\u8165\u3001\u8650\u5f85\u3001\u81ea\u6b8b\u3001\u81ea\u6740\u6307\u5bfc\u3001\u771f\u5b9e\u66b4\u529b\u7f8e\u5316\u3002\n- \u8fdd\u6cd5\u6d3b\u52a8\u6307\u5bfc\u3001\u6b66\u5668\u5236\u9020\u3001\u6bd2\u54c1\u3001\u8bc8\u9a97\u3001\u9493\u9c7c\u3001\u6076\u610f\u8f6f\u4ef6\u3002\n- \u4fb5\u72af\u7248\u6743\u3001\u5546\u6807\u3001\u9690\u79c1\u3001\u8096\u50cf\u6743\u6216\u5192\u5145\u4ed6\u4eba\u7684\u5185\u5bb9\u3002\n- \u653f\u6cbb\u64cd\u7eb5\u3001\u8bef\u5bfc\u6027\u516c\u5171\u4e8b\u4ef6\u3001\u4f2a\u9020\u8bc1\u636e\u6216\u6b3a\u9a97\u6027\u5a92\u4f53\u3002\n\n\u5efa\u8bae\u5728\u516c\u5f00\u9875\u9875\u811a\u94fe\u63a5\u65b0\u589e `Acceptable Use Policy`\uff0c\u5e76\u5728\u751f\u6210\u9875\u9762\u63d0\u4ea4\u6309\u94ae\u9644\u8fd1\u653e\u7f6e\u7b80\u77ed\u5b89\u5168\u63d0\u793a\u3002\n\n### 4. Moderation API / \u5185\u5bb9\u5ba1\u6838\u673a\u5236\n\n\u72b6\u6001\uff1a\u4e0d\u901a\u8fc7\u3002\n\n\u5f53\u524d\u4ed3\u5e93\u672a\u53d1\u73b0 Moderation API\u3001\u5ba1\u6838\u961f\u5217\u3001\u5185\u5bb9\u5206\u7c7b\u5668\u3001\u4eba\u5de5\u590d\u6838\u3001\u4e3e\u62a5\u5165\u53e3\u3001\u5c01\u7981\u7b56\u7565\u6216\u5ba1\u6838\u65e5\u5fd7\u7684\u5b9e\u73b0\u8bc1\u636e\u3002\n\nAI \u89c6\u9891 wrapper \u63d0\u4ea4 Creem review \u65f6\uff0c\u5efa\u8bae\u81f3\u5c11\u5177\u5907\u5e76\u80fd\u89e3\u91ca\uff1a\n\n- \u8f93\u5165 prompt \u5ba1\u6838\uff1a\u63d0\u4ea4\u751f\u6210\u524d\u62e6\u622a NSFW\u3001\u672a\u6210\u5e74\u4eba\u3001\u66b4\u529b\u3001\u4ec7\u6068\u3001\u8fdd\u6cd5\u548c\u4fb5\u6743\u9ad8\u98ce\u9669 prompt\u3002\n- \u4e0a\u4f20\u7d20\u6750\u5ba1\u6838\uff1a\u5bf9\u56fe\u7247/\u89c6\u9891\u53c2\u8003\u56fe\u8fdb\u884c\u5b89\u5168\u68c0\u6d4b\uff0c\u5c24\u5176\u662f\u88f8\u9732\u3001\u672a\u6210\u5e74\u4eba\u3001\u4eba\u8138\u6ee5\u7528\u548c\u66b4\u529b\u8840\u8165\u3002\n- \u8f93\u51fa\u5ba1\u6838\uff1a\u5bf9\u751f\u6210\u7ed3\u679c\u505a\u4f9b\u5e94\u5546 safety signal \u68c0\u67e5\u6216\u62bd\u6837\u590d\u6838\u3002\n- \u7528\u6237\u4e3e\u62a5\uff1a\u5bf9\u516c\u5f00\u4f5c\u54c1\u63d0\u4f9b report abuse \u6216 contact abuse \u90ae\u7bb1\u3002\n- \u5904\u7f6e\u7b56\u7565\uff1a\u8fdd\u89c4\u62d2\u7edd\u751f\u6210\u3001\u4e0d\u9000\u6b3e\u6ee5\u7528\u884c\u4e3a\u3001\u6682\u505c\u8d26\u53f7\u3001\u4fdd\u7559\u5fc5\u8981\u65e5\u5fd7\u3002\n\n\u5982\u679c\u4f7f\u7528 OpenAI Moderation \u6216 Google/Vertex safety filters\uff0c\u5e94\u5728\u540e\u53f0\u5b9e\u73b0\u5c42\u9762\u4fdd\u7559\u53ef\u5ba1\u8ba1\u65e5\u5fd7\uff0c\u4f46\u4e0d\u8981\u5728\u516c\u5f00\u9875\u5938\u5927\u201c100% safe\u201d\u3002\n\n### 5. \u7981\u552e / \u9ad8\u62d2\u4ed8\u98ce\u9669\n\n\u72b6\u6001\uff1a\u9ad8\u98ce\u9669\uff0c\u9700\u660e\u786e\u8fb9\u754c\u3002\n\nAI \u89c6\u9891\u751f\u6210\u5bb9\u6613\u88ab\u652f\u4ed8\u5ba1\u6838\u5f52\u5165\u9ad8\u98ce\u9669\u6570\u5b57\u5185\u5bb9\uff0c\u7279\u522b\u662f deepfake\u3001\u6210\u4eba\u5185\u5bb9\u3001\u865a\u62df\u5e01/\u79ef\u5206\u3001\u4e0d\u53ef\u9000\u6b3e\u6570\u5b57\u5546\u54c1\u548c\u6ee5\u7528\u7d20\u6750\u751f\u6210\u3002\u5f53\u524d\u4ef7\u683c\u9875\u8fd8\u5305\u542b coin packages\uff0c\u4e14\u6587\u6848\u5199\u660e purchased coins non-refundable\uff0c\u8fd9\u53ef\u80fd\u88ab\u5ba1\u6838\u5173\u6ce8\u3002\n\n\u5f53\u524d\u8bc1\u636e\uff1a\n\n- `frontend/src/i18n/index.ts` \u5b9a\u4ef7 FAQ \u5199\u660e coin purchases are non-refundable\u3002\n- `frontend/src/config/pricing.ts` \u5305\u542b 60\u3001300\u3001680\u30011500\u30013500 coins \u7684\u4e00\u6b21\u6027\u8d2d\u4e70\u5305\u3002\n- Creem \u8bbe\u8ba1\u6587\u6863\u8bf4\u660e\u540c\u65f6\u652f\u6301\u4ee3\u5e01\u5145\u503c\u548c\u8ba2\u9605\u3002\n\n\u5efa\u8bae\uff1a\n\n- \u82e5 AI \u89c6\u9891 wrapper \u4e0d\u9700\u8981\u865a\u62df\u5e01\uff0c\u4f18\u5148\u53bb\u6389 coin \u5305\u6216\u5c06\u5176\u6539\u4e3a\u6e05\u6670\u7684 `credits`\uff0c\u5e76\u8bf4\u660e credit \u4e0e\u751f\u6210\u6b21\u6570/\u989d\u5ea6\u5bf9\u5e94\u5173\u7cfb\u3001\u6709\u6548\u671f\u548c\u9000\u6b3e\u6761\u4ef6\u3002\n- \u7981\u6b62\u6210\u4eba/NSFW/deepfake \u53d8\u73b0\uff0c\u4e0d\u63d0\u4f9b\u201c\u7ed5\u8fc7\u5ba1\u6838\u201d\u201c\u65e0\u9650\u5236\u751f\u6210\u201d\u7b49\u5356\u70b9\u3002\n- \u660e\u786e\u4e0d\u9500\u552e\u53d7\u7ba1\u5236\u54c1\u3001\u91d1\u878d/\u533b\u7597/\u6cd5\u5f8b\u5efa\u8bae\u3001\u8d4c\u535a\u3001\u4eff\u5192\u3001\u9ed1\u7070\u4ea7\u670d\u52a1\u3002\n- \u5bf9\u4e00\u6b21\u6027\u6570\u5b57\u989d\u5ea6\u5199\u6e05\u695a\uff1a\u672a\u4f7f\u7528\u989d\u5ea6\u9000\u6b3e\u6761\u4ef6\u3001\u5df2\u6d88\u8017\u989d\u5ea6\u4e0d\u53ef\u9000\u3001\u6ee5\u7528/\u8fdd\u89c4\u4e0d\u9000\u6b3e\u3002\n\n### 6. \u8ba2\u9605\u53d6\u6d88\u8def\u5f84\n\n\u72b6\u6001\uff1a\u90e8\u5206\u901a\u8fc7\uff0c\u4ecd\u9700\u6539\u5584\u3002\n\n\u5f53\u524d\u5df2\u6709\u6280\u672f\u8def\u5f84\uff1a\n\n- \u524d\u7aef `frontend/src/api/payments.ts` \u63d0\u4f9b `cancelSubscription()`\uff0c\u8c03\u7528 `/api/v1/payments/subscription/cancel`\u3002\n- \u8bbe\u7f6e\u9875 `frontend/src/pages/DungeonScholarSettingsPage.vue` \u6253\u5f00\u8ba2\u9605\u7ba1\u7406\u5f39\u7a97\u5e76\u8c03\u7528\u53d6\u6d88\u903b\u8f91\u3002\n- \u5f39\u7a97 `frontend/src/components/settings/SubscriptionManageModal.vue` \u6709 `data-testid=\"cancel-subscription\"` \u6309\u94ae\u3002\n- \u540e\u7aef `backend/app/api/v1/payments.py` \u66b4\u9732 `POST /payments/subscription/cancel`\u3002\n- \u540e\u7aef `backend/app/services/payments/service.py` \u8c03\u7528 `client.cancel_subscription()` \u5e76\u5c06\u7528\u6237\u72b6\u6001\u7f6e\u4e3a `canceled`\u3002\n\n\u7f3a\u53e3\uff1a\n\n- \u9875\u9762\u6587\u6848\u53ea\u8bf4 \u201ccancel anytime\u201d\uff0c\u6ca1\u6709\u660e\u786e\u53d6\u6d88\u6b65\u9aa4\uff1aSettings -> Subscription Management -> Cancel Subscription\u3002\n- \u540e\u7aef\u53d6\u6d88\u540e\u7acb\u5373\u628a\u672c\u5730\u72b6\u6001\u8bbe\u4e3a `canceled`\uff0c\u4f46\u8bbe\u8ba1\u6587\u6863\u5199\u7684\u662f scheduled cancel\uff0c\u6761\u6b3e\u4e5f\u5199 access continues until end of current billing period\uff1b\u5b9e\u73b0\u548c\u627f\u8bfa\u53ef\u80fd\u4e0d\u4e00\u81f4\u3002\n- \u53d6\u6d88\u6309\u94ae\u6ca1\u6709\u4e8c\u6b21\u786e\u8ba4\u3001\u53d6\u6d88\u751f\u6548\u65e5\u671f\u3001\u5269\u4f59\u6743\u76ca\u5230\u671f\u65f6\u95f4\u6216 Creem portal \u94fe\u63a5\u3002\n- \u6ca1\u6709\u516c\u5f00\u5ba2\u670d\u90ae\u7bb1\u7684\u53ef\u7528\u652f\u4ed8\u652f\u6301\u5730\u5740\uff1b`support@xirang.local` \u662f\u5360\u4f4d\u57df\u540d\uff0c\u4e0d\u9002\u5408\u63d0\u4ea4\u5ba1\u6838\u3002\n\n\u5efa\u8bae\uff1a\n\n- \u5b9a\u4ef7\u9875 FAQ\u3001\u670d\u52a1\u6761\u6b3e\u548c\u8bbe\u7f6e\u9875\u7edf\u4e00\u5199\u660e\u53d6\u6d88\u8def\u5f84\u3002\n- \u660e\u786e\u53d6\u6d88\u540e\u662f\u5426\u4fdd\u7559\u6743\u76ca\u81f3\u5f53\u524d\u8d26\u671f\u7ed3\u675f\uff0c\u5e76\u8ba9\u540e\u7aef\u72b6\u6001/\u6743\u9650\u5b9e\u73b0\u4e0e\u6587\u6848\u4e00\u81f4\u3002\n- \u589e\u52a0\u786e\u8ba4\u5f39\u7a97\u3001\u53d6\u6d88\u6210\u529f\u53cd\u9988\u3001\u5230\u671f\u65f6\u95f4\u5c55\u793a\u548c\u8d26\u5355\u652f\u6301\u8054\u7cfb\u65b9\u5f0f\u3002\n- \u5982\u679c Creem \u63d0\u4f9b Customer Portal\uff0c\u5efa\u8bae\u63d0\u4f9b portal \u94fe\u63a5\u4f5c\u4e3a\u5907\u9009\u53d6\u6d88\u65b9\u5f0f\u3002\n\n### 7. \u9690\u79c1\u653f\u7b56\u4e0e\u7b2c\u4e09\u65b9\u5904\u7406\n\n\u72b6\u6001\uff1a\u90e8\u5206\u901a\u8fc7\uff0c\u4f46 AI \u89c6\u9891 wrapper \u9700\u91cd\u5199\u3002\n\n\u5f53\u524d\u9690\u79c1\u653f\u7b56\u6709\u7b2c\u4e09\u65b9 AI \u670d\u52a1\u5904\u7406\u8bf4\u660e\uff0c\u5217\u51fa MiniMax/Kimi \u7b49\uff0c\u5e76\u8bf4\u660e\u6587\u6863\u5185\u5bb9\u4f1a\u88ab\u53d1\u9001\u7ed9 AI API\u3002\u8be5\u653f\u7b56\u4e0d\u8986\u76d6 Veo/Gemini\uff0c\u4e5f\u4e0d\u8986\u76d6\u89c6\u9891\u751f\u6210\u6240\u9700\u7684\u53c2\u8003\u56fe\u3001\u4eba\u8138\u3001\u4e0a\u4f20\u89c6\u9891\u3001prompt\u3001\u751f\u6210\u89c6\u9891\u3001\u516c\u5f00\u5206\u4eab\u94fe\u63a5\u3001\u5185\u5bb9\u5ba1\u6838\u65e5\u5fd7\u7b49\u3002\n\n\u5efa\u8bae\u8865\u5145\uff1a\n\n- \u7b2c\u4e09\u65b9\u63d0\u4f9b\u5546\uff1aGoogle Gemini/Veo\u3001\u4e91\u5b58\u50a8\u3001CDN\u3001\u652f\u4ed8\u670d\u52a1\u3001\u90ae\u4ef6\u670d\u52a1\u3001\u5206\u6790\u670d\u52a1\u3002\n- \u6570\u636e\u7c7b\u578b\uff1aprompt\u3001\u4e0a\u4f20\u56fe\u7247/\u89c6\u9891/\u97f3\u9891\u3001\u751f\u6210\u7ed3\u679c\u3001\u7528\u6237\u53cd\u9988\u3001\u5ba1\u6838\u6807\u7b7e\u3001\u6ee5\u7528\u65e5\u5fd7\u3002\n- \u4fdd\u7559\u671f\u9650\uff1a\u751f\u6210\u4efb\u52a1\u3001\u8f93\u51fa\u6587\u4ef6\u3001\u5931\u8d25\u4efb\u52a1\u3001\u5ba1\u6838\u8bb0\u5f55\u548c\u5220\u9664\u8bf7\u6c42\u7684\u4fdd\u7559\u89c4\u5219\u3002\n- \u7528\u6237\u5220\u9664\uff1a\u5982\u4f55\u5220\u9664\u751f\u6210\u89c6\u9891\u3001\u7d20\u6750\u548c\u8d26\u53f7\u6570\u636e\u3002\n\n### 8. \u8054\u7cfb\u65b9\u5f0f\u3001\u516c\u53f8\u4fe1\u606f\u548c\u5ba1\u6838\u53ef\u4fe1\u5ea6\n\n\u72b6\u6001\uff1a\u4e0d\u901a\u8fc7\u3002\n\n\u5f53\u524d\u95ee\u9898\uff1a\n\n- Help Center \u6587\u6848\u542b `support@xirang.local`\uff0c\u4e0d\u662f\u53ef\u8054\u7cfb\u90ae\u7bb1\u3002\n- \u9690\u79c1\u653f\u7b56\u516c\u53f8\u7edf\u4e00\u793e\u4f1a\u4fe1\u7528\u4ee3\u7801\u4ecd\u4e3a \u201cto be filled in\u201d\u3002\n- \u6761\u6b3e\u3001\u9690\u79c1\u3001\u4ea7\u54c1\u540d\u5747\u662f `Xi Rang` \u5b66\u4e60\u4ea7\u54c1\uff0c\u4e0d\u662f AI \u89c6\u9891 wrapper\u3002\n\n\u5efa\u8bae\uff1a\n\n- \u7528\u771f\u5b9e\u57df\u540d\u90ae\u7bb1\uff0c\u4f8b\u5982 `support@yourdomain.com`\u3001`abuse@yourdomain.com`\u3001`privacy@yourdomain.com`\u3002\n- \u586b\u5199\u5b8c\u6574\u516c\u53f8\u4e3b\u4f53\u3001\u6ce8\u518c\u5730\u5740\u6216\u81f3\u5c11\u53ef\u6838\u9a8c\u7684\u8fd0\u8425\u5b9e\u4f53\u4fe1\u606f\u3002\n- \u63d0\u4ea4 Creem \u524d\u786e\u4fdd checkout \u4ea7\u54c1\u540d\u3001\u843d\u5730\u9875\u4ea7\u54c1\u540d\u3001\u6761\u6b3e\u4ea7\u54c1\u540d\u3001\u9690\u79c1\u653f\u7b56\u4ea7\u54c1\u540d\u3001\u8d26\u5355\u63cf\u8ff0\u4e00\u81f4\u3002\n\n## Creem \u63d0\u4ea4\u524d\u6700\u5c0f\u4fee\u590d\u6e05\u5355\n\n\u4f18\u5148\u7ea7 P0\uff1a\n\n- \u786e\u8ba4\u5b9e\u9645\u8981\u5ba1\u6838\u7684\u4ea7\u54c1\u9875\u9762\u5df2\u5728\u4ed3\u5e93\u6216\u90e8\u7f72\u73af\u5883\u4e2d\uff0c\u4e14\u4ea7\u54c1\u540d\u3001\u5b9a\u4ef7\u3001\u6761\u6b3e\u4e00\u81f4\u3002\n- \u589e\u52a0 AI \u89c6\u9891\u751f\u6210\u4e13\u7528\u670d\u52a1\u6761\u6b3e\u6216 AUP\uff0c\u660e\u786e\u7981\u6b62 NSFW\u3001deepfake\u3001\u672a\u6210\u5e74\u4eba\u3001\u66b4\u529b\u3001\u4ec7\u6068\u3001\u8fdd\u6cd5\u3001\u4fb5\u6743\u5185\u5bb9\u3002\n- \u589e\u52a0 Google/Veo/Gemini \u975e\u5b98\u65b9\u4ece\u5c5e\u514d\u8d23\u58f0\u660e\u3002\n- \u516c\u5f00\u8bf4\u660e\u5185\u5bb9\u5ba1\u6838\u673a\u5236\uff1a\u8f93\u5165\u5ba1\u6838\u3001\u4e0a\u4f20\u7d20\u6750\u5ba1\u6838\u3001\u8f93\u51fa\u5ba1\u6838/\u4f9b\u5e94\u5546 safety\u3001\u4e3e\u62a5\u4e0e\u5c01\u7981\u3002\n- \u66ff\u6362 `support@xirang.local` \u548c \u201cUnified Social Credit Code to be filled in\u201d \u7b49\u5360\u4f4d\u5185\u5bb9\u3002\n- \u7edf\u4e00\u8ba2\u9605\u53d6\u6d88\u627f\u8bfa\u548c\u5b9e\u73b0\uff0c\u516c\u5f00\u5199\u660e\u53d6\u6d88\u8def\u5f84\u4e0e\u8d26\u671f\u6743\u76ca\u3002\n\n\u4f18\u5148\u7ea7 P1\uff1a\n\n- \u8865\u5145\u9000\u6b3e\u653f\u7b56\uff1a\u8ba2\u9605\u3001\u8bd5\u7528\u3001\u4e00\u6b21\u6027 credits/coins\u3001\u8fdd\u89c4\u4f7f\u7528\u3001\u751f\u6210\u5931\u8d25\u573a\u666f\u3002\n- \u8865\u5145\u9690\u79c1\u653f\u7b56\u7684\u6570\u636e\u7c7b\u522b\uff1aprompt\u3001\u7d20\u6750\u3001\u8f93\u51fa\u89c6\u9891\u3001\u5ba1\u6838\u65e5\u5fd7\u3001\u7b2c\u4e09\u65b9\u6a21\u578b\u5904\u7406\u3002\n- \u5982\u679c\u4fdd\u7559 credits/coins\uff0c\u8bf4\u660e\u989d\u5ea6\u6d88\u8017\u89c4\u5219\u3001\u6709\u6548\u671f\u3001\u9000\u6b3e\u8fb9\u754c\uff0c\u907f\u514d\u865a\u62df\u5e01\u5f0f\u8868\u8ff0\u3002\n- \u5728\u751f\u6210\u9875\u548c\u4e0a\u4f20\u9875\u52a0\u5165\u201c\u4ec5\u4e0a\u4f20\u4f60\u6709\u6743\u4f7f\u7528\u7684\u7d20\u6750\u201d\u7684\u63d0\u793a\u3002\n\n\u4f18\u5148\u7ea7 P2\uff1a\n\n- \u589e\u52a0 abuse/report \u8054\u7cfb\u5165\u53e3\u3002\n- \u589e\u52a0\u5e74\u9f84\u9650\u5236\uff0cAI \u89c6\u9891\u5efa\u8bae\u81f3\u5c11 13+ \u6216 16+/18+\uff0c\u5e76\u660e\u786e\u672a\u6210\u5e74\u4eba\u9650\u5236\u3002\n- \u589e\u52a0\u670d\u52a1\u53ef\u7528\u6027\u8bf4\u660e\uff1a\u6a21\u578b\u5730\u533a\u9650\u5236\u3001\u6392\u961f\u3001\u5931\u8d25\u91cd\u8bd5\u3001\u4f9b\u5e94\u5546\u53d8\u66f4\u3002\n\n## \u5efa\u8bae\u63d0\u4ea4\u7528\u7b80\u77ed\u8bf4\u660e\n\n\u53ef\u5728 Creem review \u4e2d\u4f7f\u7528\u7684\u4ea7\u54c1\u63cf\u8ff0\u8349\u6848\uff1a\n\n> We provide an independent AI video generation workflow tool that helps users create videos from prompts and user-provided assets using third-party AI model providers where available. We are not affiliated with, endorsed by, or sponsored by Google, Gemini, or Veo. Users must only upload content they have rights to use. We prohibit NSFW, non-consensual intimate content, deepfake abuse, minor sexual content, hate, violence, illegal activities, and IP-infringing content. Prompts and uploaded assets are subject to automated safety checks and may be blocked or reviewed. Subscriptions can be cancelled from Settings > Subscription Management > Cancel Subscription, with access continuing until the end of the current billing period unless otherwise stated.\n\n## \u6700\u7ec8\u5224\u65ad\n\n\u4e0d\u5efa\u8bae\u76f4\u63a5\u63d0\u4ea4\u5f53\u524d\u4ed3\u5e93\u72b6\u6001\u8fdb\u884c\u201cAI \u89c6\u9891\u751f\u6210 wrapper + Veo/Gemini \u80fd\u529b\u201d\u7684 Creem account review\u3002\u5f53\u524d\u4ee3\u7801\u548c\u6587\u6848\u66f4\u50cf AI \u5b66\u4e60\u4ea7\u54c1\uff0c\u4e14 AI \u89c6\u9891\u751f\u6210\u6240\u9700\u7684 AUP\u3001NSFW \u7981\u6b62\u3001moderation\u3001\u7b2c\u4e09\u65b9\u54c1\u724c\u514d\u8d23\u58f0\u660e\u3001\u771f\u5b9e\u8054\u7cfb\u65b9\u5f0f\u548c\u8ba2\u9605\u53d6\u6d88\u7ec6\u8282\u4e0d\u8db3\u3002\u5efa\u8bae\u5b8c\u6210 P0 \u6e05\u5355\u540e\u518d\u63d0\u4ea4\u3002\n"}], "grading": {"expectations": [{"text": "The report treats AI video generation as an AI wrapper review and checks model-brand naming and non-affiliation disclaimer requirements.", "passed": true, "evidence": "Sections 1 and 8 discuss Google/Veo/Gemini branding, non-affiliation, and product-name consistency."}, {"text": "The report checks feature/model-version accuracy for Veo/Gemini claims against available implementation evidence.", "passed": true, "evidence": "Evidence summary notes no Veo/Gemini/video generation landing page or implementation was found."}, {"text": "The report checks NSFW, explicit content, deepfake/face-swap, and Acceptable Use Policy requirements.", "passed": true, "evidence": "NSFW/AUP section lists adult, deepfake, face-swap, minors, violence, hate, and IP infringement prohibitions."}, {"text": "The report checks Creem Moderation API or equivalent prompt moderation readiness for AI image/video generation.", "passed": true, "evidence": "Moderation section states no Moderation API or equivalent moderation implementation was found and recommends prompt/upload/output moderation."}, {"text": "The report checks prohibited-product risk and subscription cancellation/customer-support readiness.", "passed": true, "evidence": "Sections 5, 6, and 8 cover prohibited/high-risk products, subscription cancellation, support email, and company info."}], "summary": {"passed": 5, "failed": 0, "total": 5, "pass_rate": 1.0}, "execution_metrics": {"tool_calls": {}, "total_tool_calls": 0, "total_steps": 0, "errors_encountered": 0, "output_chars": 0, "transcript_chars": 0}, "timing": {"total_duration_seconds": 0}, "user_notes_summary": {"uncertainties": ["Task tool did not expose token/duration metrics."], "needs_review": [], "workarounds": []}}}], "previous_feedback": {}, "previous_outputs": {}, "benchmark": {"metadata": {"skill_name": "creem-preflight-review", "skill_path": "D:\\work\\Huanyu Code\\Project\\Xirang\\.opencode\\skills\\creem-preflight-review", "executor_model": "openai/gpt-5.5", "analyzer_model": "openai/gpt-5.5", "timestamp": "2026-05-18T00:00:00Z", "evals_run": [0, 1, 2], "runs_per_configuration": 1}, "runs": [{"eval_id": 0, "eval_name": "saas-go-live-preflight", "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5, "time_seconds": 0, "tokens": 0, "tool_calls": 0, "errors": 0}, "expectations": [], "notes": ["Timing/token metrics unavailable from task tool output."]}, {"eval_id": 0, "eval_name": "saas-go-live-preflight", "configuration": "without_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5, "time_seconds": 0, "tokens": 0, "tool_calls": 0, "errors": 0}, "expectations": [], "notes": ["Timing/token metrics unavailable from task tool output."]}, {"eval_id": 1, "eval_name": "rejection-triage", "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5, "time_seconds": 0, "tokens": 0, "tool_calls": 0, "errors": 0}, "expectations": [], "notes": ["Timing/token metrics unavailable from task tool output."]}, {"eval_id": 1, "eval_name": "rejection-triage", "configuration": "without_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5, "time_seconds": 0, "tokens": 0, "tool_calls": 0, "errors": 0}, "expectations": [], "notes": ["Timing/token metrics unavailable from task tool output."]}, {"eval_id": 2, "eval_name": "ai-wrapper-compliance", "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5, "time_seconds": 0, "tokens": 0, "tool_calls": 0, "errors": 0}, "expectations": [], "notes": ["Timing/token metrics unavailable from task tool output."]}, {"eval_id": 2, "eval_name": "ai-wrapper-compliance", "configuration": "without_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5, "time_seconds": 0, "tokens": 0, "tool_calls": 0, "errors": 0}, "expectations": [], "notes": ["Timing/token metrics unavailable from task tool output."]}], "run_summary": {"with_skill": {"pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0}, "time_seconds": {"mean": 0.0, "stddev": 0.0, "min": 0.0, "max": 0.0}, "tokens": {"mean": 0, "stddev": 0, "min": 0, "max": 0}}, "without_skill": {"pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0}, "time_seconds": {"mean": 0.0, "stddev": 0.0, "min": 0.0, "max": 0.0}, "tokens": {"mean": 0, "stddev": 0, "min": 0, "max": 0}}, "delta": {"pass_rate": "+0.00", "time_seconds": "+0.0", "tokens": "+0"}}, "notes": ["All current assertions pass for both with-skill and baseline; the assertions validate minimum completeness but do not strongly differentiate output quality.", "Qualitatively, with-skill reports use the requested Creem preflight structure more consistently and emphasize official stay-in-test-mode, support email, false-information, and AI-wrapper requirements.", "A stronger next iteration should add stricter assertions for exact report structure, Creem risk scale labels, official-account-review citation, and explicit manual-confirmation section."]}};
+
+    // ---- State ----
+    let feedbackMap = {};  // run_id -> feedback text
+    let currentIndex = 0;
+    let visitedRuns = new Set();
+
+    // ---- Init ----
+    async function init() {
+      // Load saved feedback from server — but only if this isn't a fresh
+      // iteration (indicated by previous_feedback being present). When
+      // previous feedback exists, the feedback.json on disk is stale from
+      // the prior iteration and should not pre-fill the textareas.
+      const hasPrevious = Object.keys(EMBEDDED_DATA.previous_feedback || {}).length > 0
+        || Object.keys(EMBEDDED_DATA.previous_outputs || {}).length > 0;
+      if (!hasPrevious) {
+        try {
+          const resp = await fetch("/api/feedback");
+          const data = await resp.json();
+          if (data.reviews) {
+            for (const r of data.reviews) feedbackMap[r.run_id] = r.feedback;
+          }
+        } catch { /* first run, no feedback yet */ }
+      }
+
+      document.getElementById("skill-name").textContent = EMBEDDED_DATA.skill_name;
+      showRun(0);
+
+      // Wire up feedback auto-save
+      const textarea = document.getElementById("feedback");
+      let saveTimeout = null;
+      textarea.addEventListener("input", () => {
+        clearTimeout(saveTimeout);
+        document.getElementById("feedback-status").textContent = "";
+        saveTimeout = setTimeout(() => saveCurrentFeedback(), 800);
+      });
+    }
+
+    // ---- Navigation ----
+    function navigate(delta) {
+      const newIndex = currentIndex + delta;
+      if (newIndex >= 0 && newIndex < EMBEDDED_DATA.runs.length) {
+        saveCurrentFeedback();
+        showRun(newIndex);
+      }
+    }
+
+    function updateNavButtons() {
+      document.getElementById("prev-btn").disabled = currentIndex === 0;
+      document.getElementById("next-btn").disabled =
+        currentIndex === EMBEDDED_DATA.runs.length - 1;
+    }
+
+    // ---- Show a run ----
+    function showRun(index) {
+      currentIndex = index;
+      const run = EMBEDDED_DATA.runs[index];
+
+      // Progress
+      document.getElementById("progress").textContent =
+        `${index + 1} of ${EMBEDDED_DATA.runs.length}`;
+
+      // Prompt
+      document.getElementById("prompt-text").textContent = run.prompt;
+
+      // Config badge
+      const badge = document.getElementById("config-badge");
+      const configMatch = run.id.match(/(with_skill|without_skill|new_skill|old_skill)/);
+      if (configMatch) {
+        const config = configMatch[1];
+        const isBaseline = config === "without_skill" || config === "old_skill";
+        badge.textContent = config.replace(/_/g, " ");
+        badge.className = "config-badge " + (isBaseline ? "config-baseline" : "config-primary");
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+
+      // Outputs
+      renderOutputs(run);
+
+      // Previous outputs
+      renderPrevOutputs(run);
+
+      // Grades
+      renderGrades(run);
+
+      // Previous feedback
+      const prevFb = (EMBEDDED_DATA.previous_feedback || {})[run.id];
+      const prevEl = document.getElementById("prev-feedback");
+      if (prevFb) {
+        document.getElementById("prev-feedback-text").textContent = prevFb;
+        prevEl.style.display = "block";
+      } else {
+        prevEl.style.display = "none";
+      }
+
+      // Feedback
+      document.getElementById("feedback").value = feedbackMap[run.id] || "";
+      document.getElementById("feedback-status").textContent = "";
+
+      updateNavButtons();
+
+      // Track visited runs and promote done button when all visited
+      visitedRuns.add(index);
+      const doneBtn = document.getElementById("done-btn");
+      if (visitedRuns.size >= EMBEDDED_DATA.runs.length) {
+        doneBtn.classList.add("ready");
+      }
+
+      // Scroll main content to top
+      document.querySelector(".main").scrollTop = 0;
+    }
+
+    // ---- Render outputs ----
+    function renderOutputs(run) {
+      const container = document.getElementById("outputs-body");
+      container.innerHTML = "";
+
+      const outputs = run.outputs || [];
+      if (outputs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No output files</div>';
+        return;
+      }
+
+      for (const file of outputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        // Always show file header with download link
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const content = document.createElement("div");
+        content.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          content.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          content.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          content.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(content, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          content.appendChild(a);
+        } else if (file.type === "error") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          pre.style.color = "var(--red)";
+          content.appendChild(pre);
+        }
+
+        fileDiv.appendChild(content);
+        container.appendChild(fileDiv);
+      }
+    }
+
+    // ---- XLSX rendering via SheetJS ----
+    function renderXlsx(container, b64Data) {
+      try {
+        const raw = Uint8Array.from(atob(b64Data), c => c.charCodeAt(0));
+        const wb = XLSX.read(raw, { type: "array" });
+
+        for (let i = 0; i < wb.SheetNames.length; i++) {
+          const sheetName = wb.SheetNames[i];
+          const ws = wb.Sheets[sheetName];
+
+          if (wb.SheetNames.length > 1) {
+            const sheetLabel = document.createElement("div");
+            sheetLabel.style.cssText =
+              "font-weight:600; font-size:0.8rem; color:#b0aea5; margin-top:0.5rem; margin-bottom:0.25rem;";
+            sheetLabel.textContent = "Sheet: " + sheetName;
+            container.appendChild(sheetLabel);
+          }
+
+          const htmlStr = XLSX.utils.sheet_to_html(ws, { editable: false });
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = htmlStr;
+          container.appendChild(wrapper);
+        }
+      } catch (err) {
+        container.textContent = "Error rendering spreadsheet: " + err.message;
+      }
+    }
+
+    // ---- Grades ----
+    function renderGrades(run) {
+      const section = document.getElementById("grades-section");
+      const content = document.getElementById("grades-content");
+
+      if (!run.grading) {
+        section.style.display = "none";
+        return;
+      }
+
+      const grading = run.grading;
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("grades-arrow").classList.remove("open");
+
+      const summary = grading.summary || {};
+      const expectations = grading.expectations || [];
+
+      let html = '<div style="padding: 1rem;">';
+
+      // Summary line
+      const passRate = summary.pass_rate != null
+        ? Math.round(summary.pass_rate * 100) + "%"
+        : "?";
+      const badgeClass = summary.pass_rate >= 0.8 ? "grade-pass" : summary.pass_rate >= 0.5 ? "" : "grade-fail";
+      html += '<div class="grades-summary">';
+      html += '<span class="grade-badge ' + badgeClass + '">' + passRate + '</span>';
+      html += '<span>' + (summary.passed || 0) + ' passed, ' + (summary.failed || 0) + ' failed of ' + (summary.total || 0) + '</span>';
+      html += '</div>';
+
+      // Assertions list
+      html += '<ul class="assertion-list">';
+      for (const exp of expectations) {
+        const statusClass = exp.passed ? "pass" : "fail";
+        const statusIcon = exp.passed ? "\u2713" : "\u2717";
+        html += '<li class="assertion-item">';
+        html += '<span class="assertion-status ' + statusClass + '">' + statusIcon + '</span>';
+        html += '<span>' + escapeHtml(exp.text) + '</span>';
+        if (exp.evidence) {
+          html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
+        }
+        html += '</li>';
+      }
+      html += '</ul>';
+
+      html += '</div>';
+      content.innerHTML = html;
+    }
+
+    function toggleGrades() {
+      const content = document.getElementById("grades-content");
+      const arrow = document.getElementById("grades-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Previous outputs (collapsible) ----
+    function renderPrevOutputs(run) {
+      const section = document.getElementById("prev-outputs-section");
+      const content = document.getElementById("prev-outputs-content");
+      const prevOutputs = (EMBEDDED_DATA.previous_outputs || {})[run.id];
+
+      if (!prevOutputs || prevOutputs.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("prev-outputs-arrow").classList.remove("open");
+
+      // Render the files into the content area
+      content.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.style.padding = "1rem";
+
+      for (const file of prevOutputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const fc = document.createElement("div");
+        fc.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          fc.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          fc.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          fc.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(fc, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          fc.appendChild(a);
+        }
+
+        fileDiv.appendChild(fc);
+        wrapper.appendChild(fileDiv);
+      }
+
+      content.appendChild(wrapper);
+    }
+
+    function togglePrevOutputs() {
+      const content = document.getElementById("prev-outputs-content");
+      const arrow = document.getElementById("prev-outputs-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Feedback (saved to server -> feedback.json) ----
+    function saveCurrentFeedback() {
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // Build reviews array from map
+      const reviews = [];
+      for (const [run_id, feedback] of Object.entries(feedbackMap)) {
+        if (feedback.trim()) {
+          reviews.push({ run_id, feedback, timestamp: new Date().toISOString() });
+        }
+      }
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviews, status: "in_progress" }),
+      }).then(() => {
+        document.getElementById("feedback-status").textContent = "Saved";
+      }).catch(() => {
+        // Static mode or server unavailable — no-op on auto-save,
+        // feedback will be downloaded on final submit
+        document.getElementById("feedback-status").textContent = "Will download on submit";
+      });
+    }
+
+    // ---- Done ----
+    function showDoneDialog() {
+      // Save current textarea to feedbackMap (but don't POST yet)
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // POST once with status: complete — include ALL runs so the model
+      // can distinguish "no feedback" (looks good) from "not reviewed"
+      const reviews = [];
+      const ts = new Date().toISOString();
+      for (const r of EMBEDDED_DATA.runs) {
+        reviews.push({ run_id: r.id, feedback: feedbackMap[r.id] || "", timestamp: ts });
+      }
+      const payload = JSON.stringify({ reviews, status: "complete" }, null, 2);
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).then(() => {
+        document.getElementById("done-overlay").classList.add("visible");
+      }).catch(() => {
+        // Server not available (static mode) — download as file
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "feedback.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        document.getElementById("done-overlay").classList.add("visible");
+      });
+    }
+
+    function closeDoneDialog() {
+      // Reset status back to in_progress
+      saveCurrentFeedback();
+      document.getElementById("done-overlay").classList.remove("visible");
+    }
+
+    // ---- Toast ----
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("visible");
+      setTimeout(() => toast.classList.remove("visible"), 2000);
+    }
+
+    // ---- Keyboard nav ----
+    document.addEventListener("keydown", (e) => {
+      // Don't capture when typing in textarea
+      if (e.target.tagName === "TEXTAREA") return;
+
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navigate(-1);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navigate(1);
+      }
+    });
+
+    // ---- Util ----
+    function getDownloadUri(file) {
+      if (file.data_uri) return file.data_uri;
+      if (file.data_b64) return "data:application/octet-stream;base64," + file.data_b64;
+      if (file.type === "text") return "data:text/plain;charset=utf-8," + encodeURIComponent(file.content);
+      return "#";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ---- View switching ----
+    function switchView(view) {
+      document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+      document.querySelector(`[onclick="switchView('${view}')"]`).classList.add("active");
+      document.getElementById("panel-" + view).classList.add("active");
+    }
+
+    // ---- Benchmark rendering ----
+    function renderBenchmark() {
+      const data = EMBEDDED_DATA.benchmark;
+      if (!data) return;
+
+      // Show the tabs
+      document.getElementById("view-tabs").style.display = "flex";
+
+      const container = document.getElementById("benchmark-content");
+      const summary = data.run_summary || {};
+      const metadata = data.metadata || {};
+      const notes = data.notes || [];
+
+      let html = "";
+
+      // Header
+      html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
+      html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
+      if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
+      if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
+      if (metadata.evals_run) html += "Evals: " + metadata.evals_run.join(", ") + " &mdash; ";
+      html += (metadata.runs_per_configuration || "?") + " runs per configuration";
+      html += "</p>";
+
+      // Summary table
+      html += '<table class="benchmark-table">';
+
+      function fmtStat(stat, pct) {
+        if (!stat) return "—";
+        const suffix = pct ? "%" : "";
+        const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
+        const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
+        return m + suffix + " ± " + s + suffix;
+      }
+
+      function deltaClass(val) {
+        if (!val) return "";
+        const n = parseFloat(val);
+        if (n > 0) return "benchmark-delta-positive";
+        if (n < 0) return "benchmark-delta-negative";
+        return "";
+      }
+
+      // Discover config names dynamically (everything except "delta")
+      const configs = Object.keys(summary).filter(k => k !== "delta");
+      const configA = configs[0] || "config_a";
+      const configB = configs[1] || "config_b";
+      const labelA = configA.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const labelB = configB.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const a = summary[configA] || {};
+      const b = summary[configB] || {};
+      const delta = summary.delta || {};
+
+      html += "<thead><tr><th>Metric</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>Delta</th></tr></thead>";
+      html += "<tbody>";
+
+      html += "<tr><td><strong>Pass Rate</strong></td>";
+      html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
+      html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
+      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
+
+      // Time (only show row if data exists)
+      if (a.time_seconds || b.time_seconds) {
+        html += "<tr><td><strong>Time (s)</strong></td>";
+        html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
+        html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+      }
+
+      // Tokens (only show row if data exists)
+      if (a.tokens || b.tokens) {
+        html += "<tr><td><strong>Tokens</strong></td>";
+        html += "<td>" + fmtStat(a.tokens, false) + "</td>";
+        html += "<td>" + fmtStat(b.tokens, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+      }
+
+      html += "</tbody></table>";
+
+      // Per-eval breakdown (if runs data available)
+      const runs = data.runs || [];
+      if (runs.length > 0) {
+        const evalIds = [...new Set(runs.map(r => r.eval_id))].sort((a, b) => a - b);
+
+        html += "<h3 style='font-family: Poppins, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
+
+        const hasTime = runs.some(r => r.result && r.result.time_seconds != null);
+        const hasErrors = runs.some(r => r.result && r.result.errors > 0);
+
+        for (const evalId of evalIds) {
+          const evalRuns = runs.filter(r => r.eval_id === evalId);
+          const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : "Eval " + evalId;
+
+          html += "<h4 style='font-family: Poppins, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
+          html += '<table class="benchmark-table">';
+          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
+          if (hasTime) html += "<th>Time (s)</th>";
+          if (hasErrors) html += "<th>Crashes During Execution</th>";
+          html += "</tr></thead>";
+          html += "<tbody>";
+
+          // Group by config and render with average rows
+          const configGroups = [...new Set(evalRuns.map(r => r.configuration))];
+          for (let ci = 0; ci < configGroups.length; ci++) {
+            const config = configGroups[ci];
+            const configRuns = evalRuns.filter(r => r.configuration === config);
+            if (configRuns.length === 0) continue;
+
+            const rowClass = ci === 0 ? "benchmark-row-with" : "benchmark-row-without";
+            const configLabel = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+            for (const run of configRuns) {
+              const r = run.result || {};
+              const prClass = r.pass_rate >= 0.8 ? "benchmark-delta-positive" : r.pass_rate < 0.5 ? "benchmark-delta-negative" : "";
+              html += '<tr class="' + rowClass + '">';
+              html += "<td>" + configLabel + "</td>";
+              html += "<td>" + run.run_number + "</td>";
+              html += '<td class="' + prClass + '">' + ((r.pass_rate || 0) * 100).toFixed(0) + "% (" + (r.passed || 0) + "/" + (r.total || 0) + ")</td>";
+              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "—") + "</td>";
+              if (hasErrors) html += "<td>" + (r.errors || 0) + "</td>";
+              html += "</tr>";
+            }
+
+            // Average row
+            const rates = configRuns.map(r => (r.result || {}).pass_rate || 0);
+            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+            const avgPrClass = avgRate >= 0.8 ? "benchmark-delta-positive" : avgRate < 0.5 ? "benchmark-delta-negative" : "";
+            html += '<tr class="benchmark-row-avg ' + rowClass + '">';
+            html += "<td>" + configLabel + "</td>";
+            html += "<td>Avg</td>";
+            html += '<td class="' + avgPrClass + '">' + (avgRate * 100).toFixed(0) + "%</td>";
+            if (hasTime) {
+              const times = configRuns.map(r => (r.result || {}).time_seconds).filter(t => t != null);
+              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "—") + "</td>";
+            }
+            if (hasErrors) html += "<td></td>";
+            html += "</tr>";
+          }
+          html += "</tbody></table>";
+
+          // Per-assertion detail for this eval
+          const runsWithExpectations = {};
+          for (const config of configGroups) {
+            runsWithExpectations[config] = evalRuns.filter(r => r.configuration === config && r.expectations && r.expectations.length > 0);
+          }
+          const hasAnyExpectations = Object.values(runsWithExpectations).some(runs => runs.length > 0);
+          if (hasAnyExpectations) {
+            // Collect all unique assertion texts across all configs
+            const allAssertions = [];
+            const seen = new Set();
+            for (const config of configGroups) {
+              for (const run of runsWithExpectations[config]) {
+                for (const exp of (run.expectations || [])) {
+                  if (!seen.has(exp.text)) {
+                    seen.add(exp.text);
+                    allAssertions.push(exp.text);
+                  }
+                }
+              }
+            }
+
+            html += '<table class="benchmark-table" style="margin-top: 0.5rem;">';
+            html += "<thead><tr><th>Assertion</th>";
+            for (const config of configGroups) {
+              const label = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              html += "<th>" + escapeHtml(label) + "</th>";
+            }
+            html += "</tr></thead><tbody>";
+
+            for (const assertionText of allAssertions) {
+              html += "<tr><td>" + escapeHtml(assertionText) + "</td>";
+
+              for (const config of configGroups) {
+                html += "<td>";
+                for (const run of runsWithExpectations[config]) {
+                  const exp = (run.expectations || []).find(e => e.text === assertionText);
+                  if (exp) {
+                    const cls = exp.passed ? "benchmark-delta-positive" : "benchmark-delta-negative";
+                    const icon = exp.passed ? "\u2713" : "\u2717";
+                    html += '<span class="' + cls + '" title="Run ' + run.run_number + ': ' + escapeHtml(exp.evidence || "") + '">' + icon + "</span> ";
+                  } else {
+                    html += "— ";
+                  }
+                }
+                html += "</td>";
+              }
+              html += "</tr>";
+            }
+            html += "</tbody></table>";
+          }
+        }
+      }
+
+      // Notes
+      if (notes.length > 0) {
+        html += '<div class="benchmark-notes">';
+        html += "<h3>Analysis Notes</h3>";
+        html += "<ul>";
+        for (const note of notes) {
+          html += "<li>" + escapeHtml(note) + "</li>";
+        }
+        html += "</ul></div>";
+      }
+
+      container.innerHTML = html;
+    }
+
+    // ---- Start ----
+    init();
+    renderBenchmark();
+  </script>
+</body>
+</html>

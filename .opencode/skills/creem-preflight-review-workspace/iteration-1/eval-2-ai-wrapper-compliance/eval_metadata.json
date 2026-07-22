@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "ai-wrapper-compliance",
+  "prompt": "我们的产品是 AI 视频生成 wrapper，落地页写了 Veo/Gemini 相关能力，准备提交 Creem account review。请检查命名、免责声明、功能描述、NSFW/AUP、Moderation API、禁售风险和订阅取消路径。",
+  "assertions": [
+    "The report treats AI video generation as an AI wrapper review and checks model-brand naming and non-affiliation disclaimer requirements.",
+    "The report checks feature/model-version accuracy for Veo/Gemini claims against available implementation evidence.",
+    "The report checks NSFW, explicit content, deepfake/face-swap, and Acceptable Use Policy requirements.",
+    "The report checks Creem Moderation API or equivalent prompt moderation readiness for AI image/video generation.",
+    "The report checks prohibited-product risk and subscription cancellation/customer-support readiness."
+  ]
+}

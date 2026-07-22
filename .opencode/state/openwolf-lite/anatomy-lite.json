@@ -1,0 +1,1416 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-22T14:26:04.778Z",
+  "files": {
+    "frontend/pricing.html": {
+      "desc": "pricing.html: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-06-11T14:52:27.430Z"
+    },
+    "frontend/src/style.css": {
+      "desc": "style.css: @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&fam",
+      "tokenEstimate": 23637,
+      "lastSeenAt": "2026-07-01T08:36:47.313Z"
+    },
+    "frontend/index.html": {
+      "desc": "index.html: <!doctype html>",
+      "tokenEstimate": 1571,
+      "lastSeenAt": "2026-05-27T03:30:09.695Z"
+    },
+    ".opencode/opencode.json": {
+      "desc": "opencode.json: {",
+      "tokenEstimate": 6821,
+      "lastSeenAt": "2026-06-12T08:01:59.715Z"
+    },
+    "frontend/src/App.vue": {
+      "desc": "App.vue: <script setup>",
+      "tokenEstimate": 1301,
+      "lastSeenAt": "2026-05-27T12:08:08.756Z"
+    },
+    "frontend/src/components/AppNavbar.vue": {
+      "desc": "AppNavbar.vue: <script setup>",
+      "tokenEstimate": 515,
+      "lastSeenAt": "2026-05-27T12:08:03.355Z"
+    },
+    "backend/pyproject.toml": {
+      "desc": "pyproject.toml: [project]",
+      "tokenEstimate": 456,
+      "lastSeenAt": "2026-07-22T14:25:57.276Z"
+    },
+    "backend/deps.py": {
+      "desc": "deps.py: \"\"\"依赖注入类型定义\"\"\"",
+      "tokenEstimate": 109,
+      "lastSeenAt": "2026-05-30T07:44:21.328Z"
+    },
+    "backend/agents/__init__.py": {
+      "desc": "__init__.py: \"\"\"Agent 定义（懒加载模式）",
+      "tokenEstimate": 825,
+      "lastSeenAt": "2026-06-11T03:14:39.772Z"
+    },
+    "backend/agents/inspector.py": {
+      "desc": "inspector.py: \"\"\"体检台 Agent 协调逻辑\"\"\"",
+      "tokenEstimate": 733,
+      "lastSeenAt": "2026-06-11T03:15:06.191Z"
+    },
+    "backend/tools/base.py": {
+      "desc": "base.py: \"\"\"基础工具与类型定义\"\"\"",
+      "tokenEstimate": 470,
+      "lastSeenAt": "2026-05-30T07:46:26.944Z"
+    },
+    "backend/tools/common.py": {
+      "desc": "common.py: \"\"\"通用合规工具\"\"\"",
+      "tokenEstimate": 301,
+      "lastSeenAt": "2026-05-30T07:45:30.982Z"
+    },
+    "backend/routers/inspection.py": {
+      "desc": "inspection.py: \"\"\"体检台 API 路由\"\"\"",
+      "tokenEstimate": 8869,
+      "lastSeenAt": "2026-06-12T07:10:23.304Z"
+    },
+    "backend/main.py": {
+      "desc": "main.py: \"\"\"FastAPI 应用入口\"\"\"",
+      "tokenEstimate": 1052,
+      "lastSeenAt": "2026-06-29T15:25:53.401Z"
+    },
+    "backend/app/prompts/inspection_prompts.py": {
+      "desc": "inspection_prompts.py: \"\"\"体检台 Agent 提示词管理",
+      "tokenEstimate": 1772,
+      "lastSeenAt": "2026-06-12T09:54:09.315Z"
+    },
+    "backend/app/__init__.py": {
+      "desc": "__init__.py: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-05-30T07:51:36.953Z"
+    },
+    "backend/app/prompts/__init__.py": {
+      "desc": "__init__.py: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-05-30T07:51:37.057Z"
+    },
+    "backend/core/config.py": {
+      "desc": "config.py: \"\"\"配置管理 — 从环境变量读取，不硬编码密钥\"\"\"",
+      "tokenEstimate": 658,
+      "lastSeenAt": "2026-06-12T07:07:43.505Z"
+    },
+    "backend/README.md": {
+      "desc": "README.md: # 后端开发环境说明",
+      "tokenEstimate": 644,
+      "lastSeenAt": "2026-06-11T05:41:51.144Z"
+    },
+    "backend/.gitignore": {
+      "desc": ".gitignore: # 环境变量（本地开发用，不提交到仓库）",
+      "tokenEstimate": 66,
+      "lastSeenAt": "2026-06-29T13:43:55.227Z"
+    },
+    "backend/env.example": {
+      "desc": "env.example: # 模型 API 配置（兼容 OpenAI 格式，支持任意提供商）",
+      "tokenEstimate": 500,
+      "lastSeenAt": "2026-07-22T14:26:04.778Z"
+    },
+    "docs/designs/F3-知识库-入库链路-MVP-设计.md": {
+      "desc": "F3-知识库-入库链路-MVP-设计.md: # F3 知识库 — 入库链路 MVP 设计",
+      "tokenEstimate": 1853,
+      "lastSeenAt": "2026-05-30T13:24:20.435Z"
+    },
+    "docs/plans/2026-05-30-f3-knowledge-ingestion-mvp-plan.md": {
+      "desc": "2026-05-30-f3-knowledge-ingestion-mvp-plan.md: # F3 知识库 — 入库链路 MVP 实施计划",
+      "tokenEstimate": 1313,
+      "lastSeenAt": "2026-05-30T11:41:20.332Z"
+    },
+    "backend/core/database.py": {
+      "desc": "database.py: from __future__ import annotations",
+      "tokenEstimate": 211,
+      "lastSeenAt": "2026-05-30T11:40:26.410Z"
+    },
+    "backend/models/__init__.py": {
+      "desc": "__init__.py: from __future__ import annotations",
+      "tokenEstimate": 160,
+      "lastSeenAt": "2026-06-11T04:48:57.673Z"
+    },
+    "backend/models/knowledge.py": {
+      "desc": "knowledge.py: from __future__ import annotations",
+      "tokenEstimate": 2829,
+      "lastSeenAt": "2026-06-12T07:28:38.909Z"
+    },
+    "backend/alembic.ini": {
+      "desc": "alembic.ini: [alembic]",
+      "tokenEstimate": 157,
+      "lastSeenAt": "2026-05-30T11:15:10.644Z"
+    },
+    "backend/alembic/env.py": {
+      "desc": "env.py: from __future__ import annotations",
+      "tokenEstimate": 419,
+      "lastSeenAt": "2026-06-29T14:14:28.722Z"
+    },
+    "backend/alembic/script.py.mako": {
+      "desc": "script.py.mako: \"\"\"${message}",
+      "tokenEstimate": 170,
+      "lastSeenAt": "2026-05-30T11:15:38.467Z"
+    },
+    "backend/alembic/versions/001_initial_knowledge_tables.py": {
+      "desc": "001_initial_knowledge_tables.py: \"\"\"initial knowledge tables",
+      "tokenEstimate": 1000,
+      "lastSeenAt": "2026-05-30T11:15:53.272Z"
+    },
+    "backend/services/__init__.py": {
+      "desc": "__init__.py: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-05-30T11:15:57.477Z"
+    },
+    "backend/services/file_storage.py": {
+      "desc": "file_storage.py: from __future__ import annotations",
+      "tokenEstimate": 258,
+      "lastSeenAt": "2026-06-11T10:43:21.344Z"
+    },
+    "backend/core/constants.py": {
+      "desc": "constants.py: from __future__ import annotations",
+      "tokenEstimate": 289,
+      "lastSeenAt": "2026-06-12T01:33:09.963Z"
+    },
+    "backend/tests/__init__.py": {
+      "desc": "__init__.py: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-05-30T11:16:20.306Z"
+    },
+    "backend/tests/test_infrastructure.py": {
+      "desc": "test_infrastructure.py: from __future__ import annotations",
+      "tokenEstimate": 1230,
+      "lastSeenAt": "2026-06-29T11:36:12.776Z"
+    },
+    "backend/services/markdown_converter.py": {
+      "desc": "markdown_converter.py: from __future__ import annotations",
+      "tokenEstimate": 175,
+      "lastSeenAt": "2026-05-30T11:23:42.361Z"
+    },
+    "backend/services/page_indexer.py": {
+      "desc": "page_indexer.py: from __future__ import annotations",
+      "tokenEstimate": 2371,
+      "lastSeenAt": "2026-05-30T14:16:46.481Z"
+    },
+    "backend/tests/test_conversion_services.py": {
+      "desc": "test_conversion_services.py: from __future__ import annotations",
+      "tokenEstimate": 3161,
+      "lastSeenAt": "2026-06-12T10:02:06.116Z"
+    },
+    "backend/tests/test_knowledge_api.py": {
+      "desc": "test_knowledge_api.py: from __future__ import annotations",
+      "tokenEstimate": 5107,
+      "lastSeenAt": "2026-06-29T13:34:04.855Z"
+    },
+    "backend/routers/knowledge.py": {
+      "desc": "knowledge.py: from __future__ import annotations",
+      "tokenEstimate": 4344,
+      "lastSeenAt": "2026-06-12T06:59:50.990Z"
+    },
+    "frontend/src/pages/KnowledgeBasePage.vue": {
+      "desc": "KnowledgeBasePage.vue: <script setup>",
+      "tokenEstimate": 5771,
+      "lastSeenAt": "2026-06-12T10:44:39.633Z"
+    },
+    "backend/tests/conftest.py": {
+      "desc": "conftest.py: from __future__ import annotations",
+      "tokenEstimate": 1021,
+      "lastSeenAt": "2026-06-29T14:10:50.015Z"
+    },
+    "backend/core/auth.py": {
+      "desc": "auth.py: from __future__ import annotations",
+      "tokenEstimate": 888,
+      "lastSeenAt": "2026-06-12T03:42:33.447Z"
+    },
+    "backend/tests/test_history_stats_api.py": {
+      "desc": "test_history_stats_api.py: from __future__ import annotations",
+      "tokenEstimate": 1178,
+      "lastSeenAt": "2026-06-29T13:34:02.191Z"
+    },
+    ".gitignore": {
+      "desc": ".gitignore: # Dependencies",
+      "tokenEstimate": 147,
+      "lastSeenAt": "2026-06-30T04:19:02.680Z"
+    },
+    "docs/designs/JWT认证-设计.md": {
+      "desc": "JWT认证-设计.md: # JWT 认证设计文档",
+      "tokenEstimate": 1048,
+      "lastSeenAt": "2026-05-30T14:20:39.351Z"
+    },
+    "docs/plans/2026-05-30-jwt-auth-plan.md": {
+      "desc": "2026-05-30-jwt-auth-plan.md: # JWT 认证实施计划",
+      "tokenEstimate": 655,
+      "lastSeenAt": "2026-05-30T14:27:32.036Z"
+    },
+    "backend/alembic/versions/002_add_users_table.py": {
+      "desc": "002_add_users_table.py: \"\"\"add users table",
+      "tokenEstimate": 283,
+      "lastSeenAt": "2026-05-30T14:29:14.430Z"
+    },
+    "backend/routers/auth.py": {
+      "desc": "auth.py: from __future__ import annotations",
+      "tokenEstimate": 1841,
+      "lastSeenAt": "2026-06-12T07:30:54.609Z"
+    },
+    "backend/tests/test_auth_api.py": {
+      "desc": "test_auth_api.py: from __future__ import annotations",
+      "tokenEstimate": 4561,
+      "lastSeenAt": "2026-06-29T11:08:08.756Z"
+    },
+    "frontend/src/composables/useAuth.js": {
+      "desc": "useAuth.js: import { ref } from 'vue'",
+      "tokenEstimate": 1458,
+      "lastSeenAt": "2026-06-29T12:39:21.688Z"
+    },
+    "frontend/src/pages/LoginPage.vue": {
+      "desc": "LoginPage.vue: <script setup>",
+      "tokenEstimate": 5943,
+      "lastSeenAt": "2026-07-01T08:31:15.942Z"
+    },
+    "frontend/src/router.js": {
+      "desc": "router.js: import { createRouter, createWebHistory } from 'vue-router'",
+      "tokenEstimate": 657,
+      "lastSeenAt": "2026-07-01T12:43:08.932Z"
+    },
+    "frontend/src/pages/StatisticsPage.vue": {
+      "desc": "StatisticsPage.vue: <script setup>",
+      "tokenEstimate": 2661,
+      "lastSeenAt": "2026-05-30T14:56:38.515Z"
+    },
+    "backend/core/weak_passwords.json": {
+      "desc": "weak_passwords.json: [",
+      "tokenEstimate": 594,
+      "lastSeenAt": "2026-06-01T03:06:09.667Z"
+    },
+    "backend/core/password_rules.py": {
+      "desc": "password_rules.py: from __future__ import annotations",
+      "tokenEstimate": 444,
+      "lastSeenAt": "2026-06-01T03:06:18.479Z"
+    },
+    "backend/routers/settings.py": {
+      "desc": "settings.py: from __future__ import annotations",
+      "tokenEstimate": 6297,
+      "lastSeenAt": "2026-06-12T03:45:55.547Z"
+    },
+    "backend/core/login_throttle.py": {
+      "desc": "login_throttle.py: from __future__ import annotations",
+      "tokenEstimate": 279,
+      "lastSeenAt": "2026-06-01T03:07:25.844Z"
+    },
+    "backend/alembic/versions/004_add_refresh_tokens_table.py": {
+      "desc": "004_add_refresh_tokens_table.py: \"\"\"add refresh_tokens table",
+      "tokenEstimate": 348,
+      "lastSeenAt": "2026-06-01T03:08:54.321Z"
+    },
+    "backend/tests/test_settings_api.py": {
+      "desc": "test_settings_api.py: from __future__ import annotations",
+      "tokenEstimate": 4329,
+      "lastSeenAt": "2026-06-26T08:51:56.764Z"
+    },
+    "frontend/vite.config.ts": {
+      "desc": "vite.config.ts: import { defineConfig } from 'vite'",
+      "tokenEstimate": 178,
+      "lastSeenAt": "2026-06-09T01:02:14.319Z"
+    },
+    "backend/services/knowledge_ingestion.py": {
+      "desc": "knowledge_ingestion.py: from __future__ import annotations",
+      "tokenEstimate": 748,
+      "lastSeenAt": "2026-06-01T09:26:51.322Z"
+    },
+    "backend/tests/test_import_default_knowledge.py": {
+      "desc": "test_import_default_knowledge.py: from __future__ import annotations",
+      "tokenEstimate": 1937,
+      "lastSeenAt": "2026-06-29T11:36:26.451Z"
+    },
+    "backend/scripts/__init__.py": {
+      "desc": "__init__.py: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-06-01T09:11:03.056Z"
+    },
+    "backend/scripts/import_default_knowledge.py": {
+      "desc": "import_default_knowledge.py: from __future__ import annotations",
+      "tokenEstimate": 1971,
+      "lastSeenAt": "2026-06-29T11:34:48.384Z"
+    },
+    "docs/plans/2026-06-01-default-knowledge-scenario-plan.md": {
+      "desc": "2026-06-01-default-knowledge-scenario-plan.md: # 默认知识库与应用场景实施计划",
+      "tokenEstimate": 2981,
+      "lastSeenAt": "2026-06-01T09:43:01.576Z"
+    },
+    "frontend/src/pages/InspectionDeskPage.vue": {
+      "desc": "InspectionDeskPage.vue: <script setup>",
+      "tokenEstimate": 3009,
+      "lastSeenAt": "2026-06-01T13:45:04.370Z"
+    },
+    "AGENTS.md": {
+      "desc": "AGENTS.md: # AGENTS.md",
+      "tokenEstimate": 554,
+      "lastSeenAt": "2026-06-01T10:26:11.790Z"
+    },
+    "backend/tests/test_inspection_api.py": {
+      "desc": "test_inspection_api.py: from __future__ import annotations",
+      "tokenEstimate": 9420,
+      "lastSeenAt": "2026-06-26T09:53:26.874Z"
+    },
+    "docs/plans/2026-06-01-inspection-review-modal-plan.md": {
+      "desc": "2026-06-01-inspection-review-modal-plan.md: # 文件审核三步弹窗实施计划",
+      "tokenEstimate": 2783,
+      "lastSeenAt": "2026-06-01T13:46:58.900Z"
+    },
+    "frontend/src/services/inspectionApi.js": {
+      "desc": "inspectionApi.js: import { useAuth } from '../composables/useAuth.js'",
+      "tokenEstimate": 807,
+      "lastSeenAt": "2026-06-11T10:26:18.347Z"
+    },
+    "frontend/src/components/inspection/InspectionStepHeader.vue": {
+      "desc": "InspectionStepHeader.vue: <script setup>",
+      "tokenEstimate": 874,
+      "lastSeenAt": "2026-06-01T13:38:24.565Z"
+    },
+    "frontend/src/components/inspection/InspectionFileSummary.vue": {
+      "desc": "InspectionFileSummary.vue: <script setup>",
+      "tokenEstimate": 1242,
+      "lastSeenAt": "2026-06-01T14:11:04.032Z"
+    },
+    "frontend/src/components/inspection/DocumentPreviewPane.vue": {
+      "desc": "DocumentPreviewPane.vue: <script setup>",
+      "tokenEstimate": 972,
+      "lastSeenAt": "2026-06-02T02:58:19.860Z"
+    },
+    "frontend/src/components/inspection/KnowledgeTogglePanel.vue": {
+      "desc": "KnowledgeTogglePanel.vue: <script setup>",
+      "tokenEstimate": 2792,
+      "lastSeenAt": "2026-06-11T03:19:06.465Z"
+    },
+    "frontend/src/components/inspection/InspectionReportPane.vue": {
+      "desc": "InspectionReportPane.vue: <script setup>",
+      "tokenEstimate": 2887,
+      "lastSeenAt": "2026-06-01T13:41:03.625Z"
+    },
+    "frontend/src/components/inspection/InspectionReviewModal.vue": {
+      "desc": "InspectionReviewModal.vue: <script setup>",
+      "tokenEstimate": 3793,
+      "lastSeenAt": "2026-06-11T03:19:30.896Z"
+    },
+    "frontend/src/pages/DashboardPage.vue": {
+      "desc": "DashboardPage.vue: <script setup>",
+      "tokenEstimate": 1781,
+      "lastSeenAt": "2026-06-12T03:57:02.105Z"
+    },
+    "README.md": {
+      "desc": "README.md: # 句龙照胆 — 工程文档智能体检平台",
+      "tokenEstimate": 2575,
+      "lastSeenAt": "2026-06-12T02:02:37.169Z"
+    },
+    ".gitattributes": {
+      "desc": ".gitattributes: * text=auto eol=lf",
+      "tokenEstimate": 11,
+      "lastSeenAt": "2026-06-09T11:40:43.210Z"
+    },
+    "CHANGELOG.md": {
+      "desc": "CHANGELOG.md: # Changelog",
+      "tokenEstimate": 562,
+      "lastSeenAt": "2026-06-11T09:29:23.019Z"
+    },
+    "docs/designs/2026-06-11-v0.2.0-contract-scenario-design.md": {
+      "desc": "2026-06-11-v0.2.0-contract-scenario-design.md: # 合同场景启用 设计文档",
+      "tokenEstimate": 568,
+      "lastSeenAt": "2026-06-11T02:46:15.161Z"
+    },
+    "backend/tests/test_inspection_prompts.py": {
+      "desc": "test_inspection_prompts.py: from __future__ import annotations",
+      "tokenEstimate": 769,
+      "lastSeenAt": "2026-06-11T03:23:56.891Z"
+    },
+    "docs/plans/2026-06-11-contract-scenario-plan.md": {
+      "desc": "2026-06-11-contract-scenario-plan.md: # 合同场景启用实施计划",
+      "tokenEstimate": 1929,
+      "lastSeenAt": "2026-06-11T03:31:05.416Z"
+    },
+    "backend/tests/test_api_key_models.py": {
+      "desc": "test_api_key_models.py: from __future__ import annotations",
+      "tokenEstimate": 2910,
+      "lastSeenAt": "2026-06-17T05:55:54.888Z"
+    },
+    "backend/tests/test_api_key_scopes.py": {
+      "desc": "test_api_key_scopes.py: from __future__ import annotations",
+      "tokenEstimate": 1169,
+      "lastSeenAt": "2026-06-26T08:44:45.314Z"
+    },
+    "backend/tests/test_api_key_crypto.py": {
+      "desc": "test_api_key_crypto.py: \"\"\"API Key 加密/hash 工具测试\"\"\"",
+      "tokenEstimate": 602,
+      "lastSeenAt": "2026-06-13T02:59:41.481Z"
+    },
+    "backend/tests/test_agent_worker_config.py": {
+      "desc": "test_agent_worker_config.py: from __future__ import annotations",
+      "tokenEstimate": 320,
+      "lastSeenAt": "2026-06-12T10:03:44.895Z"
+    },
+    "backend/core/api_key_scopes.py": {
+      "desc": "api_key_scopes.py: from __future__ import annotations",
+      "tokenEstimate": 399,
+      "lastSeenAt": "2026-06-11T04:48:44.820Z"
+    },
+    "backend/models/api_keys.py": {
+      "desc": "api_keys.py: from __future__ import annotations",
+      "tokenEstimate": 830,
+      "lastSeenAt": "2026-06-12T07:29:20.580Z"
+    },
+    "backend/alembic/versions/008_add_api_keys_and_agent_jobs.py": {
+      "desc": "008_add_api_keys_and_agent_jobs.py: \"\"\"add api_keys and agent_jobs tables",
+      "tokenEstimate": 863,
+      "lastSeenAt": "2026-06-11T04:49:16.346Z"
+    },
+    "backend/core/api_key_crypto.py": {
+      "desc": "api_key_crypto.py: \"\"\"API Key 生成、哈希与加密工具\"\"\"",
+      "tokenEstimate": 333,
+      "lastSeenAt": "2026-06-12T07:08:03.889Z"
+    },
+    "backend/core/redis.py": {
+      "desc": "redis.py: from __future__ import annotations",
+      "tokenEstimate": 103,
+      "lastSeenAt": "2026-06-11T04:49:43.746Z"
+    },
+    "backend/workers/__init__.py": {
+      "desc": "__init__.py: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-06-11T04:49:43.859Z"
+    },
+    "backend/workers/tasks.py": {
+      "desc": "tasks.py: from __future__ import annotations",
+      "tokenEstimate": 354,
+      "lastSeenAt": "2026-06-11T05:33:55.815Z"
+    },
+    "backend/workers/config.py": {
+      "desc": "config.py: from __future__ import annotations",
+      "tokenEstimate": 146,
+      "lastSeenAt": "2026-06-11T04:49:45.582Z"
+    },
+    "backend/tests/test_agent_job_service.py": {
+      "desc": "test_agent_job_service.py: from __future__ import annotations",
+      "tokenEstimate": 2155,
+      "lastSeenAt": "2026-06-26T09:14:18.249Z"
+    },
+    "backend/tests/test_api_key_service.py": {
+      "desc": "test_api_key_service.py: from __future__ import annotations",
+      "tokenEstimate": 2531,
+      "lastSeenAt": "2026-06-17T06:00:57.357Z"
+    },
+    "backend/services/api_key_service.py": {
+      "desc": "api_key_service.py: from __future__ import annotations",
+      "tokenEstimate": 1139,
+      "lastSeenAt": "2026-06-12T07:32:06.648Z"
+    },
+    "backend/services/agent_job_service.py": {
+      "desc": "agent_job_service.py: from __future__ import annotations",
+      "tokenEstimate": 843,
+      "lastSeenAt": "2026-06-12T07:32:13.890Z"
+    },
+    "backend/tests/test_api_key_settings_api.py": {
+      "desc": "test_api_key_settings_api.py: from __future__ import annotations",
+      "tokenEstimate": 2421,
+      "lastSeenAt": "2026-06-17T05:46:38.629Z"
+    },
+    "backend/tests/test_agent_auth_deps.py": {
+      "desc": "test_agent_auth_deps.py: from __future__ import annotations",
+      "tokenEstimate": 2031,
+      "lastSeenAt": "2026-06-17T05:54:53.791Z"
+    },
+    "backend/core/agent_auth.py": {
+      "desc": "agent_auth.py: from __future__ import annotations",
+      "tokenEstimate": 429,
+      "lastSeenAt": "2026-06-12T07:31:27.124Z"
+    },
+    "backend/tests/test_agent_api.py": {
+      "desc": "test_agent_api.py: from __future__ import annotations",
+      "tokenEstimate": 4699,
+      "lastSeenAt": "2026-06-26T09:56:49.186Z"
+    },
+    "backend/routers/agent.py": {
+      "desc": "agent.py: from __future__ import annotations",
+      "tokenEstimate": 1529,
+      "lastSeenAt": "2026-06-11T10:47:51.657Z"
+    },
+    "backend/tests/test_agent_worker_tasks.py": {
+      "desc": "test_agent_worker_tasks.py: from __future__ import annotations",
+      "tokenEstimate": 2721,
+      "lastSeenAt": "2026-06-26T09:56:50.451Z"
+    },
+    "frontend/src/services/settingsApi.js": {
+      "desc": "settingsApi.js: import { useAuth } from '../composables/useAuth.js'",
+      "tokenEstimate": 764,
+      "lastSeenAt": "2026-06-11T05:36:17.191Z"
+    },
+    "frontend/src/pages/SettingsPage.vue": {
+      "desc": "SettingsPage.vue: <script setup>",
+      "tokenEstimate": 15351,
+      "lastSeenAt": "2026-06-26T08:48:46.341Z"
+    },
+    "docs/designs/2026-06-11-security-hardening-design.md": {
+      "desc": "2026-06-11-security-hardening-design.md: # 安全加固设计文档",
+      "tokenEstimate": 1045,
+      "lastSeenAt": "2026-06-11T10:10:58.093Z"
+    },
+    "backend/tests/test_register_rate_limit.py": {
+      "desc": "test_register_rate_limit.py: from __future__ import annotations",
+      "tokenEstimate": 892,
+      "lastSeenAt": "2026-06-12T09:59:00.427Z"
+    },
+    "backend/tests/test_security_config.py": {
+      "desc": "test_security_config.py: from __future__ import annotations",
+      "tokenEstimate": 694,
+      "lastSeenAt": "2026-06-13T02:18:32.166Z"
+    },
+    "backend/core/rate_limit.py": {
+      "desc": "rate_limit.py: from __future__ import annotations",
+      "tokenEstimate": 282,
+      "lastSeenAt": "2026-06-11T10:28:51.223Z"
+    },
+    "backend/tests/test_data_masking.py": {
+      "desc": "test_data_masking.py: from __future__ import annotations",
+      "tokenEstimate": 1145,
+      "lastSeenAt": "2026-06-12T10:00:49.420Z"
+    },
+    "backend/core/data_masking.py": {
+      "desc": "data_masking.py: from __future__ import annotations",
+      "tokenEstimate": 275,
+      "lastSeenAt": "2026-06-11T10:20:21.320Z"
+    },
+    "backend/tests/test_data_encryption.py": {
+      "desc": "test_data_encryption.py: from __future__ import annotations",
+      "tokenEstimate": 693,
+      "lastSeenAt": "2026-06-29T12:09:28.229Z"
+    },
+    "backend/core/data_encryption.py": {
+      "desc": "data_encryption.py: from __future__ import annotations",
+      "tokenEstimate": 384,
+      "lastSeenAt": "2026-06-11T10:48:03.840Z"
+    },
+    "frontend/src/pages/HistoryPage.vue": {
+      "desc": "HistoryPage.vue: <script setup>",
+      "tokenEstimate": 5769,
+      "lastSeenAt": "2026-06-11T10:26:56.439Z"
+    },
+    "pr-body.md": {
+      "desc": "pr-body.md: ## 概述",
+      "tokenEstimate": 255,
+      "lastSeenAt": "2026-06-11T13:43:39.967Z"
+    },
+    "frontend/solution.html": {
+      "desc": "solution.html: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-06-11T14:52:27.181Z"
+    },
+    "frontend/security.html": {
+      "desc": "security.html: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-06-11T14:52:27.166Z"
+    },
+    "frontend/src/pages/SolutionPage.vue": {
+      "desc": "SolutionPage.vue: <script setup>",
+      "tokenEstimate": 2025,
+      "lastSeenAt": "2026-06-12T10:43:14.140Z"
+    },
+    "frontend/src/pages/SecurityPage.vue": {
+      "desc": "SecurityPage.vue: <script setup>",
+      "tokenEstimate": 2277,
+      "lastSeenAt": "2026-06-12T10:45:00.478Z"
+    },
+    "frontend/src/pages/CasesPage.vue": {
+      "desc": "CasesPage.vue: <script setup>",
+      "tokenEstimate": 1029,
+      "lastSeenAt": "2026-07-01T11:58:36.762Z"
+    },
+    "frontend/src/pages/PricingPage.vue": {
+      "desc": "PricingPage.vue: <script setup>",
+      "tokenEstimate": 2753,
+      "lastSeenAt": "2026-07-01T08:33:27.148Z"
+    },
+    "frontend/src/components/marketing/MarketingNavbar.vue": {
+      "desc": "MarketingNavbar.vue: <script setup>",
+      "tokenEstimate": 1819,
+      "lastSeenAt": "2026-07-01T12:21:21.167Z"
+    },
+    "frontend/src/pages/MarketingHomePage.vue": {
+      "desc": "MarketingHomePage.vue: <script setup>",
+      "tokenEstimate": 2502,
+      "lastSeenAt": "2026-06-12T10:41:48.325Z"
+    },
+    "frontend/src/components/marketing/MarketingFooter.vue": {
+      "desc": "MarketingFooter.vue: <template>",
+      "tokenEstimate": 383,
+      "lastSeenAt": "2026-07-01T12:43:09.810Z"
+    },
+    "frontend/src/components/app/AppTopNav.vue": {
+      "desc": "AppTopNav.vue: <script setup>",
+      "tokenEstimate": 2589,
+      "lastSeenAt": "2026-06-12T10:39:13.524Z"
+    },
+    "frontend/cases.html": {
+      "desc": "cases.html: <!doctype html>",
+      "tokenEstimate": 1531,
+      "lastSeenAt": "2026-06-11T14:46:47.541Z"
+    },
+    "frontend/frontend/cases.html": {
+      "desc": "cases.html: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-06-11T14:52:27.146Z"
+    },
+    "docs/designs/2026-06-11-settings-page-data-sync-design.md": {
+      "desc": "2026-06-11-settings-page-data-sync-design.md: # 设置中枢数据同步与 UI 重构 — 设计文档",
+      "tokenEstimate": 4430,
+      "lastSeenAt": "2026-06-11T15:50:02.725Z"
+    },
+    "backend/alembic/versions/009_legacy_personal_to_free.py": {
+      "desc": "009_legacy_personal_to_free.py: from __future__ import annotations",
+      "tokenEstimate": 93,
+      "lastSeenAt": "2026-06-11T16:12:14.473Z"
+    },
+    "frontend/src/data/plans.js": {
+      "desc": "plans.js: export const PLAN_CATALOG = {",
+      "tokenEstimate": 861,
+      "lastSeenAt": "2026-06-12T01:01:28.254Z"
+    },
+    "backend/alembic/versions/010_add_user_profile_model_name.py": {
+      "desc": "010_add_user_profile_model_name.py: from __future__ import annotations",
+      "tokenEstimate": 171,
+      "lastSeenAt": "2026-06-12T09:38:45.680Z"
+    },
+    "backend/_tmp_list_tables.py": {
+      "desc": "_tmp_list_tables.py: import asyncio",
+      "tokenEstimate": 92,
+      "lastSeenAt": "2026-06-11T16:21:49.774Z"
+    },
+    "backend/alembic/versions/011_add_user_profile_phone_email.py": {
+      "desc": "011_add_user_profile_phone_email.py: from __future__ import annotations",
+      "tokenEstimate": 220,
+      "lastSeenAt": "2026-06-12T00:59:11.644Z"
+    },
+    "frontend/src/pages/RegisterPage.vue": {
+      "desc": "RegisterPage.vue: <script setup>",
+      "tokenEstimate": 6290,
+      "lastSeenAt": "2026-07-01T08:31:51.151Z"
+    },
+    "frontend/src/composables/useTheme.js": {
+      "desc": "useTheme.js: import { ref, onMounted } from 'vue'",
+      "tokenEstimate": 183,
+      "lastSeenAt": "2026-06-12T02:33:01.027Z"
+    },
+    "docs/designs/2026-06-12-uuid-migration-wenheng-alignment-design.md": {
+      "desc": "2026-06-12-uuid-migration-wenheng-alignment-design.md: # 照胆数据库 UUID 迁移 — 对齐文衡基准",
+      "tokenEstimate": 1875,
+      "lastSeenAt": "2026-06-12T03:20:24.309Z"
+    },
+    "docs/plans/2026-06-12-uuid-migration-wenheng-alignment-plan.md": {
+      "desc": "2026-06-12-uuid-migration-wenheng-alignment-plan.md: # 照胆 UUID 迁移 — 实施计划",
+      "tokenEstimate": 2152,
+      "lastSeenAt": "2026-06-12T03:25:43.264Z"
+    },
+    "backend/alembic/versions/012_uuid_migration.py": {
+      "desc": "012_uuid_migration.py: \"\"\"UUID migration: integer PK → UUID PK",
+      "tokenEstimate": 3416,
+      "lastSeenAt": "2026-06-12T04:26:11.877Z"
+    },
+    "backend/tests/test_knowledge_retrieval.py": {
+      "desc": "test_knowledge_retrieval.py: from __future__ import annotations",
+      "tokenEstimate": 1489,
+      "lastSeenAt": "2026-06-17T05:45:27.013Z"
+    },
+    "backend/services/knowledge_retrieval.py": {
+      "desc": "knowledge_retrieval.py: from __future__ import annotations",
+      "tokenEstimate": 632,
+      "lastSeenAt": "2026-06-12T04:06:59.770Z"
+    },
+    ".opencode/commands/goal.md": {
+      "desc": "goal.md: # Goal — 持久化目标驱动工作模式",
+      "tokenEstimate": 696,
+      "lastSeenAt": "2026-06-12T08:01:35.420Z"
+    },
+    ".opencode/skills/grill-me/SKILL.md": {
+      "desc": "SKILL.md: ---",
+      "tokenEstimate": 159,
+      "lastSeenAt": "2026-06-12T08:05:37.952Z"
+    },
+    ".opencode/skills/brainstorming/SKILL.md": {
+      "desc": "SKILL.md: ---",
+      "tokenEstimate": 529,
+      "lastSeenAt": "2026-06-12T08:13:40.802Z"
+    },
+    "backend/app/api/__init__.py": {
+      "desc": "__init__.py: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-06-12T09:52:16.372Z"
+    },
+    "backend/app/api/v1/__init__.py": {
+      "desc": "__init__.py: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-06-12T09:52:16.993Z"
+    },
+    "backend/app/core/__init__.py": {
+      "desc": "__init__.py: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-06-12T09:52:32.996Z"
+    },
+    "backend/app/tools/__init__.py": {
+      "desc": "__init__.py: empty or binary content",
+      "tokenEstimate": 1,
+      "lastSeenAt": "2026-06-12T09:52:33.872Z"
+    },
+    "backend/app/core/database.py": {
+      "desc": "database.py: from __future__ import annotations",
+      "tokenEstimate": 634,
+      "lastSeenAt": "2026-06-29T14:10:09.769Z"
+    },
+    "backend/app/core/redis.py": {
+      "desc": "redis.py: from __future__ import annotations",
+      "tokenEstimate": 104,
+      "lastSeenAt": "2026-06-12T09:54:03.028Z"
+    },
+    "backend/app/core/data_encryption.py": {
+      "desc": "data_encryption.py: from __future__ import annotations",
+      "tokenEstimate": 345,
+      "lastSeenAt": "2026-06-17T05:17:16.837Z"
+    },
+    "backend/app/core/api_key_crypto.py": {
+      "desc": "api_key_crypto.py: \"\"\"API Key 生成、哈希与加密工具\"\"\"",
+      "tokenEstimate": 341,
+      "lastSeenAt": "2026-06-13T02:59:28.424Z"
+    },
+    "backend/app/core/auth.py": {
+      "desc": "auth.py: from __future__ import annotations",
+      "tokenEstimate": 857,
+      "lastSeenAt": "2026-06-29T13:21:35.195Z"
+    },
+    "backend/app/core/agent_auth.py": {
+      "desc": "agent_auth.py: from __future__ import annotations",
+      "tokenEstimate": 454,
+      "lastSeenAt": "2026-06-17T05:32:17.591Z"
+    },
+    "backend/app/models/__init__.py": {
+      "desc": "__init__.py: from __future__ import annotations",
+      "tokenEstimate": 248,
+      "lastSeenAt": "2026-06-29T12:41:59.816Z"
+    },
+    "backend/app/models/api_keys.py": {
+      "desc": "api_keys.py: from __future__ import annotations",
+      "tokenEstimate": 838,
+      "lastSeenAt": "2026-06-12T15:09:39.888Z"
+    },
+    "backend/app/services/knowledge_retrieval.py": {
+      "desc": "knowledge_retrieval.py: from __future__ import annotations",
+      "tokenEstimate": 628,
+      "lastSeenAt": "2026-06-12T09:53:41.952Z"
+    },
+    "backend/app/services/knowledge_ingestion.py": {
+      "desc": "knowledge_ingestion.py: from __future__ import annotations",
+      "tokenEstimate": 1169,
+      "lastSeenAt": "2026-06-29T11:34:17.409Z"
+    },
+    "backend/app/services/agent_job_service.py": {
+      "desc": "agent_job_service.py: from __future__ import annotations",
+      "tokenEstimate": 1006,
+      "lastSeenAt": "2026-06-26T09:09:45.529Z"
+    },
+    "backend/app/services/api_key_service.py": {
+      "desc": "api_key_service.py: from __future__ import annotations",
+      "tokenEstimate": 1187,
+      "lastSeenAt": "2026-06-17T05:32:18.716Z"
+    },
+    "backend/app/api/v1/auth.py": {
+      "desc": "auth.py: from __future__ import annotations",
+      "tokenEstimate": 3493,
+      "lastSeenAt": "2026-06-29T13:30:15.854Z"
+    },
+    "backend/app/api/v1/knowledge.py": {
+      "desc": "knowledge.py: from __future__ import annotations",
+      "tokenEstimate": 4431,
+      "lastSeenAt": "2026-06-29T13:29:45.894Z"
+    },
+    "backend/app/api/v1/inspection.py": {
+      "desc": "inspection.py: \"\"\"体检台 API 路由\"\"\"",
+      "tokenEstimate": 6642,
+      "lastSeenAt": "2026-07-01T12:53:44.726Z"
+    },
+    "backend/app/api/v1/agent.py": {
+      "desc": "agent.py: from __future__ import annotations",
+      "tokenEstimate": 1958,
+      "lastSeenAt": "2026-06-26T09:38:17.032Z"
+    },
+    "backend/app/api/v1/settings.py": {
+      "desc": "settings.py: from __future__ import annotations",
+      "tokenEstimate": 6498,
+      "lastSeenAt": "2026-06-29T13:29:48.959Z"
+    },
+    "backend/app/agents/__init__.py": {
+      "desc": "__init__.py: \"\"\"Agent 定义（懒加载模式）",
+      "tokenEstimate": 827,
+      "lastSeenAt": "2026-06-12T09:54:11.116Z"
+    },
+    "backend/app/agents/inspector.py": {
+      "desc": "inspector.py: \"\"\"体检台 Agent 协调逻辑\"\"\"",
+      "tokenEstimate": 736,
+      "lastSeenAt": "2026-06-12T10:07:35.774Z"
+    },
+    "backend/app/workers/config.py": {
+      "desc": "config.py: from __future__ import annotations",
+      "tokenEstimate": 148,
+      "lastSeenAt": "2026-06-12T09:53:38.792Z"
+    },
+    "backend/app/workers/tasks.py": {
+      "desc": "tasks.py: from __future__ import annotations",
+      "tokenEstimate": 681,
+      "lastSeenAt": "2026-06-26T09:45:38.517Z"
+    },
+    "backend/app/tools/common.py": {
+      "desc": "common.py: \"\"\"通用合规工具\"\"\"",
+      "tokenEstimate": 302,
+      "lastSeenAt": "2026-06-12T09:53:40.906Z"
+    },
+    "backend/app/services/page_indexer.py": {
+      "desc": "page_indexer.py: from __future__ import annotations",
+      "tokenEstimate": 2372,
+      "lastSeenAt": "2026-06-12T09:53:44.483Z"
+    },
+    "docs/designs/2026-06-12-product-strategy-design.md": {
+      "desc": "2026-06-12-product-strategy-design.md: # 产品策略设计文档 — 定价 / 隐私 / 开发文档 / 帮助文档",
+      "tokenEstimate": 1884,
+      "lastSeenAt": "2026-06-12T09:48:40.485Z"
+    },
+    "frontend/src/pages/HelpHomePage.vue": {
+      "desc": "HelpHomePage.vue: <script setup>",
+      "tokenEstimate": 2399,
+      "lastSeenAt": "2026-06-12T10:43:43.009Z"
+    },
+    "frontend/src/components/marketing/HelpArticleLayout.vue": {
+      "desc": "HelpArticleLayout.vue: <script setup>",
+      "tokenEstimate": 2781,
+      "lastSeenAt": "2026-06-12T10:42:34.094Z"
+    },
+    "frontend/src/pages/help/CreateAccountHelpPage.vue": {
+      "desc": "CreateAccountHelpPage.vue: <script setup>",
+      "tokenEstimate": 357,
+      "lastSeenAt": "2026-06-12T10:08:49.616Z"
+    },
+    "frontend/src/pages/help/FirstInspectionHelpPage.vue": {
+      "desc": "FirstInspectionHelpPage.vue: <script setup>",
+      "tokenEstimate": 316,
+      "lastSeenAt": "2026-06-12T09:54:01.608Z"
+    },
+    "frontend/src/pages/help/InterfaceOverviewHelpPage.vue": {
+      "desc": "InterfaceOverviewHelpPage.vue: <script setup>",
+      "tokenEstimate": 392,
+      "lastSeenAt": "2026-06-12T09:54:10.856Z"
+    },
+    "frontend/src/pages/help/UploadDocumentHelpPage.vue": {
+      "desc": "UploadDocumentHelpPage.vue: <script setup>",
+      "tokenEstimate": 279,
+      "lastSeenAt": "2026-06-12T09:54:25.172Z"
+    },
+    "frontend/src/pages/help/AiInspectionHelpPage.vue": {
+      "desc": "AiInspectionHelpPage.vue: <script setup>",
+      "tokenEstimate": 340,
+      "lastSeenAt": "2026-06-12T09:54:34.464Z"
+    },
+    "frontend/src/pages/help/ReviewReportHelpPage.vue": {
+      "desc": "ReviewReportHelpPage.vue: <script setup>",
+      "tokenEstimate": 353,
+      "lastSeenAt": "2026-06-12T09:54:42.753Z"
+    },
+    "frontend/src/pages/help/KnowledgeBaseHelpPage.vue": {
+      "desc": "KnowledgeBaseHelpPage.vue: <script setup>",
+      "tokenEstimate": 271,
+      "lastSeenAt": "2026-06-12T09:54:50.738Z"
+    },
+    "frontend/src/pages/help/TabooWordsHelpPage.vue": {
+      "desc": "TabooWordsHelpPage.vue: <script setup>",
+      "tokenEstimate": 258,
+      "lastSeenAt": "2026-06-12T09:54:58.088Z"
+    },
+    "frontend/src/pages/help/PlansComparisonHelpPage.vue": {
+      "desc": "PlansComparisonHelpPage.vue: <script setup>",
+      "tokenEstimate": 215,
+      "lastSeenAt": "2026-06-12T09:55:08.851Z"
+    },
+    "frontend/src/pages/help/QuotaExplainedHelpPage.vue": {
+      "desc": "QuotaExplainedHelpPage.vue: <script setup>",
+      "tokenEstimate": 330,
+      "lastSeenAt": "2026-06-12T09:55:17.647Z"
+    },
+    "frontend/src/pages/help/BuyQuotaPackHelpPage.vue": {
+      "desc": "BuyQuotaPackHelpPage.vue: <script setup>",
+      "tokenEstimate": 276,
+      "lastSeenAt": "2026-06-12T09:55:22.754Z"
+    },
+    "frontend/src/pages/help/ManageSubscriptionHelpPage.vue": {
+      "desc": "ManageSubscriptionHelpPage.vue: <script setup>",
+      "tokenEstimate": 254,
+      "lastSeenAt": "2026-06-12T09:55:29.076Z"
+    },
+    "frontend/src/pages/help/AccountFaqPage.vue": {
+      "desc": "AccountFaqPage.vue: <script setup>",
+      "tokenEstimate": 208,
+      "lastSeenAt": "2026-06-12T09:55:39.123Z"
+    },
+    "frontend/src/pages/help/BillingFaqPage.vue": {
+      "desc": "BillingFaqPage.vue: <script setup>",
+      "tokenEstimate": 215,
+      "lastSeenAt": "2026-06-12T09:55:44.482Z"
+    },
+    "frontend/src/pages/help/DocumentFaqPage.vue": {
+      "desc": "DocumentFaqPage.vue: <script setup>",
+      "tokenEstimate": 234,
+      "lastSeenAt": "2026-06-12T09:55:49.135Z"
+    },
+    "frontend/src/pages/help/AiFaqPage.vue": {
+      "desc": "AiFaqPage.vue: <script setup>",
+      "tokenEstimate": 257,
+      "lastSeenAt": "2026-06-12T09:55:54.293Z"
+    },
+    "frontend/src/pages/help/SecurityFaqPage.vue": {
+      "desc": "SecurityFaqPage.vue: <script setup>",
+      "tokenEstimate": 257,
+      "lastSeenAt": "2026-06-12T09:56:00.240Z"
+    },
+    "frontend/src/pages/DocsHomePage.vue": {
+      "desc": "DocsHomePage.vue: <script setup>",
+      "tokenEstimate": 2368,
+      "lastSeenAt": "2026-06-12T10:43:46.310Z"
+    },
+    "frontend/src/components/marketing/DocsArticleLayout.vue": {
+      "desc": "DocsArticleLayout.vue: <script setup>",
+      "tokenEstimate": 1976,
+      "lastSeenAt": "2026-06-12T10:42:37.639Z"
+    },
+    "frontend/src/pages/docs/QuickstartPage.vue": {
+      "desc": "QuickstartPage.vue: <script setup>",
+      "tokenEstimate": 862,
+      "lastSeenAt": "2026-06-12T10:44:10.786Z"
+    },
+    "frontend/src/pages/docs/AuthenticationPage.vue": {
+      "desc": "AuthenticationPage.vue: <script setup>",
+      "tokenEstimate": 525,
+      "lastSeenAt": "2026-06-12T09:57:36.580Z"
+    },
+    "frontend/src/pages/docs/InspectionPage.vue": {
+      "desc": "InspectionPage.vue: <script setup>",
+      "tokenEstimate": 622,
+      "lastSeenAt": "2026-06-12T09:58:34.694Z"
+    },
+    "frontend/src/pages/docs/KnowledgePage.vue": {
+      "desc": "KnowledgePage.vue: <script setup>",
+      "tokenEstimate": 551,
+      "lastSeenAt": "2026-06-12T09:58:41.771Z"
+    },
+    "frontend/src/pages/docs/TabooWordsPage.vue": {
+      "desc": "TabooWordsPage.vue: <script setup>",
+      "tokenEstimate": 305,
+      "lastSeenAt": "2026-06-12T09:58:45.287Z"
+    },
+    "frontend/src/pages/docs/SettingsPage.vue": {
+      "desc": "SettingsPage.vue: <script setup>",
+      "tokenEstimate": 374,
+      "lastSeenAt": "2026-06-12T09:58:49.147Z"
+    },
+    "frontend/src/pages/docs/ApiKeysPage.vue": {
+      "desc": "ApiKeysPage.vue: <script setup>",
+      "tokenEstimate": 437,
+      "lastSeenAt": "2026-06-12T09:58:54.753Z"
+    },
+    "frontend/src/components/marketing/EndpointTag.vue": {
+      "desc": "EndpointTag.vue: <script setup>",
+      "tokenEstimate": 339,
+      "lastSeenAt": "2026-06-12T09:58:20.619Z"
+    },
+    "frontend/src/pages/docs/McpServerPage.vue": {
+      "desc": "McpServerPage.vue: <script setup>",
+      "tokenEstimate": 558,
+      "lastSeenAt": "2026-06-12T10:44:12.356Z"
+    },
+    "frontend/src/pages/docs/CliPage.vue": {
+      "desc": "CliPage.vue: <script setup>",
+      "tokenEstimate": 397,
+      "lastSeenAt": "2026-06-12T09:59:19.462Z"
+    },
+    "frontend/src/pages/docs/SkillPluginPage.vue": {
+      "desc": "SkillPluginPage.vue: <script setup>",
+      "tokenEstimate": 647,
+      "lastSeenAt": "2026-06-12T09:59:32.726Z"
+    },
+    "frontend/src/pages/docs/AgentsPage.vue": {
+      "desc": "AgentsPage.vue: <script setup>",
+      "tokenEstimate": 480,
+      "lastSeenAt": "2026-06-12T09:59:43.768Z"
+    },
+    "frontend/src/pages/docs/PythonSdkPage.vue": {
+      "desc": "PythonSdkPage.vue: <script setup>",
+      "tokenEstimate": 432,
+      "lastSeenAt": "2026-06-12T09:59:50.973Z"
+    },
+    "frontend/src/pages/docs/JavascriptSdkPage.vue": {
+      "desc": "JavascriptSdkPage.vue: <script setup>",
+      "tokenEstimate": 546,
+      "lastSeenAt": "2026-06-12T09:59:58.883Z"
+    },
+    "frontend/src/pages/PrivacyPage.vue": {
+      "desc": "PrivacyPage.vue: <script setup>",
+      "tokenEstimate": 5983,
+      "lastSeenAt": "2026-07-01T12:19:57.170Z"
+    },
+    "frontend/scripts/verify-routes.mjs": {
+      "desc": "verify-routes.mjs: import { existsSync, readFileSync } from 'node:fs'",
+      "tokenEstimate": 434,
+      "lastSeenAt": "2026-06-12T10:18:42.780Z"
+    },
+    "frontend/scripts/verify-home-nav.mjs": {
+      "desc": "verify-home-nav.mjs: import { readFileSync } from 'node:fs'",
+      "tokenEstimate": 152,
+      "lastSeenAt": "2026-06-12T10:18:47.625Z"
+    },
+    "frontend/scripts/verify-cases-nav.mjs": {
+      "desc": "verify-cases-nav.mjs: import { readFileSync } from 'node:fs'",
+      "tokenEstimate": 165,
+      "lastSeenAt": "2026-06-12T10:18:48.380Z"
+    },
+    "frontend/scripts/verify-pricing-tabs.mjs": {
+      "desc": "verify-pricing-tabs.mjs: import { readFileSync } from 'node:fs'",
+      "tokenEstimate": 190,
+      "lastSeenAt": "2026-06-12T10:18:50.986Z"
+    },
+    "frontend/scripts/verify-solution-page.mjs": {
+      "desc": "verify-solution-page.mjs: import { readFileSync } from 'node:fs'",
+      "tokenEstimate": 167,
+      "lastSeenAt": "2026-06-12T10:18:52.961Z"
+    },
+    "frontend/scripts/verify-security-page.mjs": {
+      "desc": "verify-security-page.mjs: import { readFileSync } from 'node:fs'",
+      "tokenEstimate": 172,
+      "lastSeenAt": "2026-06-12T10:18:55.978Z"
+    },
+    "frontend/src/theme/tokens/dark.css": {
+      "desc": "dark.css: /* ============================================================",
+      "tokenEstimate": 694,
+      "lastSeenAt": "2026-06-12T10:27:56.350Z"
+    },
+    "frontend/src/theme/tokens/light.css": {
+      "desc": "light.css: /* ============================================================",
+      "tokenEstimate": 558,
+      "lastSeenAt": "2026-06-12T10:28:07.715Z"
+    },
+    "frontend/src/theme/tokens/surface.css": {
+      "desc": "surface.css: /* ============================================================",
+      "tokenEstimate": 683,
+      "lastSeenAt": "2026-06-12T10:28:17.778Z"
+    },
+    "frontend/src/theme/index.js": {
+      "desc": "index.js: /**",
+      "tokenEstimate": 441,
+      "lastSeenAt": "2026-06-12T10:28:33.440Z"
+    },
+    "frontend/src/theme/tokens/index.js": {
+      "desc": "index.js: /**",
+      "tokenEstimate": 168,
+      "lastSeenAt": "2026-06-12T10:28:35.918Z"
+    },
+    "frontend/src/theme/README.md": {
+      "desc": "README.md: # 句龙·照胆 设计系统 — `/theme` 目录",
+      "tokenEstimate": 464,
+      "lastSeenAt": "2026-06-12T10:28:46.101Z"
+    },
+    "frontend/src/theme.js": {
+      "desc": "theme.js: /**",
+      "tokenEstimate": 99,
+      "lastSeenAt": "2026-06-12T10:29:16.276Z"
+    },
+    "frontend/src/main.js": {
+      "desc": "main.js: import { createApp } from 'vue'",
+      "tokenEstimate": 75,
+      "lastSeenAt": "2026-06-12T10:29:31.969Z"
+    },
+    "frontend/src/components/marketing/MarketingShell.vue": {
+      "desc": "MarketingShell.vue: <script setup>",
+      "tokenEstimate": 128,
+      "lastSeenAt": "2026-06-12T10:32:50.990Z"
+    },
+    "backend/app/models/knowledge.py": {
+      "desc": "knowledge.py: from __future__ import annotations",
+      "tokenEstimate": 2346,
+      "lastSeenAt": "2026-06-29T14:09:47.823Z"
+    },
+    "backend/alembic/versions/013_goulong_auth_schema.py": {
+      "desc": "013_goulong_auth_schema.py: \"\"\"goulong-auth schema migration",
+      "tokenEstimate": 1480,
+      "lastSeenAt": "2026-06-12T15:56:33.703Z"
+    },
+    "backend/scripts/e2e_test.py": {
+      "desc": "e2e_test.py: \"\"\"Phase 3 端到端验证脚本",
+      "tokenEstimate": 810,
+      "lastSeenAt": "2026-06-12T16:13:04.177Z"
+    },
+    ".opencode/state/goal.json": {
+      "desc": "goal.json: {",
+      "tokenEstimate": 525,
+      "lastSeenAt": "2026-06-13T01:44:33.892Z"
+    },
+    "docs/security/audit-01-secrets-auth.md": {
+      "desc": "audit-01-secrets-auth.md: # 安全审查报告 #1 — 密钥管理与认证授权",
+      "tokenEstimate": 853,
+      "lastSeenAt": "2026-06-12T18:21:46.048Z"
+    },
+    "docs/security/audit-02-injection-upload.md": {
+      "desc": "audit-02-injection-upload.md: # 安全审查报告 #2 — 输入验证、注入防护、文件上传",
+      "tokenEstimate": 1258,
+      "lastSeenAt": "2026-06-12T18:24:01.920Z"
+    },
+    "docs/security/audit-03-transport-cors-errors.md": {
+      "desc": "audit-03-transport-cors-errors.md: # 安全审查报告 #3 — 数据传输、CORS、错误处理、信息泄露",
+      "tokenEstimate": 1273,
+      "lastSeenAt": "2026-06-12T18:25:39.881Z"
+    },
+    "docs/security/audit-summary.md": {
+      "desc": "audit-summary.md: # 安全审查汇总报告 — Goulong-Zhaodan",
+      "tokenEstimate": 847,
+      "lastSeenAt": "2026-06-12T18:26:34.548Z"
+    },
+    "backend/app/core/file_magic.py": {
+      "desc": "file_magic.py: \"\"\"文件 magic bytes 校验 — 防止扩展名伪造\"\"\"",
+      "tokenEstimate": 370,
+      "lastSeenAt": "2026-06-13T01:38:04.733Z"
+    },
+    "docs/security/audit-04-dependency-supply-chain.md": {
+      "desc": "audit-04-dependency-supply-chain.md: # 安全审查报告 #4 — 依赖安全与供应链风险",
+      "tokenEstimate": 686,
+      "lastSeenAt": "2026-06-13T01:42:34.092Z"
+    },
+    "docs/security/audit-05-business-logic-authz.md": {
+      "desc": "audit-05-business-logic-authz.md: # 安全审查报告 #5 — 业务逻辑与授权安全",
+      "tokenEstimate": 1202,
+      "lastSeenAt": "2026-06-13T01:43:14.856Z"
+    },
+    "docs/security/audit-06-data-privacy-compliance.md": {
+      "desc": "audit-06-data-privacy-compliance.md: # 安全审查报告 #6 — 数据安全与隐私合规",
+      "tokenEstimate": 939,
+      "lastSeenAt": "2026-06-13T01:43:48.985Z"
+    },
+    "docs/security/audit-summary-r2.md": {
+      "desc": "audit-summary-r2.md: # 安全审查汇总报告 (第二轮) — Goulong-Zhaodan",
+      "tokenEstimate": 674,
+      "lastSeenAt": "2026-06-13T01:44:16.829Z"
+    },
+    "backend/scripts/verify_auth_dep.py": {
+      "desc": "verify_auth_dep.py: \"\"\"goulong-auth 本地依赖完整性校验 — CI 集成用\"\"\"",
+      "tokenEstimate": 416,
+      "lastSeenAt": "2026-06-13T01:46:39.966Z"
+    },
+    "backend/app/core/pii_masking.py": {
+      "desc": "pii_masking.py: \"\"\"PII 脱敏工具 — API 响应中隐藏敏感字段\"\"\"",
+      "tokenEstimate": 185,
+      "lastSeenAt": "2026-06-13T01:48:09.453Z"
+    },
+    "backend/app/core/config.py": {
+      "desc": "config.py: \"\"\"配置管理 — 从环境变量读取，不硬编码密钥\"\"\"",
+      "tokenEstimate": 1247,
+      "lastSeenAt": "2026-06-30T03:20:44.203Z"
+    },
+    "backend/app/services/file_storage.py": {
+      "desc": "file_storage.py: \"\"\"文件存储抽象层（本地 / 阿里云 OSS 双模式自动切换）。",
+      "tokenEstimate": 960,
+      "lastSeenAt": "2026-06-29T11:33:26.683Z"
+    },
+    "backend/alembic/versions/6e298315e66b_add_password_changed_at_to_goulong_auth_.py": {
+      "desc": "6e298315e66b_add_password_changed_at_to_goulong_auth_.py: \"\"\"add password_changed_at to goulong_auth users",
+      "tokenEstimate": 182,
+      "lastSeenAt": "2026-06-17T06:09:11.637Z"
+    },
+    "backend/alembic/versions/014_add_password_changed_at.py": {
+      "desc": "014_add_password_changed_at.py: \"\"\"add password_changed_at to goulong_auth users",
+      "tokenEstimate": 170,
+      "lastSeenAt": "2026-06-17T06:09:36.863Z"
+    },
+    "docs/designs/2026-06-26-mcp-inspect-by-record-id-design.md": {
+      "desc": "2026-06-26-mcp-inspect-by-record-id-design.md: # MCP 体检：基于 record_id 与异步 Worker 的迭代设计（方案2）",
+      "tokenEstimate": 1773,
+      "lastSeenAt": "2026-06-26T09:20:06.489Z"
+    },
+    "backend/app/core/api_key_scopes.py": {
+      "desc": "api_key_scopes.py: from __future__ import annotations",
+      "tokenEstimate": 675,
+      "lastSeenAt": "2026-06-26T08:45:45.543Z"
+    },
+    "backend/app/services/inspection_runner.py": {
+      "desc": "inspection_runner.py: \"\"\"体检执行核心 — 从 router 层下沉的业务逻辑（多 Agent 审查流水线）。",
+      "tokenEstimate": 2251,
+      "lastSeenAt": "2026-06-29T14:55:20.841Z"
+    },
+    "MCP/evaluation.xml": {
+      "desc": "evaluation.xml: <evaluation>",
+      "tokenEstimate": 466,
+      "lastSeenAt": "2026-06-26T14:57:51.440Z"
+    },
+    "MCP/README.md": {
+      "desc": "README.md: # Goulong Zhaodan MCP Server",
+      "tokenEstimate": 780,
+      "lastSeenAt": "2026-06-26T14:58:37.269Z"
+    },
+    "backend/app/core/redis_client.py": {
+      "desc": "redis_client.py: \"\"\"Redis 异步客户端单例。",
+      "tokenEstimate": 205,
+      "lastSeenAt": "2026-06-29T10:39:22.354Z"
+    },
+    "backend/app/services/sms_service.py": {
+      "desc": "sms_service.py: \"\"\"手机号 + 短信验证码服务。",
+      "tokenEstimate": 1898,
+      "lastSeenAt": "2026-06-30T03:20:44.814Z"
+    },
+    "backend/app/services/email_service.py": {
+      "desc": "email_service.py: \"\"\"邮件推送服务。",
+      "tokenEstimate": 3085,
+      "lastSeenAt": "2026-06-29T11:00:05.139Z"
+    },
+    "backend/app/services/email_templates/auth_code.html": {
+      "desc": "auth_code.html: <p style=\"margin:0 0 8px;\">您正在进行身份验证，验证码为：</p>",
+      "tokenEstimate": 160,
+      "lastSeenAt": "2026-06-29T10:58:04.379Z"
+    },
+    "backend/app/services/email_templates/payment_success.html": {
+      "desc": "payment_success.html: <p style=\"margin:0 0 8px;\">尊敬的 <strong style=\"color:#D4AF37;\">{username}</strong",
+      "tokenEstimate": 181,
+      "lastSeenAt": "2026-06-29T10:58:07.189Z"
+    },
+    "backend/app/services/email_templates/expire_reminder.html": {
+      "desc": "expire_reminder.html: <p style=\"margin:0 0 8px;\">尊敬的 <strong style=\"color:#D4AF37;\">{username}</strong",
+      "tokenEstimate": 103,
+      "lastSeenAt": "2026-06-29T10:58:09.375Z"
+    },
+    "backend/app/services/email_templates/notification.html": {
+      "desc": "notification.html: <p style=\"margin:0 0 8px;\">尊敬的 <strong style=\"color:#D4AF37;\">{username}</strong",
+      "tokenEstimate": 42,
+      "lastSeenAt": "2026-06-29T10:58:09.670Z"
+    },
+    "backend/tests/test_sms_service.py": {
+      "desc": "test_sms_service.py: \"\"\"SmsService 单元测试（使用真实 Redis）。",
+      "tokenEstimate": 1147,
+      "lastSeenAt": "2026-06-29T10:41:53.029Z"
+    },
+    "backend/tests/test_email_service.py": {
+      "desc": "test_email_service.py: \"\"\"EmailService 单元测试（使用真实 Redis）。",
+      "tokenEstimate": 1542,
+      "lastSeenAt": "2026-06-29T11:06:25.386Z"
+    },
+    "backend/app/core/rate_limit.py": {
+      "desc": "rate_limit.py: from __future__ import annotations",
+      "tokenEstimate": 302,
+      "lastSeenAt": "2026-06-29T11:02:22.326Z"
+    },
+    "backend/app/core/oss_client.py": {
+      "desc": "oss_client.py: \"\"\"阿里云 OSS 对象存储客户端。",
+      "tokenEstimate": 399,
+      "lastSeenAt": "2026-06-29T11:33:01.258Z"
+    },
+    "backend/app/core/turnstile.py": {
+      "desc": "turnstile.py: \"\"\"Cloudflare Turnstile 人机验证。",
+      "tokenEstimate": 398,
+      "lastSeenAt": "2026-06-29T12:36:40.994Z"
+    },
+    "frontend/src/components/auth/TurnstileWidget.vue": {
+      "desc": "TurnstileWidget.vue: <template>",
+      "tokenEstimate": 512,
+      "lastSeenAt": "2026-06-29T12:38:59.330Z"
+    },
+    "backend/app/models/payment.py": {
+      "desc": "payment.py: import uuid",
+      "tokenEstimate": 497,
+      "lastSeenAt": "2026-06-29T12:41:36.151Z"
+    },
+    "backend/app/models/delegated_deduction.py": {
+      "desc": "delegated_deduction.py: import uuid",
+      "tokenEstimate": 945,
+      "lastSeenAt": "2026-06-29T12:41:44.436Z"
+    },
+    "backend/alembic/versions/015_add_payment_tables.py": {
+      "desc": "015_add_payment_tables.py: \"\"\"add payment_orders, subscription_contracts, deduction_orders tables",
+      "tokenEstimate": 1583,
+      "lastSeenAt": "2026-06-29T14:14:50.039Z"
+    },
+    "backend/app/services/wechatpay_client.py": {
+      "desc": "wechatpay_client.py: from __future__ import annotations",
+      "tokenEstimate": 2289,
+      "lastSeenAt": "2026-06-29T12:45:00.187Z"
+    },
+    "backend/app/services/wechatpay_v2_client.py": {
+      "desc": "wechatpay_v2_client.py: from __future__ import annotations",
+      "tokenEstimate": 2466,
+      "lastSeenAt": "2026-06-29T12:45:25.928Z"
+    },
+    "backend/app/services/payment_catalog.py": {
+      "desc": "payment_catalog.py: from __future__ import annotations",
+      "tokenEstimate": 561,
+      "lastSeenAt": "2026-06-29T12:45:50.845Z"
+    },
+    "backend/app/services/payment_service.py": {
+      "desc": "payment_service.py: from __future__ import annotations",
+      "tokenEstimate": 1927,
+      "lastSeenAt": "2026-06-29T12:46:40.875Z"
+    },
+    "backend/app/services/subscription_service.py": {
+      "desc": "subscription_service.py: from __future__ import annotations",
+      "tokenEstimate": 3263,
+      "lastSeenAt": "2026-06-29T12:47:10.096Z"
+    },
+    "backend/app/api/v1/payments.py": {
+      "desc": "payments.py: from __future__ import annotations",
+      "tokenEstimate": 1479,
+      "lastSeenAt": "2026-06-29T13:30:12.671Z"
+    },
+    "backend/app/api/v1/subscriptions.py": {
+      "desc": "subscriptions.py: from __future__ import annotations",
+      "tokenEstimate": 2450,
+      "lastSeenAt": "2026-06-29T13:30:14.676Z"
+    },
+    "frontend/src/services/paymentApi.js": {
+      "desc": "paymentApi.js: import { useAuth } from '../composables/useAuth.js'",
+      "tokenEstimate": 495,
+      "lastSeenAt": "2026-06-29T12:50:26.862Z"
+    },
+    "frontend/src/components/PaymentModal.vue": {
+      "desc": "PaymentModal.vue: <script setup>",
+      "tokenEstimate": 1719,
+      "lastSeenAt": "2026-06-29T12:50:54.923Z"
+    },
+    "backend/app/core/deps.py": {
+      "desc": "deps.py: \"\"\"依赖注入类型定义\"\"\"",
+      "tokenEstimate": 295,
+      "lastSeenAt": "2026-06-29T13:21:53.391Z"
+    },
+    "frontend/src/pages/DeveloperDocsPage.vue": {
+      "desc": "DeveloperDocsPage.vue: <script setup>",
+      "tokenEstimate": 9067,
+      "lastSeenAt": "2026-07-01T12:33:21.205Z"
+    },
+    "backend/app/api/v1/wechat_callback.py": {
+      "desc": "wechat_callback.py: \"\"\"微信统一回调端点。",
+      "tokenEstimate": 973,
+      "lastSeenAt": "2026-06-29T15:27:03.137Z"
+    },
+    "frontend/src/pages/AboutPage.vue": {
+      "desc": "AboutPage.vue: <script setup>",
+      "tokenEstimate": 2750,
+      "lastSeenAt": "2026-07-01T12:18:03.894Z"
+    },
+    "frontend/src/pages/TermsPage.vue": {
+      "desc": "TermsPage.vue: <script setup>",
+      "tokenEstimate": 1953,
+      "lastSeenAt": "2026-07-01T12:20:45.893Z"
+    },
+    "frontend/src/pages/HelpPage.vue": {
+      "desc": "HelpPage.vue: <script setup>",
+      "tokenEstimate": 4208,
+      "lastSeenAt": "2026-07-01T12:43:42.711Z"
+    },
+    "backend/app/services/report_pdf.py": {
+      "desc": "report_pdf.py: from __future__ import annotations",
+      "tokenEstimate": 2853,
+      "lastSeenAt": "2026-07-01T12:53:13.633Z"
+    },
+    "backend/tests/test_report_pdf.py": {
+      "desc": "test_report_pdf.py: \"\"\"report_pdf 服务单测：覆盖 HTML 模板渲染（不依赖 weasyprint 系统库）。\"\"\"",
+      "tokenEstimate": 898,
+      "lastSeenAt": "2026-07-01T12:54:07.510Z"
+    }
+  }
+}

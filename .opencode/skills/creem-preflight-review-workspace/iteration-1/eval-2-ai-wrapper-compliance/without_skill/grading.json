@@ -1,0 +1,13 @@
+{
+  "expectations": [
+    {"text": "The report treats AI video generation as an AI wrapper review and checks model-brand naming and non-affiliation disclaimer requirements.", "passed": true, "evidence": "Sections 1 and 8 discuss Google/Veo/Gemini branding, non-affiliation, and product-name consistency."},
+    {"text": "The report checks feature/model-version accuracy for Veo/Gemini claims against available implementation evidence.", "passed": true, "evidence": "Evidence summary notes no Veo/Gemini/video generation landing page or implementation was found."},
+    {"text": "The report checks NSFW, explicit content, deepfake/face-swap, and Acceptable Use Policy requirements.", "passed": true, "evidence": "NSFW/AUP section lists adult, deepfake, face-swap, minors, violence, hate, and IP infringement prohibitions."},
+    {"text": "The report checks Creem Moderation API or equivalent prompt moderation readiness for AI image/video generation.", "passed": true, "evidence": "Moderation section states no Moderation API or equivalent moderation implementation was found and recommends prompt/upload/output moderation."},
+    {"text": "The report checks prohibited-product risk and subscription cancellation/customer-support readiness.", "passed": true, "evidence": "Sections 5, 6, and 8 cover prohibited/high-risk products, subscription cancellation, support email, and company info."}
+  ],
+  "summary": {"passed": 5, "failed": 0, "total": 5, "pass_rate": 1.0},
+  "execution_metrics": {"tool_calls": {}, "total_tool_calls": 0, "total_steps": 0, "errors_encountered": 0, "output_chars": 0, "transcript_chars": 0},
+  "timing": {"total_duration_seconds": 0},
+  "user_notes_summary": {"uncertainties": ["Task tool did not expose token/duration metrics."], "needs_review": [], "workarounds": []}
+}

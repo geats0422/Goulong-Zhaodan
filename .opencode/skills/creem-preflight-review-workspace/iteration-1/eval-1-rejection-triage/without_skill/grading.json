@@ -1,0 +1,13 @@
+{
+  "expectations": [
+    {"text": "The report explicitly addresses misleading information and non-working links as Creem rejection causes.", "passed": true, "evidence": "Executive Summary ties Creem rejection to misleading information and links not working."},
+    {"text": "The report checks testimonials, Product Hunt/as-seen badges, and unverifiable user-count or social-proof claims.", "passed": true, "evidence": "Findings include testimonials not found, Product Hunt not found, and user-count/social-proof claims."},
+    {"text": "The report checks Twitter, Discord, GitHub, footer links, and community/navigation links with evidence.", "passed": true, "evidence": "Findings include Twitter/Discord placeholders, GitHub condition, and /community missing route."},
+    {"text": "The report checks multi-language product-description consistency.", "passed": true, "evidence": "Findings cover localized product capabilities, stale branding, years, and missing locale keys."},
+    {"text": "The report includes a professional Creem re-review reply draft.", "passed": true, "evidence": "Lines 224-247 include a re-review reply draft."}
+  ],
+  "summary": {"passed": 5, "failed": 0, "total": 5, "pass_rate": 1.0},
+  "execution_metrics": {"tool_calls": {}, "total_tool_calls": 0, "total_steps": 0, "errors_encountered": 0, "output_chars": 0, "transcript_chars": 0},
+  "timing": {"total_duration_seconds": 0},
+  "user_notes_summary": {"uncertainties": ["Task tool did not expose token/duration metrics."], "needs_review": [], "workarounds": []}
+}

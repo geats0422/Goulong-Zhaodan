@@ -1,0 +1,44 @@
+{
+  "skill_name": "creem-preflight-review",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "我们准备把一个 SaaS 切到 Creem live/product mode。请帮我做上线前审核预检。项目里有前端落地页、pricing、privacy/terms、Creem checkout 和 webhook 代码。请输出阻塞项、修复任务和提交审核邮件草稿。",
+      "expected_output": "A structured Creem preflight report that checks product readiness, legal pages, pricing, support email, footer links, webhook/subscription cancellation readiness, and includes a review submission draft.",
+      "files": [],
+      "expectations": [
+        "The report has an explicit overall readiness status and submit/stay-in-test-mode recommendation.",
+        "The report checks legal pages, pricing visibility, support email, footer/social links, and product-readiness risks.",
+        "The report checks Creem checkout/webhook/subscription cancellation readiness with repo evidence.",
+        "The report lists prioritized blockers or tasks with concrete file/page/config references.",
+        "The report includes a Creem review submission email draft."
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "Creem 拒了我们，说网站上有 misleading information 和 links not working。帮我按官方审核要求复盘，特别看 testimonials、Product Hunt badge、footer 的 Twitter/Discord/GitHub 链接，以及多语言页面描述是否一致，然后写一封 re-review 回复。",
+      "expected_output": "A rejection triage report focused on false testimonials/badges, inactive social links, product accuracy across locales, and a professional re-review response template.",
+      "files": [],
+      "expectations": [
+        "The report explicitly addresses misleading information and non-working links as Creem rejection causes.",
+        "The report checks testimonials, Product Hunt/as-seen badges, and unverifiable user-count or social-proof claims.",
+        "The report checks Twitter, Discord, GitHub, footer links, and community/navigation links with evidence.",
+        "The report checks multi-language product-description consistency.",
+        "The report includes a professional Creem re-review reply draft."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "我们的产品是 AI 视频生成 wrapper，落地页写了 Veo/Gemini 相关能力，准备提交 Creem account review。请检查命名、免责声明、功能描述、NSFW/AUP、Moderation API、禁售风险和订阅取消路径。",
+      "expected_output": "An AI-wrapper-specific Creem review audit covering model branding, affiliation disclaimers, feature accuracy, AI image/video moderation requirements, NSFW/AUP terms, prohibited-product risk, and subscription cancellation.",
+      "files": [],
+      "expectations": [
+        "The report treats AI video generation as an AI wrapper review and checks model-brand naming and non-affiliation disclaimer requirements.",
+        "The report checks feature/model-version accuracy for Veo/Gemini claims against available implementation evidence.",
+        "The report checks NSFW, explicit content, deepfake/face-swap, and Acceptable Use Policy requirements.",
+        "The report checks Creem Moderation API or equivalent prompt moderation readiness for AI image/video generation.",
+        "The report checks prohibited-product risk and subscription cancellation/customer-support readiness."
+      ]
+    }
+  ]
+}

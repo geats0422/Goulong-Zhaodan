@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "rejection-triage",
+  "prompt": "Creem 拒了我们，说网站上有 misleading information 和 links not working。帮我按官方审核要求复盘，特别看 testimonials、Product Hunt badge、footer 的 Twitter/Discord/GitHub 链接，以及多语言页面描述是否一致，然后写一封 re-review 回复。",
+  "assertions": [
+    "The report explicitly addresses misleading information and non-working links as Creem rejection causes.",
+    "The report checks testimonials, Product Hunt/as-seen badges, and unverifiable user-count or social-proof claims.",
+    "The report checks Twitter, Discord, GitHub, footer links, and community/navigation links with evidence.",
+    "The report checks multi-language product-description consistency.",
+    "The report includes a professional Creem re-review reply draft."
+  ]
+}

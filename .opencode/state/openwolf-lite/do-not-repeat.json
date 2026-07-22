@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "dnr-001",
+      "pattern": "never use var",
+      "hint": "use const/let",
+      "enabled": true
+    }
+  ]
+}

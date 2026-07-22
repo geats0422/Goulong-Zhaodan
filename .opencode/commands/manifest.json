@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "requiredCommands": [
+    "sync-config",
+    "create-project"
+  ],
+  "commands": {
+    "sync-config": {
+      "doc": ".opencode/commands/sync-config.md",
+      "owner": "project",
+      "checkManifest": true
+    },
+    "create-project": {
+      "doc": ".opencode/commands/create-project.md",
+      "owner": "root",
+      "checkManifest": true
+    }
+  }
+}

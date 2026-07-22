@@ -1,0 +1,13 @@
+{
+  "expectations": [
+    {"text": "The report has an explicit overall readiness status and submit/stay-in-test-mode recommendation.", "passed": true, "evidence": "Conclusion says current state should not switch to live/product mode and recommends Creem test mode validation before review."},
+    {"text": "The report checks legal pages, pricing visibility, support email, footer/social links, and product-readiness risks.", "passed": true, "evidence": "Findings include legal/support placeholders, product/price mapping, refund terms, and social placeholder links."},
+    {"text": "The report checks Creem checkout/webhook/subscription cancellation readiness with repo evidence.", "passed": true, "evidence": "Findings cover cancel URL, webhook signature assumptions, subscription status semantics, coin metadata, and cancellation behavior."},
+    {"text": "The report lists prioritized blockers or tasks with concrete file/page/config references.", "passed": true, "evidence": "P0/P1 tables and T1-T10 tasks cite specific files and acceptance criteria."},
+    {"text": "The report includes a Creem review submission email draft.", "passed": true, "evidence": "Lines 75-128 include a review email draft."}
+  ],
+  "summary": {"passed": 5, "failed": 0, "total": 5, "pass_rate": 1.0},
+  "execution_metrics": {"tool_calls": {}, "total_tool_calls": 0, "total_steps": 0, "errors_encountered": 0, "output_chars": 0, "transcript_chars": 0},
+  "timing": {"total_duration_seconds": 0},
+  "user_notes_summary": {"uncertainties": ["Task tool did not expose token/duration metrics."], "needs_review": [], "workarounds": []}
+}

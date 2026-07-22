@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "lifetime": {
+    "sessions": 0,
+    "reads": 0,
+    "writes": 0,
+    "repeatReadWarnings": 0,
+    "doNotRepeatWarnings": 0,
+    "anatomyHits": 0,
+    "estimatedTokensRead": 0,
+    "estimatedTokensWritten": 0
+  },
+  "sessions": []
+}

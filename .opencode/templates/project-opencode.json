@@ -1,0 +1,543 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "zhipuai-coding-plan/glm-5.1",
+  "small_model": "zhipuai-coding-plan/glm-5-turbo",
+  "default_agent": "build",
+  "plugin": [
+    "./plugins/quality-metrics.ts",
+    "./plugins/my-plugin.ts",
+    "./plugins/lsp-auto.ts",
+    "./plugins/learning-persistence.ts",
+    "./plugins/openwolf-lite.ts"
+  ],
+  "instructions": [
+    "AGENTS.md",
+    "ETHOS.md",
+    "rules/common.md",
+    "rules/karpathy.md",
+    "instructions/common/*.md",
+    "instructions/python/*.md",
+    "instructions/typescript/*.md",
+    "skills/search-first/SKILL.md",
+    "skills/karpathy-guidelines/SKILL.md",
+    "skills/tdd-workflow/SKILL.md",
+    "skills/verification-loop/SKILL.md",
+    "skills/security-review/SKILL.md",
+    "skills/verification-before-completion/SKILL.md",
+    "skills/code-review/SKILL.md",
+    "skills/systematic-debugging/SKILL.md",
+    "skills/context-ops/SKILL.md",
+    "skills/code-quality-audit/SKILL.md",
+    "skills/continuous-learning/SKILL.md",
+    "skills/insights/SKILL.md",
+    "skills/optimization-spec/SKILL.md",
+    "skills/e2e-testing/SKILL.md",
+    "skills/python-testing/SKILL.md",
+    "skills/python-patterns/SKILL.md",
+    "skills/database-migrations/SKILL.md",
+    "skills/postgres-patterns/SKILL.md",
+    "skills/api-design/SKILL.md",
+    "skills/backend-patterns/SKILL.md",
+    "skills/docker-patterns/SKILL.md",
+    "skills/deployment-patterns/SKILL.md",
+    "skills/frontend-patterns/SKILL.md",
+    "skills/content-hash-cache-pattern/SKILL.md",
+    "skills/github-repo-governance/SKILL.md"
+  ],
+  "agent": {
+    "build": {
+      "description": "日常开发主代理 — 全工具访问，处理编码、文件编辑和命令执行",
+      "mode": "primary",
+      "model": "openai/gpt-5.3-codex",
+      "tools": {
+        "write": false,
+        "edit": true,
+        "bash": true,
+        "read": true,
+        "changed-files": true
+      }
+    },
+    "architect": {
+      "description": "设计和规划主代理 — 只读分析，不修改文件。负责brainstorming、方案设计、计划制定、insights分析、优化规格。按Tab切换到本Agent进入规划模式。",
+      "mode": "primary",
+      "model": "openai/gpt-5",
+      "temperature": 0.1,
+      "prompt": "{file:agents/architect.md}",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": true,
+        "read": true
+      },
+      "permission": {
+        "bash": {
+          "*": "deny",
+          "git log*": "allow",
+          "git diff*": "allow",
+          "git show*": "allow",
+          "git branch --list*": "allow",
+          "git branch --contains*": "allow",
+          "git branch --show-current": "allow",
+          "git branch -a*": "allow",
+          "git remote -v*": "allow",
+          "git remote show*": "allow",
+          "git rev-parse*": "allow",
+          "grep *": "allow",
+          "find *": "allow",
+          "ls *": "allow",
+          "dir *": "allow",
+          "wc *": "allow",
+          "sort *": "allow",
+          "uniq *": "allow",
+          "head *": "allow",
+          "cat *": "allow",
+          "node -e *": "allow",
+          "npm list*": "allow",
+          "npx * --version*": "allow"
+        }
+      }
+    },
+    "planner": {
+      "description": "任务规划主代理 — 读取设计文档，拆解为2-5分钟可执行的实施任务。只读分析，不修改代码。按Tab切换到本Agent进入规划模式。",
+      "mode": "primary",
+      "prompt": "{file:agents/planner.md}",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": true,
+        "read": true
+      },
+      "permission": {
+        "bash": {
+          "*": "deny",
+          "git log*": "allow",
+          "git diff*": "allow",
+          "git show*": "allow",
+          "grep *": "allow",
+          "find *": "allow",
+          "ls *": "allow",
+          "dir *": "allow",
+          "wc *": "allow",
+          "cat *": "allow"
+        }
+      }
+    },
+    "implementer": {
+      "description": "实施子代理 — 执行单个计划任务，遵循TDD流程。接收独立上下文，不继承主会话历史。模型跟随主代理。",
+      "mode": "subagent",
+      "prompt": "{file:prompts/implementer.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "reviewer": {
+      "description": "代码审查子代理 — 审查代码质量、安全性和可维护性。只读，不修改。模型跟随主代理。",
+      "mode": "subagent",
+      "temperature": 0.1,
+      "prompt": "{file:prompts/reviewer.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "debugger": {
+      "description": "系统化调试子代理 — 四阶段根因分析。铁律：不找到根因不修复。",
+      "mode": "subagent",
+      "prompt": "{file:prompts/debugger.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "security-auditor": {
+      "description": "安全审计子代理 — OWASP级安全检查：认证、注入、XSS、CSRF、密钥管理。可读可修复。",
+      "mode": "subagent",
+      "prompt": "{file:prompts/security-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "spec-reviewer": {
+      "description": "规格合规子代理 — 对照设计文档检查实现是否完整。只读，快速执行。",
+      "mode": "subagent",
+      "prompt": "{file:agents/spec-reviewer.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "quality-reviewer": {
+      "description": "代码质量子代理 — 六维审查（正确性/安全/可维护/性能/测试/规范）。只读。",
+      "mode": "subagent",
+      "temperature": 0.1,
+      "prompt": "{file:agents/quality-reviewer.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "quality-auditor": {
+      "description": "质量评估子代理 — 运行lint/build/test工具，生成0-100加权评分报告。可读+运行命令。",
+      "mode": "subagent",
+      "prompt": "{file:agents/quality-auditor.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": false
+      }
+    },
+    "git-governance-reviewer": {
+      "description": "Git/GitHub 仓库治理审查子代理 — 检查分支、diff、commit、release 和 hotfix 风险，输出可保存到 docs/git/ 的报告。",
+      "mode": "subagent",
+      "prompt": "{file:agents/git-governance-reviewer.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      },
+      "permission": {
+        "bash": {
+          "*": "deny",
+          "git status*": "allow",
+          "git log*": "allow",
+          "git diff*": "allow",
+          "git show*": "allow",
+          "git branch --list*": "allow",
+          "git branch --contains*": "allow",
+          "git branch --show-current": "allow",
+          "git branch -a*": "allow",
+          "git remote -v*": "allow",
+          "git remote show*": "allow",
+          "git rev-parse*": "allow",
+          "git merge-base*": "allow",
+          "git for-each-ref*": "allow",
+          "git symbolic-ref*": "allow",
+          "git describe*": "allow",
+          "git tag --list*": "allow",
+          "git ls-files*": "allow",
+          "pwd": "allow",
+          "dir *": "allow",
+          "ls *": "allow"
+        }
+      }
+    },
+    "learn-agent": {
+      "description": "学习提取子代理 — 从会话中提取可复用模式，输出结构化学习条目。只读。",
+      "mode": "subagent",
+      "prompt": "{file:prompts/learn-agent.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "insights-agent": {
+      "description": "使用分析子代理 — 分析30天git历史+学习记录+配置状态，生成优化建议。",
+      "mode": "subagent",
+      "prompt": "{file:agents/insights-agent.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": false
+      }
+    },
+    "tdd-guide": {
+      "description": "TDD 专家 — 指导新功能、Bug 修复和重构遵循红绿重构循环。模型跟随主代理。",
+      "mode": "subagent",
+      "prompt": "{file:agents/tdd-guide.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "build-error-resolver": {
+      "description": "构建错误解决专家 — 修复 TypeScript、构建和依赖错误。模型跟随主代理。",
+      "mode": "subagent",
+      "prompt": "{file:agents/build-error-resolver.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "e2e-runner": {
+      "description": "E2E 测试专家 — 设计、运行和诊断 Playwright 端到端测试。模型跟随主代理。",
+      "mode": "subagent",
+      "prompt": "{file:agents/e2e-runner.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "refactor-cleaner": {
+      "description": "重构清理专家 — 移除死代码、整理重复逻辑并验证无回归。模型跟随主代理。",
+      "mode": "subagent",
+      "prompt": "{file:agents/refactor-cleaner.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "doc-updater": {
+      "description": "文档更新专家 — 同步 README、API 文档、指南和代码注释。模型跟随主代理。",
+      "mode": "subagent",
+      "prompt": "{file:agents/doc-updater.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "python-reviewer": {
+      "description": "Python 代码审查专家 — 检查 Python 风格、类型、测试和安全问题。只读，模型跟随主代理。",
+      "mode": "subagent",
+      "prompt": "{file:agents/python-reviewer.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "python-build-resolver": {
+      "description": "Python 构建错误解决专家 — 修复 py_compile、ruff、mypy、pytest 错误。模型跟随主代理。",
+      "mode": "subagent",
+      "prompt": "{file:agents/python-build-resolver.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "database-reviewer": {
+      "description": "数据库审查专家 — 审查 Schema、迁移、索引、查询和 PostgreSQL/Supabase 风险。只读，模型跟随主代理。",
+      "mode": "subagent",
+      "prompt": "{file:agents/database-reviewer.md}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    }
+  },
+  "command": {
+    "brainstorm": {
+      "description": "Design exploration: clarify requirements, compare approaches, create design doc",
+      "template": "使用 brainstorming 技能进行设计探索。\n\n需求: $ARGUMENTS",
+      "agent": "architect",
+      "subtask": true
+    },
+    "plan": {
+      "description": "Create an implementation plan from approved design doc",
+      "template": "使用 writing-plans 技能为以下需求创建实施计划。先读取最新设计文档 (docs/designs/)。\n\n$ARGUMENTS",
+      "agent": "planner",
+      "subtask": true
+    },
+    "execute": {
+      "description": "Execute a specific task from the implementation plan. Usage: /execute <task-number>",
+      "template": "使用 execute-plans 技能执行计划中的任务。\n\n任务编号: $ARGUMENTS\n\n先读取实施计划文档 (docs/plans/)。严格按照 TDD 流程：先写测试 → 实现 → 审查。完成后自动继续下一个任务。"
+    },
+    "finish": {
+      "description": "Finalize the branch: verify, format, commit, and provide delivery options",
+      "template": "使用 finishing-a-branch 技能完成当前分支的收尾工作。\n\n$ARGUMENTS"
+    },
+    "review": {
+      "description": "Review code for quality, security, and maintainability",
+      "template": "使用 code-review 技能审查最近的代码变更。\n\n$ARGUMENTS",
+      "agent": "reviewer",
+      "subtask": true
+    },
+    "debug": {
+      "description": "Systematic root-cause debugging",
+      "template": "先检索 .opencode/state/openwolf-lite/buglog.json 中是否有相似错误模式（errorPattern/tags/rootCause/fix）。若命中，先基于已有修复路径验证；若未命中，再使用 systematic-debugging 技能调查以下问题：\n\n$ARGUMENTS",
+      "agent": "debugger",
+      "subtask": true
+    },
+    "security": {
+      "description": "Run comprehensive security review",
+      "template": "使用 security-review 技能审查以下内容的安全问题：\n\n$ARGUMENTS",
+      "agent": "security-auditor",
+      "subtask": true
+    },
+    "insights": {
+      "description": "AI coach — analyze 30-day usage patterns, identify friction points, and generate optimization recommendations",
+      "template": "使用 insights 技能分析过去 30 天的使用模式，生成优化报告和配置更新建议。\n\n数据源:\n1. git log --since=\"30 days ago\" → 活动概览、热点文件、fix/revert 模式\n2. ~/.opencode/learnings/<project>/entries/ → 学习系统健康度\n3. docs/friction-log.md (如存在) → 手动记录的摩擦事件\n4. .opencode/ 现有配置 → 完整度诊断\n\n输出: docs/insights/YYYY-MM-DD-insights.md\n\n$ARGUMENTS",
+      "agent": "insights-agent",
+      "subtask": true
+    },
+    "optimize": {
+      "description": "Transform insights/quality report into a structured optimization spec with priority matrix, before/after metrics, and rollback plans",
+      "template": "使用 optimization-spec 技能将分析报告转化为可执行的优化规格。\n\n步骤:\n1. 读取最新的 insights 或 quality 报告\n2. 提取所有可优化项 → 按 影响/成本 优先级排序\n3. 为 Top 3 项编写完整的优化 spec（问题→方案→预期→验证）\n4. 保存到 docs/optimizations/YYYY-MM-DD-optimization.md\n5. 用户批准后 → 建议运行 /plan\n\n$ARGUMENTS",
+      "agent": "planner",
+      "subtask": true
+    },
+    "learn": {
+      "description": "Extract reusable patterns from current session. Compound interest engine — each learning builds on previous sessions.",
+      "template": "使用 continuous-learning 技能分析当前会话，提取可复用模式。\n\n步骤:\n1. 读取已有学习条目 (~/.opencode/learnings/<project>/entries/)\n2. 派发 learn-agent 子代理分析本次会话 → 提取 2-5 个模式\n3. 对比已有条目 → 匹配则提升 confidence，新的则创建\n4. 输出: 新增/确认/建议升级清单 + 复利统计\n5. 如果有升级建议 (confidence ≥ 0.7) → 询问用户是否升级\n\n$ARGUMENTS",
+      "agent": "learn-agent"
+    },
+    "learn-status": {
+      "description": "View all learned patterns for current project with confidence scores",
+      "template": "显示当前项目的复利学习状态。\n\n读取 ~/.opencode/learnings/<project>/entries/ 中的所有条目，按 confidence 排序展示。标注哪些 ready to promote (≥0.7)。\n\n$ARGUMENTS"
+    },
+    "learn-evolve": {
+      "description": "Cluster related learnings and suggest promotions to skills/rules/agents",
+      "template": "分析所有达到升级阈值的 (confidence ≥ 0.7) 学习条目，聚类相关经验，为每组建议升级方案（升级为 rule/skill/agent/command）。\n\n$ARGUMENTS"
+    },
+    "quality": {
+      "description": "Universal code quality audit. Auto-detects project type (frontend/backend/database/fullstack) and applies corresponding evaluation framework. Usage: /quality [--fix]",
+      "template": "使用 code-quality-audit 技能对代码库进行质量评估。先自动检测项目类型（前端/后端/数据库/全栈），然后使用对应的评估框架。\n\n范围: $ARGUMENTS\n\n流程: 检测项目类型 → 收集定量数据 → 定性分析 → 生成加权评分报告(0-100) → (可选)执行优化。报告保存到 docs/audits/。",
+      "agent": "quality-auditor",
+      "subtask": true
+    },
+    "verify": {
+      "description": "Run a comprehensive verification loop before declaring work complete",
+      "template": "使用 verification-loop 技能执行完整验证：构建、类型检查、lint、测试、安全扫描、diff 审查。\n\n范围: $ARGUMENTS",
+      "agent": "quality-auditor",
+      "subtask": true
+    },
+    "build-fix": {
+      "description": "Fix build and TypeScript errors with minimal behavior changes",
+      "template": "修复构建和 TypeScript 错误，要求最小修改并保持现有行为。\n\n任务: $ARGUMENTS\n\n步骤: 运行类型/构建检查 → 收集错误 → 逐个修复 → 重新验证。禁止通过放宽配置、滥用 any 或 @ts-ignore 掩盖问题。",
+      "agent": "build-error-resolver",
+      "subtask": true
+    },
+    "e2e": {
+      "description": "Generate, run, and diagnose Playwright E2E tests",
+      "template": "使用 e2e-testing 技能和 e2e-runner agent 设计并运行端到端测试。\n\n用户流程: $ARGUMENTS\n\n输出测试用例、运行结果、失败截图/日志位置和修复建议。",
+      "agent": "e2e-runner",
+      "subtask": true
+    },
+    "test-coverage": {
+      "description": "Analyze test coverage and propose meaningful missing tests",
+      "template": "分析测试覆盖率并识别关键缺口。\n\n范围: $ARGUMENTS\n\n优先关注认证、安全、核心业务逻辑、边界情况。覆盖率是指标，不是目标；生成有意义的测试建议。",
+      "agent": "tdd-guide",
+      "subtask": true
+    },
+    "refactor-clean": {
+      "description": "Remove dead code and consolidate duplicates safely",
+      "template": "分析并清理死代码、未使用依赖、重复逻辑。\n\n范围: $ARGUMENTS\n\n要求: 先搜索引用和外部导出风险，分小步修改，每步验证，不做无关重构。",
+      "agent": "refactor-cleaner",
+      "subtask": true
+    },
+    "update-docs": {
+      "description": "Update documentation to reflect recent code changes",
+      "template": "根据最近代码变更更新文档。\n\n范围: $ARGUMENTS\n\n检查 README、docs、API 文档、示例、JSDoc，确保文档和实现一致。",
+      "agent": "doc-updater",
+      "subtask": true
+    },
+    "update-codemaps": {
+      "description": "Update architecture/code map documentation",
+      "template": "更新代码地图和架构文档。\n\n范围: $ARGUMENTS\n\n输出模块结构、关键入口、数据流、依赖关系、近期变更摘要。",
+      "agent": "doc-updater",
+      "subtask": true
+    },
+    "python-build": {
+      "description": "Fix Python syntax, lint, type-check, and test failures",
+      "template": "修复 Python 构建、ruff、mypy、pytest 错误。\n\n任务: $ARGUMENTS\n\n顺序: 语法错误 → 导入错误 → 类型错误 → lint → 测试。保持最小修改。",
+      "agent": "python-build-resolver",
+      "subtask": true
+    },
+    "python-test": {
+      "description": "Run Python testing workflow and improve pytest coverage",
+      "template": "使用 python-testing 技能执行 Python 测试工作流。\n\n范围: $ARGUMENTS\n\n要求: 运行 pytest，定位失败，按 TDD 补充关键测试，报告覆盖缺口。",
+      "agent": "tdd-guide",
+      "subtask": true
+    },
+    "python-review": {
+      "description": "Review Python code for style, typing, testing, and security",
+      "template": "审查 Python 代码质量。\n\n范围: $ARGUMENTS\n\n检查 PEP 8、类型提示、异常处理、测试覆盖、安全风险、依赖和性能问题。",
+      "agent": "python-reviewer",
+      "subtask": true
+    },
+    "git-check": {
+      "description": "Review current Git state against personal GitHub governance rules",
+      "template": "{file:commands/git-check.md}",
+      "agent": "git-governance-reviewer",
+      "subtask": true
+    },
+    "branch-guide": {
+      "description": "Suggest a governance-compliant branch for the current task",
+      "template": "{file:commands/branch-guide.md}",
+      "agent": "git-governance-reviewer",
+      "subtask": true
+    },
+    "commit-guide": {
+      "description": "Analyze staged or unstaged diff and suggest a Conventional Commit message",
+      "template": "{file:commands/commit-guide.md}",
+      "agent": "git-governance-reviewer",
+      "subtask": true
+    },
+    "release-check": {
+      "description": "Check release branch readiness and merge-back path",
+      "template": "{file:commands/release-check.md}",
+      "agent": "git-governance-reviewer",
+      "subtask": true
+    },
+    "hotfix-check": {
+      "description": "Check hotfix branch source, scope, and merge-back path",
+      "template": "{file:commands/hotfix-check.md}",
+      "agent": "git-governance-reviewer",
+      "subtask": true
+    },
+    "db-review": {
+      "description": "Review database schema, migrations, indexes, and query risks",
+      "template": "审查数据库相关变更。\n\n范围: $ARGUMENTS\n\n检查 schema 设计、迁移可回滚性、索引、N+1 查询、参数化查询、敏感数据处理。",
+      "agent": "database-reviewer",
+      "subtask": true
+    },
+    "orchestrate": {
+      "description": "Coordinate multiple specialized agents for complex analysis",
+      "template": "对复杂任务进行多专家编排分析。\n\n任务: $ARGUMENTS\n\n根据需要并行使用 planner、reviewer、security-auditor、database-reviewer、doc-updater 等角色，输出统一结论和下一步计划。",
+      "agent": "planner",
+      "subtask": true
+    },
+    "checkpoint": {
+      "description": "Create a checkpoint summary of current progress and verification state",
+      "template": "创建当前工作检查点。\n\n范围: $ARGUMENTS\n\n记录: 当前目标、已完成事项、修改文件、验证结果、剩余风险、下一步。必要时保存到 docs/checkpoints/。"
+    },
+    "setup-pm": {
+      "description": "Detect and document package manager preference",
+      "template": "检测项目包管理器偏好并给出使用建议。\n\n范围: $ARGUMENTS\n\n检查 lockfile、packageManager 字段、脚本习惯，输出应使用 npm/pnpm/yarn/bun 的依据。"
+    },
+    "tdd": {
+      "description": "Enforce TDD workflow for implementation",
+      "template": "使用 tdd-workflow 技能以 TDD 方式实现：\n\n$ARGUMENTS"
+    },
+    "sync-config": {
+      "description": "Sync project .opencode config back to root Huanyu Code directory",
+      "template": "{file:commands/sync-config.md}"
+    }
+  },
+  "permission": {
+    "mcp_*": "ask"
+  }
+}

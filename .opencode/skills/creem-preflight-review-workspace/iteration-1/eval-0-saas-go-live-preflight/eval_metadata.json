@@ -1,0 +1,12 @@
+{
+  "eval_id": 0,
+  "eval_name": "saas-go-live-preflight",
+  "prompt": "我们准备把一个 SaaS 切到 Creem live/product mode。请帮我做上线前审核预检。项目里有前端落地页、pricing、privacy/terms、Creem checkout 和 webhook 代码。请输出阻塞项、修复任务和提交审核邮件草稿。",
+  "assertions": [
+    "The report has an explicit overall readiness status and submit/stay-in-test-mode recommendation.",
+    "The report checks legal pages, pricing visibility, support email, footer/social links, and product-readiness risks.",
+    "The report checks Creem checkout/webhook/subscription cancellation readiness with repo evidence.",
+    "The report lists prioritized blockers or tasks with concrete file/page/config references.",
+    "The report includes a Creem review submission email draft."
+  ]
+}
