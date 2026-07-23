@@ -226,7 +226,7 @@ Authorization: Bearer glk_xxx
               <div class="docs-feature">
                 <span class="material-symbols-outlined">token</span>
                 <h4>Token 计费</h4>
-                <p>按真实模型消耗计量，支持额度包与微信支付。</p>
+                <p>按真实模型消耗计量（Flash ×1、Pro ×3），免费用户每月 20 万 Token，支持额度包与微信支付。</p>
               </div>
             </div>
           </article>
