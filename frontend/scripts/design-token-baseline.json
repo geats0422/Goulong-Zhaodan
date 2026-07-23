@@ -1,4 +1,4 @@
 {
-  "strategy": "Only newly added CSS declarations are enforced; legacy declarations are migrated incrementally.",
+  "strategy": "Primitive colors must be declared as --color-* in :root or html[data-theme]. Semantic tokens must reference primitives via var(). No new hardcoded hex/rgba outside of --color-* declarations. Legacy declarations are migrated incrementally.",
   "accepted": []
 }
