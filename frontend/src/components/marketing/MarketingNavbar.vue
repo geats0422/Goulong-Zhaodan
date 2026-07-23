@@ -12,6 +12,12 @@ const themeOptions = [
 ]
 
 const activeThemeOption = computed(() => themeOptions.find((item) => item.value === themeMode.value) ?? themeOptions[2])
+const themeGlyphs = {
+  dark: '☾',
+  light: '☀',
+  system: '◐',
+}
+const activeThemeGlyph = computed(() => themeGlyphs[activeThemeOption.value.value] ?? themeGlyphs.system)
 
 const toggleThemeMenu = () => {
   showThemeMenu.value = !showThemeMenu.value
@@ -42,12 +48,12 @@ const selectThemeMode = (mode) => {
       <div class="marketing-actions">
         <div class="marketing-popover-anchor">
           <button class="marketing-theme-button" type="button" :aria-label="`主题：${activeThemeOption.label}`" :aria-expanded="showThemeMenu" @click="toggleThemeMenu">
-            <span class="material-symbols-outlined">{{ activeThemeOption.icon }}</span>
+            <span class="theme-mode-glyph" aria-hidden="true">{{ activeThemeGlyph }}</span>
           </button>
           <div v-if="showThemeMenu" class="marketing-theme-menu" role="menu" aria-label="主题切换">
             <p>THEME MODE</p>
             <button v-for="option in themeOptions" :key="option.value" type="button" role="menuitemradio" :aria-checked="themeMode === option.value" :class="{ active: themeMode === option.value }" @click="selectThemeMode(option.value)">
-              <span class="material-symbols-outlined">{{ option.icon }}</span>
+              <span class="theme-mode-glyph" aria-hidden="true">{{ themeGlyphs[option.value] }}</span>
               {{ option.label }}
             </button>
           </div>

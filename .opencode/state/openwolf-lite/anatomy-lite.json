@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-23T09:12:03.034Z",
+  "updatedAt": "2026-07-23T13:06:23.072Z",
   "files": {
     "frontend/pricing.html": {
       "desc": "pricing.html: empty or binary content",
@@ -8,9 +8,9 @@
       "lastSeenAt": "2026-06-11T14:52:27.430Z"
     },
     "frontend/src/style.css": {
-      "desc": "style.css: @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&fam",
-      "tokenEstimate": 23444,
-      "lastSeenAt": "2026-07-22T15:32:25.464Z"
+      "desc": "style.css: @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;",
+      "tokenEstimate": 26499,
+      "lastSeenAt": "2026-07-23T12:52:30.554Z"
     },
     "frontend/index.html": {
       "desc": "index.html: <!doctype html>",
@@ -619,8 +619,8 @@
     },
     "frontend/src/pages/PricingPage.vue": {
       "desc": "PricingPage.vue: <script setup>",
-      "tokenEstimate": 2780,
-      "lastSeenAt": "2026-07-23T08:36:42.665Z"
+      "tokenEstimate": 2753,
+      "lastSeenAt": "2026-07-23T09:31:11.209Z"
     },
     "frontend/src/components/marketing/MarketingNavbar.vue": {
       "desc": "MarketingNavbar.vue: <script setup>",
@@ -629,8 +629,8 @@
     },
     "frontend/src/pages/MarketingHomePage.vue": {
       "desc": "MarketingHomePage.vue: <script setup>",
-      "tokenEstimate": 2502,
-      "lastSeenAt": "2026-06-12T10:41:48.325Z"
+      "tokenEstimate": 2743,
+      "lastSeenAt": "2026-07-23T13:05:54.811Z"
     },
     "frontend/src/components/marketing/MarketingFooter.vue": {
       "desc": "MarketingFooter.vue: <template>",
@@ -664,8 +664,8 @@
     },
     "frontend/src/data/plans.js": {
       "desc": "plans.js: /**",
-      "tokenEstimate": 1084,
-      "lastSeenAt": "2026-07-23T08:35:07.625Z"
+      "tokenEstimate": 996,
+      "lastSeenAt": "2026-07-23T09:29:17.492Z"
     },
     "backend/alembic/versions/010_add_user_profile_model_name.py": {
       "desc": "010_add_user_profile_model_name.py: from __future__ import annotations",
@@ -1054,8 +1054,8 @@
     },
     "frontend/scripts/verify-routes.mjs": {
       "desc": "verify-routes.mjs: import { existsSync, readFileSync } from 'node:fs'",
-      "tokenEstimate": 434,
-      "lastSeenAt": "2026-06-12T10:18:42.780Z"
+      "tokenEstimate": 3575,
+      "lastSeenAt": "2026-07-23T12:39:05.289Z"
     },
     "frontend/scripts/verify-home-nav.mjs": {
       "desc": "verify-home-nav.mjs: import { readFileSync } from 'node:fs'",
@@ -1339,8 +1339,8 @@
     },
     "backend/app/services/payment_catalog.py": {
       "desc": "payment_catalog.py: from __future__ import annotations",
-      "tokenEstimate": 623,
-      "lastSeenAt": "2026-07-23T08:34:10.929Z"
+      "tokenEstimate": 561,
+      "lastSeenAt": "2026-07-23T09:27:30.699Z"
     },
     "backend/app/services/payment_service.py": {
       "desc": "payment_service.py: from __future__ import annotations",
@@ -1379,8 +1379,8 @@
     },
     "frontend/src/pages/DeveloperDocsPage.vue": {
       "desc": "DeveloperDocsPage.vue: <script setup>",
-      "tokenEstimate": 9067,
-      "lastSeenAt": "2026-07-01T12:33:21.205Z"
+      "tokenEstimate": 8993,
+      "lastSeenAt": "2026-07-23T13:06:23.072Z"
     },
     "backend/app/api/v1/wechat_callback.py": {
       "desc": "wechat_callback.py: \"\"\"微信统一回调端点。",
@@ -1399,8 +1399,8 @@
     },
     "frontend/src/pages/HelpPage.vue": {
       "desc": "HelpPage.vue: <script setup>",
-      "tokenEstimate": 4185,
-      "lastSeenAt": "2026-07-23T08:37:02.736Z"
+      "tokenEstimate": 4196,
+      "lastSeenAt": "2026-07-23T13:06:10.069Z"
     },
     "backend/app/services/report_pdf.py": {
       "desc": "report_pdf.py: from __future__ import annotations",
@@ -1449,8 +1449,8 @@
     },
     "backend/tests/test_payment_catalog.py": {
       "desc": "test_payment_catalog.py: from app.services.payment_catalog import PRODUCTS",
-      "tokenEstimate": 300,
-      "lastSeenAt": "2026-07-23T08:33:53.705Z"
+      "tokenEstimate": 263,
+      "lastSeenAt": "2026-07-23T09:27:51.874Z"
     },
     "backend/tests/test_quota.py": {
       "desc": "test_quota.py: import pytest",
@@ -1461,6 +1461,21 @@
       "desc": "quota.py: from __future__ import annotations",
       "tokenEstimate": 388,
       "lastSeenAt": "2026-07-23T08:47:22.482Z"
+    },
+    "docs/designs/2026-07-24-light-theme-chinese-cyber-design.md": {
+      "desc": "2026-07-24-light-theme-chinese-cyber-design.md: # 浅色主题重设设计文档（水墨青釉 + 赛博朋克点缀）",
+      "tokenEstimate": 951,
+      "lastSeenAt": "2026-07-23T09:43:45.295Z"
+    },
+    "frontend/scripts/batch_replace_light_colors.py": {
+      "desc": "batch_replace_light_colors.py: \"\"\"Batch replace old color values in [data-theme=\"light\"] blocks with semantic t",
+      "tokenEstimate": 2774,
+      "lastSeenAt": "2026-07-23T12:47:55.444Z"
+    },
+    "frontend/scripts/design-token-baseline.json": {
+      "desc": "design-token-baseline.json: {",
+      "tokenEstimate": 79,
+      "lastSeenAt": "2026-07-23T12:53:44.168Z"
     }
   }
 }

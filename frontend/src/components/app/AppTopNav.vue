@@ -20,6 +20,11 @@ const themeOptions = [
   { label: '浅色', value: 'light', icon: 'light_mode' },
   { label: '系统配置', value: 'system', icon: 'routine' },
 ]
+const themeGlyphs = {
+  dark: '☾',
+  light: '☀',
+  system: '◐',
+}
 
 const navItems = [
   { label: '靶场', href: '/dashboard', key: 'dashboard' },
@@ -67,6 +72,7 @@ const goToSettings = () => {
 }
 
 const activeThemeOption = computed(() => themeOptions.find((item) => item.value === themeMode.value) ?? themeOptions[2])
+const activeThemeGlyph = computed(() => themeGlyphs[activeThemeOption.value.value] ?? themeGlyphs.system)
 const username = computed(() => currentUser.value?.nickname || '用户')
 const avatarText = computed(() => username.value.slice(0, 1).toUpperCase())
 
@@ -89,14 +95,14 @@ const avatarText = computed(() => username.value.slice(0, 1).toUpperCase())
       <div class="dashboard-actions">
         <div class="nav-popover-anchor">
           <button class="icon-button" type="button" :aria-label="`主题：${activeThemeOption.label}`" :aria-expanded="showThemeMenu" @click="toggleThemeMenu">
-            <span class="material-symbols-outlined">{{ activeThemeOption.icon }}</span>
+            <span class="theme-mode-glyph" aria-hidden="true">{{ activeThemeGlyph }}</span>
           </button>
           <div v-if="showThemeMenu" class="theme-menu" role="menu" aria-label="主题切换">
             <span class="hud-corner corner-tl"></span>
             <span class="hud-corner corner-br"></span>
             <p class="popover-kicker">THEME MODE</p>
             <button v-for="option in themeOptions" :key="option.value" type="button" role="menuitemradio" :aria-checked="themeMode === option.value" :class="{ active: themeMode === option.value }" @click="selectThemeMode(option.value)">
-              <span class="material-symbols-outlined">{{ option.icon }}</span>
+              <span class="theme-mode-glyph" aria-hidden="true">{{ themeGlyphs[option.value] }}</span>
               {{ option.label }}
             </button>
           </div>

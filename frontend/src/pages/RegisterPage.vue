@@ -159,7 +159,7 @@ function gotoLogin() {
 <template>
   <div class="register-page">
     <button class="theme-toggle" type="button" @click="toggleTheme" :aria-label="theme === 'dark' ? '切换到浅色' : '切换到深色'">
-      <span class="material-symbols-outlined">{{ theme === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
+      <span class="theme-mode-glyph" aria-hidden="true">{{ theme === 'dark' ? '☀' : '☾' }}</span>
     </button>
 
     <div class="register-canvas">
