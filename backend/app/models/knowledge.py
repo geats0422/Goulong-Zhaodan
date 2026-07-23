@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import uuid
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, JSON, MetaData, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, ForeignKey, Index, Integer, JSON, MetaData, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -175,6 +175,7 @@ class InspectionRecord(Base):
     document_type: Mapped[str] = mapped_column(String(20), nullable=False)
     document_type_label: Mapped[str] = mapped_column(String(50), nullable=False)
     project_id: Mapped[str] = mapped_column(String(100), nullable=False, default="default")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="processing", server_default="processing")
     overall_risk: Mapped[str] = mapped_column(String(20), nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     issues: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
@@ -183,3 +184,13 @@ class InspectionRecord(Base):
     parsed_content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     quota_consumed: Mapped[int] = mapped_column(nullable=False, default=1)
     created_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('uploaded', 'processing', 'completed', 'failed', 'cancelled')",
+            name="ck_inspection_records_status",
+        ),
+        Index("ix_inspection_records_user_created_at", "user_id", "created_at"),
+        Index("ix_inspection_records_user_project_created_at", "user_id", "project_id", "created_at"),
+        Index("ix_inspection_records_user_status_created_at", "user_id", "status", "created_at"),
+    )

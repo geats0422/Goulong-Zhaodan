@@ -13,6 +13,7 @@ from app.workers.tasks import (
     inspect_document_task,
     knowledge_upload_task,
     parse_document_task,
+    reset_monthly_free_quota_task,
 )
 
 document_processing_registration = func(document_processing_task, timeout=1800)
@@ -35,9 +36,9 @@ class WorkerSettings:
     max_tries = 3
     keep_result = 3600
     cron_jobs: list[Any] = [
-        # 每 5 分钟关闭超时未支付的 pending 订单
         cron(close_expired_orders_task, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}),
         cron(document_job_dispatcher_task, minute=set(range(60))),
+        cron(reset_monthly_free_quota_task, day=1, hour=0, minute=5),
     ]
 
     @staticmethod

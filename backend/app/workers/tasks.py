@@ -58,6 +58,7 @@ class _DocumentJobSnapshot:
     status: str
     progress: int
     retry_count: int
+    dispatch_retry_count: int
     lease_version: int
     lease_owner: str | None
     mineru_task_id: str | None
@@ -94,6 +95,7 @@ def _snapshot(job: Any) -> _DocumentJobSnapshot:
         status=job.status,
         progress=job.progress,
         retry_count=job.retry_count,
+        dispatch_retry_count=getattr(job, "dispatch_retry_count", 0),
         lease_version=job.lease_version,
         lease_owner=job.lease_owner,
         mineru_task_id=getattr(job, "mineru_task_id", None),
@@ -558,34 +560,41 @@ async def _run_owned_document_inspection(
     nodes: list[Any],
     *,
     inspection_input: _InspectionInput | None = None,
+    fallback_text: str | None = None,
 ) -> Any:
     from app.agents.inspector import run_inspection
     from app.core.deps import InspectionDeps
     from app.services.inspection_runner import allowed_regulation_refs, sanitize_inspection_result_refs
 
     inspection_input = inspection_input or await _load_owned_inspection_input(job)
-    deps = InspectionDeps(
-        project_id=inspection_input.project_id,
-        user_id=str(job.user_id),
-        application_scenario=inspection_input.application_scenario,
-        regulation_base=inspection_input.regulation_base,
-        taboo_words=inspection_input.taboo_words or None,
-        db=None,
-    )
-    structured_text = json.dumps(
-        [
-            {
-                "path": node.path_label,
-                "type": node.node_type,
-                "position": node.position,
-                "content": node.content,
-            }
-            for node in nodes
-        ],
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
-    result = await run_inspection(structured_text, deps)
+    if nodes:
+        structured_text = json.dumps(
+            [
+                {
+                    "path": node.path_label,
+                    "type": node.node_type,
+                    "position": node.position,
+                    "content": node.content,
+                }
+                for node in nodes
+            ],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    else:
+        structured_text = fallback_text or ""
+    async with async_session() as db:
+        deps = InspectionDeps(
+            project_id=inspection_input.project_id,
+            user_id=str(job.user_id),
+            document_name=inspection_input.document_name,
+            application_scenario=inspection_input.application_scenario,
+            regulation_base=inspection_input.regulation_base,
+            taboo_words=inspection_input.taboo_words or None,
+            db=db,
+        )
+        result = await run_inspection(structured_text, deps)
+        await db.commit()
     sanitize_inspection_result_refs(
         result,
         allowed_regulation_refs(inspection_input.regulation_base, inspection_input.taboo_words),
@@ -723,6 +732,8 @@ class _ResumableInspection:
 async def _run_resumable_document_inspection(
     job: _DocumentJobSnapshot,
     nodes: list[Any],
+    *,
+    fallback_text: str | None = None,
 ) -> _ResumableInspection | None:
     from app.services.file_storage import delete_file, save_file
 
@@ -740,6 +751,7 @@ async def _run_resumable_document_inspection(
         started,
         nodes,
         inspection_input=inspection_input,
+        fallback_text=fallback_text,
     )
     content = _serialize_inspection_result(report)
     result_hash = hashlib.sha256(content).hexdigest()
@@ -768,7 +780,7 @@ async def _commit_inspection_success(
     report: Any,
 ) -> bool:
     from app.core.data_encryption import encrypt_text
-    from app.services.inspection_runner import DOCUMENT_TYPE_LABELS, append_history_record
+    from app.services.inspection_runner import DOCUMENT_TYPE_LABELS
 
     inspection_input = await _load_owned_inspection_input(job)
     record: InspectionRecord | None = None
@@ -807,6 +819,7 @@ async def _commit_inspection_success(
                 inspection_input.application_scenario,
             )
             record.project_id = inspection_input.project_id
+            record.status = "completed"
             record.overall_risk = report.overall_risk
             record.summary = report.summary
             record.issues = report.issues
@@ -814,8 +827,6 @@ async def _commit_inspection_success(
             record.text_preview = artifact.markdown[:500]
             record.parsed_content = encrypt_text(artifact.markdown)
             record.quota_consumed = max(1, len(artifact.markdown) // 500)
-    if record is not None:
-        append_history_record(record)
     await _delete_terminal_artifact(job.index_artifact_path, artifact_kind="index")
     await _delete_terminal_artifact(job.inspection_result_path, artifact_kind="inspection_result")
     return True
@@ -852,6 +863,15 @@ async def _fail_document_job(job: _DocumentJobSnapshot, *, error_code: str) -> b
                 lease_owner=getattr(job, "lease_owner", None),
                 error_code=error_code,
             )
+            if failed is not None and failed.inspection_record_id is not None:
+                record = await db.scalar(
+                    select(InspectionRecord).where(
+                        InspectionRecord.id == failed.inspection_record_id,
+                        InspectionRecord.user_id == failed.user_id,
+                    )
+                )
+                if record is not None:
+                    record.status = "failed"
     if failed is not None:
         await _delete_terminal_artifact(job.index_artifact_path, artifact_kind="index")
         await _delete_terminal_artifact(job.inspection_result_path, artifact_kind="inspection_result")
@@ -939,8 +959,11 @@ async def _cancel_document_job(job: _DocumentJobSnapshot) -> bool:
             return cancelled is not None
 
 
-def _is_final_attempt(ctx: dict[str, Any]) -> bool:
-    return int(ctx.get("job_try", 3)) >= int(ctx.get("max_tries", 3))
+def _is_final_attempt(ctx: dict[str, Any], job: _DocumentJobSnapshot) -> bool:
+    max_tries = int(ctx.get("max_tries", 3))
+    arq_attempt = int(ctx.get("job_try", max_tries))
+    persisted_attempt = job.dispatch_retry_count + 1
+    return arq_attempt >= max_tries or persisted_attempt >= max_tries
 
 
 def _failure_code(error: BaseException, job: _DocumentJobSnapshot) -> str:
@@ -989,26 +1012,36 @@ async def document_processing_task(ctx: dict[str, Any], job_id: str) -> None:
             artifact = await _persist_parsed_markdown(current, parsed)
             unreferenced_paths.add(artifact.markdown_path)
 
-        if current.stage == "indexing" and current.job_type != "inspection" and current.progress >= 85:
-            await _complete_document_job(current, artifact)
-            return
+            if current.job_type == "inspection":
+                claimed = await _advance_document_job(current, stage="inspecting", progress=90, artifact=artifact)
+                if claimed is None:
+                    return
+                current = claimed
+                inspection = await _run_with_lease_heartbeat(
+                    current,
+                    _run_resumable_document_inspection(current, [], fallback_text=artifact.markdown),
+                )
+                if inspection is None:
+                    return
+                current = inspection.job
+                await _commit_inspection_success(current, artifact, inspection.report)
+                return
 
-        if current.stage == "inspecting" and current.job_type == "inspection":
-            if current.progress < 99:
+        if current.job_type == "inspection":
+            inspecting_progress = 90 if current.stage != "inspecting" else min(current.progress + 1, 99)
+            if current.stage != "inspecting" or inspecting_progress > current.progress:
                 claimed = await _advance_document_job(
                     current,
                     stage="inspecting",
-                    progress=current.progress + 1,
+                    progress=inspecting_progress,
                     artifact=artifact,
                 )
                 if claimed is None:
                     return
                 current = claimed
-            if index_artifact is None:
-                raise _DocumentWorkerBusinessError("indexing_failed")
             inspection = await _run_with_lease_heartbeat(
                 current,
-                _run_resumable_document_inspection(current, index_artifact.nodes),
+                _run_resumable_document_inspection(current, [], fallback_text=artifact.markdown),
             )
             if inspection is None:
                 return
@@ -1016,7 +1049,11 @@ async def document_processing_task(ctx: dict[str, Any], job_id: str) -> None:
             await _commit_inspection_success(current, artifact, inspection.report)
             return
 
-        indexing_ceiling = 89 if current.job_type == "inspection" else 84
+        if current.stage == "indexing" and current.progress >= 85:
+            await _complete_document_job(current, artifact)
+            return
+
+        indexing_ceiling = 84
         indexing_progress = (
             min(max(current.progress + 1, 70), indexing_ceiling)
             if current.stage == "indexing"
@@ -1065,7 +1102,7 @@ async def document_processing_task(ctx: dict[str, Any], job_id: str) -> None:
         await asyncio.shield(_cleanup_cancelled_document_job(current))
         if ctx.get("cancel_requested"):
             await asyncio.shield(_cancel_document_job(current))
-        elif _is_final_attempt(ctx):
+        elif _is_final_attempt(ctx, current):
             await asyncio.shield(_fail_document_job(current, error_code="parse_timeout"))
         else:
             await asyncio.shield(_release_document_job(current, redispatch=True))
@@ -1080,7 +1117,7 @@ async def document_processing_task(ctx: dict[str, Any], job_id: str) -> None:
             and error.code == "mineru_failed"
         ):
             await _clear_mineru_task(current)
-        if _is_final_attempt(ctx):
+        if _is_final_attempt(ctx, current):
             await _fail_document_job(current, error_code=_failure_code(error, current))
         else:
             await _release_document_job(current, redispatch=True)
@@ -1292,3 +1329,21 @@ async def close_expired_orders_task(ctx: dict) -> dict[str, int]:
 
     async with async_session() as db:
         return await close_expired_orders(db)
+
+
+async def reset_monthly_free_quota_task(ctx: dict) -> dict[str, int]:
+    """ARQ 定时任务：每月 1 号重置免费用户 token_used。"""
+    from sqlalchemy import update
+    from goulong_auth.models import Membership
+
+    async with async_session() as db:
+        result = await db.execute(
+            update(Membership)
+            .where(
+                Membership.product == "zhaodan",
+                Membership.plan == "free",
+            )
+            .values(token_used=0)
+        )
+        await db.commit()
+        return {"reset_count": result.rowcount}

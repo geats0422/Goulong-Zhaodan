@@ -76,7 +76,7 @@ def _convert_docx_to_text(path: Path) -> str:
 
 def _convert_pdf_to_text(path: Path) -> str:
     try:
-        import fitz
+        import fitz  # type: ignore[import-untyped]
     except ImportError:
         return ""
     try:
