@@ -1,13 +1,14 @@
 # 句龙照胆优化审计报告
 
 **日期**: 2026-07-23  
-**范围**: 数据统计真实性、统计页 footer 布局、`DESIGN.md` 设计规范符合度  
-**结论**: 需要优先修复统计数据源，其次统一应用壳布局和设计 token。
+**范围**: 文档体检存储链路、数据统计真实性、统计页 footer 布局、`DESIGN.md` 设计规范符合度
+**结论**: 需要优先修复当前阶段误启 OSS 导致文档体检不可用的问题，其次修复统计数据源，再统一应用壳布局和设计 token。
 
 ## 评分概览
 
 | 维度 | 评分 | 主要原因 |
 | --- | --- | --- |
+| 文档体检可用性 | 2/10 | `/inspection/parse` 上传链路仍走 OSS，OSS 502 直接导致文档体检 500 |
 | 数据统计真实性 | 3/10 | 统计接口读取进程内缓存 `_inspection_records`，不是数据库真实记录；异步 worker 与 API 进程内存不共享 |
 | 统计页布局 | 6/10 | 页面使用 flex 外壳，但 `statistics-main` 未占据剩余高度，空数据时 footer 不贴底 |
 | 设计规范符合度 | 5/10 | 多处仍使用旧暖色/浅色方案、`Geist`/`Noto Serif` 字体和非设计色值 |
@@ -15,7 +16,27 @@
 
 ## 高优先级问题
 
-### 1. 统计接口不是数据库真实数据
+### 1. 当前阶段误启 OSS，导致文档体检不可用
+
+- 位置: `backend/app/api/v1/inspection.py:490`、`backend/app/services/file_storage.py:46`、`backend/app/services/file_storage.py:105`
+- 当前行为: `/inspection/parse` 读取上传内容后调用 `save_file(source_path, content)`；`save_file()` 只要检测到 `oss_bucket_name` 和 `oss_endpoint` 非空，就直接走 OSS `put_object()`。
+- 观察到的错误: `oss2.exceptions.ServerError: {'status': 502, 'x-oss-request-id': '', 'details': {}}`，请求最终返回 `POST /inspection/parse` 500。
+- 根因判断:
+  - 设计意图是“OSS 留空时使用 ECS/本机本地存储 UPLOAD_DIR；配置完整时才启用 OSS”，见 `backend/env.example:52`。
+  - 当前项目仍处于前期阶段，预期应和文衡一样先走本地存储；但实际运行环境配置了 OSS bucket/endpoint，触发 OSS 分支。
+  - OSS 调用失败没有被转换为可恢复的本地存储路径，也没有返回可读的业务错误，因此直接阻断文档体检。
+- 风险:
+  - 用户无法上传文档进入体检流程。
+  - OSS 网络、凭据、endpoint 或代理波动会把核心体检能力打挂。
+  - 环境配置稍有残留就会误启 OSS，本地开发和早期部署不可控。
+- 建议:
+  - 增加显式存储模式开关，例如 `FILE_STORAGE_BACKEND=local|oss`，当前默认 `local`。
+  - 在早期阶段即使存在 OSS 配置，也应由显式开关决定是否启用 OSS，而不是仅靠 bucket/endpoint 非空。
+  - 本地模式统一使用 `UPLOAD_DIR`，并在启动时输出当前存储后端的只读诊断日志。
+  - 对 `save_file()` 的 OSS 异常转换为稳定业务错误，避免原始 SDK 异常冒泡成 500。
+  - 增加测试: OSS 配置存在但 `FILE_STORAGE_BACKEND=local` 时，`save_file()` 必须写入本地；`FILE_STORAGE_BACKEND=oss` 且 OSS 失败时返回可控错误。
+
+### 2. 统计接口不是数据库真实数据
 
 - 位置: `backend/app/api/v1/inspection.py:716`
 - 当前行为: `get_history_stats()` 从 `_inspection_records` 过滤统计。
@@ -33,7 +54,7 @@
   - 过滤条件必须包含当前 `user_id`、`project_id`、最近 7 天，以及排除未完成/待处理记录。
   - 保留 `_aggregate_history_stats()` 作为纯函数时，应输入数据库查询结果，而不是进程缓存。
 
-### 2. 错误兜底会把真实问题表现成“0 数据”
+### 3. 错误兜底会把真实问题表现成“0 数据”
 
 - 位置: `frontend/src/pages/StatisticsPage.vue:57`
 - 当前行为: 请求失败时把 `stats` 重置为全 0，同时页面只在趋势区显示“加载失败”。
@@ -43,7 +64,7 @@
   - 将错误提示提升到 summary 上方，明确“统计暂不可用”，不要静默覆盖为 0。
   - 记录响应状态码，401/403 应引导重新登录，500 应提示稍后重试。
 
-### 3. 统计页 footer 不贴底
+### 4. 统计页 footer 不贴底
 
 - 位置: `frontend/src/pages/StatisticsPage.vue:170`
 - 当前行为: `.statistics-main` 只有固定 padding，没有 `flex: 1`。
@@ -101,11 +122,13 @@
 - `npx gitnexus analyze`: 通过，索引已更新到当前仓库状态。
 - `npm run build`（frontend）: 通过。
 - `uv run pytest tests/test_history_stats_api.py -q`（backend）: 未通过，失败在测试夹具连接本地 PostgreSQL `goulong_test` 时连接中途关闭，不是统计断言失败。
+- 用户提供的 `/inspection/parse` 异常栈: 已确认失败点为 `file_storage.save_file()` 调用 OSS `put_object()` 返回 502。
 
 ## 建议修复顺序
 
-1. 改造统计接口为数据库聚合，并补齐数据库级测试。
-2. 修复统计页错误态和 footer 贴底。
-3. 统一字体导入和 CSS token，先覆盖统计页、导航、footer。
-4. 分批迁移历史页、审查弹窗、报告面板、登录注册页的旧浅色硬编码。
-5. 增加设计规范静态检查脚本，防止后续再引入非规范字体/颜色。
+1. 增加显式本地/OSS 存储模式开关，当前阶段默认本地存储，恢复文档体检可用性。
+2. 改造统计接口为数据库聚合，并补齐数据库级测试。
+3. 修复统计页错误态和 footer 贴底。
+4. 统一字体导入和 CSS token，先覆盖统计页、导航、footer。
+5. 分批迁移历史页、审查弹窗、报告面板、登录注册页的旧浅色硬编码。
+6. 增加设计规范静态检查脚本，防止后续再引入非规范字体/颜色。
