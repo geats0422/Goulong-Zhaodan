@@ -1,12 +1,6 @@
 from app.services.payment_catalog import PRODUCTS
 
 
-def test_test_pack_unchanged():
-    p = PRODUCTS["test_0_1"]
-    assert p.amount_cents == 1
-    assert p.token_quota == 10_000
-
-
 def test_light_pack():
     p = PRODUCTS["light"]
     assert p.amount_cents == 900

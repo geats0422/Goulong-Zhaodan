@@ -15,15 +15,6 @@ class Product:
 
 
 PRODUCTS: dict[str, Product] = {
-    "test_0_1": Product(
-        code="test_0_1",
-        name="支付测试包",
-        product_type="addon",
-        amount_cents=1,
-        token_quota=10_000,
-        period="addon",
-        free_user_allowed=True,
-    ),
     "light": Product(
         code="light",
         name="轻量包",

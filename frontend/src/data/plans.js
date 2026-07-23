@@ -17,20 +17,6 @@ export const PLAN_CATALOG = {
 // 算力补充包（SettingsPage 账单页；价格与 PricingPage addons 一致）
 export const POWER_PACKS = [
   {
-    key: 'test_0_1',
-    ref: 'REF.PACK-TEST',
-    name: '支付测试包',
-    price: '¥0.01',
-    unit: '',
-    recommended: false,
-    features: [
-      { text: '1 万 Token', ok: true },
-      { text: '仅用于支付链路测试', ok: true },
-      { text: '支付后立即到账', ok: true },
-      { text: '非正式生产套餐', ok: false },
-    ],
-  },
-  {
     key: 'light',
     ref: 'REF.PACK-LIGHT',
     name: '轻量包',
