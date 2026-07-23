@@ -183,8 +183,73 @@ if (!appTopNav.includes('notification-panel') || !appTopNav.includes('无待处�
 
 const style = readFileSync(resolve(root, 'src/style.css'), 'utf8')
 
-if (!style.includes('[data-theme="light"]') || !style.includes('--bg: #f7f1e3') || !style.includes('浅色主题')) {
-  throw new Error('Global styles must define the DESIGN.md-inspired light theme')
+if (!style.includes('[data-theme="light"]') || !style.includes('浅色主题')) {
+  throw new Error('Global styles must define the light theme block')
+}
+
+for (const [name, hex] of [
+  ['宣纸白偏米', '#f5f1e8'],
+  ['卡片纯白', '#ffffff'],
+  ['浅青灰', '#eef0eb'],
+  ['近黑墨', '#1c1f1d'],
+  ['淡墨灰', '#5b6168'],
+  ['淡青线', '#d4d6cf'],
+  ['釉里青', '#1f5f5b'],
+  ['浅釉里青', '#2d8a85'],
+  ['古铜金', '#b08847'],
+  ['玉青', '#6b8e7f'],
+  ['霓虹青', '#00d9c4'],
+  ['朱砂红', '#a8453c'],
+]) {
+  if (!style.includes(hex)) {
+    throw new Error(`Light theme must declare primitive color ${name}: ${hex}`)
+  }
+}
+
+for (const token of [
+  '--page-bg',
+  '--card-bg',
+  '--divider-bg',
+  '--card-border',
+  '--text-primary',
+  '--text-muted',
+  '--text-link',
+  '--text-accent',
+  '--primary-bg',
+  '--primary-fg',
+  '--primary-hover',
+  '--secondary-border',
+  '--focus-ring',
+  '--hover-glow',
+  '--loading-bar',
+]) {
+  if (!style.includes(`${token}:`)) {
+    throw new Error(`Light theme must declare semantic token: ${token}`)
+  }
+}
+
+if (!style.includes('--font-display') || !style.includes('Noto Serif SC')) {
+  throw new Error('Light theme must use Noto Serif SC as display font')
+}
+if (!style.includes('--font-body') || !style.includes('Noto Sans SC')) {
+  throw new Error('Light theme must use Noto Sans SC as body font')
+}
+
+if (!style.includes('Noto+Serif+SC') || !style.includes('Noto+Sans+SC')) {
+  throw new Error('Google Fonts import must include Noto Serif SC and Noto Sans SC')
+}
+
+for (const banned of [
+  '--bg: #f7f1e3',
+  'Imperial Circuitry',
+]) {
+  if (style.includes(banned)) {
+    throw new Error(`Light theme must not retain legacy pattern: ${banned}`)
+  }
+}
+
+if (!style.includes('prefers-reduced-motion: reduce')) {
+  throw new Error('Light theme must respect prefers-reduced-motion')
 }
 
 for (const selector of [

@@ -1,8 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined&family=Syne:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined&family=Syne:wght@500;600;700&display=swap');
 
 :root {
-  --font-display: "Syne", "Noto Serif SC", serif;
-  --font-body: "Hanken Grotesk", "Noto Sans SC", sans-serif;
+  --font-display: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  --font-body: "Noto Sans SC", "Hanken Grotesk", "Noto Sans", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
   --color-bg: #0e0e0e;
   --color-surface: #171717;
@@ -25,16 +25,21 @@
 }
 
 html[data-theme="light"] {
-  --color-bg: #b8944d;
-  --color-surface: #d8bf7b;
-  --color-surface-raised: #866a2f;
-  --color-border: #3f2a08;
-  --color-text: #151007;
-  --color-muted: #21170b;
-  --color-primary: #2b1a00;
-  --color-primary-glow: rgba(43, 26, 0, 0.34);
-  --color-cyber: #005e66;
-  --color-cyber-glow: rgba(0, 94, 102, 0.24);
+  color-scheme: light;
+  --color-bg: #f5f1e8;
+  --color-surface: #ffffff;
+  --color-surface-2: #eef0eb;
+  --color-text: #1c1f1d;
+  --color-muted: #5b6168;
+  --color-border: #d4d6cf;
+  --color-primary: #1f5f5b;
+  --color-primary-soft: #2d8a85;
+  --color-primary-glow: rgba(31, 95, 91, 0.16);
+  --color-gold: #b08847;
+  --color-jade: #6b8e7f;
+  --color-cyber: #00d9c4;
+  --color-cyber-glow: rgba(0, 217, 196, 0.28);
+  --color-error: #a8453c;
   --bg: var(--color-bg);
   --surface: var(--color-surface);
   --surface-2: var(--color-surface-raised);
@@ -42,6 +47,21 @@ html[data-theme="light"] {
   --muted: var(--color-muted);
   --line: var(--color-border);
   --gold: var(--color-primary);
+  --page-bg: var(--color-bg);
+  --card-bg: var(--color-surface);
+  --divider-bg: var(--color-surface-2);
+  --card-border: var(--color-border);
+  --text-primary: var(--color-text);
+  --text-muted: var(--color-muted);
+  --text-link: var(--color-primary);
+  --text-accent: var(--color-gold);
+  --primary-bg: var(--color-primary);
+  --primary-fg: #ffffff;
+  --primary-hover: var(--color-primary-soft);
+  --secondary-border: var(--color-border);
+  --focus-ring: 0 0 0 2px rgba(0, 217, 196, 0.32);
+  --hover-glow: 0 0 12px var(--color-cyber-glow);
+  --loading-bar: linear-gradient(90deg, var(--color-primary) 0%, var(--color-cyber) 100%);
 }
 
 .dashboard-page {
@@ -55,6 +75,17 @@ html[data-theme="light"] {
 
 .statistics-page .statistics-main {
   flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .dashboard-page .material-symbols-outlined {
@@ -2413,7 +2444,7 @@ p {
   }
 }
 
-/* 浅色主题：延续 DESIGN.md 的 Imperial Circuitry，用暖玉纸面承载黑金 HUD。 */
+/* 浅色主题：水墨青釉 + 赛博朋克点缀 */
 [data-theme="light"] {
   --bg: var(--color-bg);
   --surface: var(--color-surface);
