@@ -18,6 +18,7 @@ from app.core.constants import (
 )
 from app.core.database import get_db_session
 from app.core.file_magic import validate_file_magic
+from app.core.quota import require_quota
 from app.models.knowledge import (
     EngineeringSubcategory,
     KnowledgeDocument,
@@ -285,6 +286,7 @@ async def upload_and_ingest(
     user: CurrentUserContext = Depends(get_current_user),
 ):
     filename = file.filename or "unknown"
+    await require_quota(db, _current_user_id(user))
     try:
         ext = validate_file_type(filename)
     except ValueError as exc:

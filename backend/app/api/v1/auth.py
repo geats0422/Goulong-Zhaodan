@@ -213,7 +213,7 @@ async def register(body: RegisterRequest, response: Response, request: Request, 
         product="zhaodan",
         plan="free",
         status="active",
-        token_quota=50,
+        token_quota=0,
         token_used=0,
     )
     db.add(membership)

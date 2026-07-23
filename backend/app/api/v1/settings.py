@@ -9,20 +9,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.api_key_scopes import SCOPE_TEMPLATES_META
 from app.core.auth import CurrentUserContext, get_current_user, hash_password, revoke_all_refresh_tokens, verify_password
 from app.core.config import settings
-from app.core.constants import ENGINEERING_CATEGORIES
 from app.core.database import get_db_session
 from app.core.model_config import MODEL_CATALOG, normalize_model_name
 from app.core.password_rules import validate_password
 from app.core.pii_masking import mask_email, mask_phone
+from app.core.quota import effective_token_quota
 from app.services import sms_service
 from goulong_auth.models import Membership, User
 from app.models.knowledge import (
-    EngineeringSubcategory,
     KnowledgeDocument,
     KnowledgeDocumentSetting,
     TabooWord,
@@ -87,6 +85,11 @@ class SettingsKnowledgeCategory(BaseModel):
     subcategories: list[SettingsSubcategory]
 
 
+class SettingsKnowledgeGroup(BaseModel):
+    owner_type: str
+    documents: list[SettingsDocument]
+
+
 class TabooWordResponse(BaseModel):
     id: int
     word: str
@@ -96,7 +99,7 @@ class TabooWordResponse(BaseModel):
 
 class SettingsOverviewResponse(BaseModel):
     profile: ProfileResponse
-    knowledge: list[SettingsKnowledgeCategory]
+    knowledge: list[SettingsKnowledgeGroup]
     taboo_words: list[TabooWordResponse]
 
 
@@ -281,7 +284,7 @@ async def _get_or_create_membership(db: AsyncSession, user_id: uuid.UUID) -> Mem
         product="zhaodan",
         plan="free",
         status="active",
-        token_quota=50,
+        token_quota=0,
         token_used=0,
     )
     db.add(membership)
@@ -294,7 +297,7 @@ def _profile_response(db_user: User, profile: ZhaodanUserProfile, membership: Me
     key = settings.model_api_key
     preview = f"****-****-{key[-4:]}" if len(key) >= 8 else "****"
     plan = PLAN_CATALOG.get(membership.plan, PLAN_CATALOG["free"])
-    effective_model = normalize_model_name(profile.model_name or settings.model_name)
+    effective_model = normalize_model_name(profile.model_name or settings.model_name) or settings.model_name
     return ProfileResponse(
         nickname=db_user.nickname,
         email=mask_email(db_user.email),
@@ -306,7 +309,7 @@ def _profile_response(db_user: User, profile: ZhaodanUserProfile, membership: Me
         subscription_label=plan["label"],
         subscription_period=plan["period"],
         subscription_price=plan["price"],
-        monthly_quota=membership.token_quota or plan["monthly_quota"] or 0,
+        monthly_quota=effective_token_quota(membership),
         quota_used=membership.token_used,
         burn_after_read=profile.burn_after_read,
         model_name=effective_model,
@@ -326,40 +329,30 @@ def _taboo_response(item: TabooWord) -> TabooWordResponse:
     )
 
 
-async def _build_knowledge(db: AsyncSession, user_id: uuid.UUID) -> list[SettingsKnowledgeCategory]:
+async def _build_knowledge(db: AsyncSession, user_id: uuid.UUID) -> list[SettingsKnowledgeGroup]:
     setting_result = await db.execute(
         select(KnowledgeDocumentSetting).where(KnowledgeDocumentSetting.user_id == user_id)
     )
     settings_by_doc = {item.document_id: item.enabled for item in setting_result.scalars().all()}
 
-    categories: list[SettingsKnowledgeCategory] = []
-    for key, label in ENGINEERING_CATEGORIES.items():
-        result = await db.execute(
-            select(EngineeringSubcategory)
-            .where(EngineeringSubcategory.category_key == key)
-            .options(selectinload(EngineeringSubcategory.documents))
-        )
-        subcategories = []
-        for sub in result.scalars().all():
-            documents = [
-                SettingsDocument(
-                    id=doc.id,
-                    title=doc.title,
-                    enabled=settings_by_doc.get(doc.id, True),
-                    owner_type=doc.owner_type,
-                    application_scenario=doc.application_scenario,
-                )
-                for doc in sub.documents
-            ]
-            subcategories.append(SettingsSubcategory(id=sub.id, name=sub.name, documents=documents))
-        categories.append(
-            SettingsKnowledgeCategory(
-                category_key=key,
-                category_label=label,
-                subcategories=subcategories,
+    result = await db.execute(
+        select(KnowledgeDocument).order_by(KnowledgeDocument.owner_type, KnowledgeDocument.title)
+    )
+    all_docs = result.scalars().all()
+
+    groups: dict[str, list[SettingsDocument]] = {}
+    for doc in all_docs:
+        groups.setdefault(doc.owner_type, []).append(
+            SettingsDocument(
+                id=doc.id,
+                title=doc.title,
+                enabled=settings_by_doc.get(doc.id, True),
+                owner_type=doc.owner_type,
+                application_scenario=doc.application_scenario,
             )
         )
-    return categories
+
+    return [SettingsKnowledgeGroup(owner_type=k, documents=v) for k, v in groups.items()]
 
 
 @router.get("/overview", response_model=SettingsOverviewResponse)

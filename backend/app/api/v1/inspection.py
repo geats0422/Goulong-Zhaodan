@@ -22,16 +22,16 @@ from app.core.constants import validate_application_scenario
 from app.core.data_encryption import decrypt_text
 from app.core.database import get_db_session
 from app.core.file_magic import validate_file_magic
+from app.core.quota import require_quota
 from app.models.knowledge import InspectionRecord
 from app.services.document_job_service import (
     create_document_job,
     prepare_source_artifact,
 )
-from app.services.file_storage import delete_file, save_file
+from app.services.file_storage import FileStorageError, delete_file, save_file
 from app.services.inspection_runner import (
     DOCUMENT_TYPE_LABELS,
     InspectionReportResponse,
-    _inspection_records,
     add_pending_inspection_record,
     execute_inspection,
 )
@@ -45,7 +45,7 @@ MAX_INSPECTION_FILE_SIZE = 20 * 1024 * 1024
 INSPECTION_SESSION_TTL = timedelta(hours=1)
 MAX_INSPECTION_SESSIONS = 100
 MAX_INSPECTION_SESSIONS_PER_USER = 5
-ALLOWED_INSPECTION_EXTENSIONS = {".txt", ".pdf", ".doc", ".docx"}
+ALLOWED_INSPECTION_EXTENSIONS = {".txt", ".pdf", ".docx"}
 DOCUMENT_TYPE_KEYWORDS = {
     "contract": ["合同", "协议", "甲方", "乙方", "民法典", "违约责任", "签订", "付款", "履约", "违约金", "不可抗力"],
     "bidding": ["招标", "投标", "招投标", "采购", "评标", "中标", "投标人", "投标保证金"],
@@ -68,6 +68,8 @@ def _current_user_id(user: CurrentUserContext) -> uuid_mod.UUID:
 def _validate_inspection_filename(filename: str) -> None:
     dot_idx = filename.rfind(".")
     ext = filename[dot_idx:].lower() if dot_idx != -1 else ""
+    if ext == ".doc":
+        raise HTTPException(status_code=400, detail="暂不支持 .doc 格式，请先在 Word 中另存为 .docx 后再上传")
     if ext not in ALLOWED_INSPECTION_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"不支持的文件类型: {ext}")
 
@@ -330,17 +332,23 @@ class InspectionRecordListResponse(BaseModel):
 
 
 class HistoryStatsSummary(BaseModel):
-    total_docs: int
+    uploaded_docs: int
+    completed_docs: int
     hit_docs: int
-    banned_rate: float
+    failed_docs: int
+    pending_docs: int
+    hit_rate: float
     quota_consumed: int
 
 
 class HistoryStatsTrend(BaseModel):
     dates: list[str]
-    total_docs: list[int]
+    uploaded_docs: list[int]
+    completed_docs: list[int]
     hit_docs: list[int]
-    banned_rate: list[float]
+    failed_docs: list[int]
+    pending_docs: list[int]
+    hit_rate: list[float]
     quota_consumed: list[int]
 
 
@@ -389,14 +397,21 @@ def _strip_document_extension(document_name: str) -> str:
     return document_name
 
 
-def _aggregate_history_stats(records: list[dict[str, Any]], days: int = 7) -> HistoryStatsResponse:
+def _aggregate_history_stats(records: list[InspectionRecord], days: int = 7) -> HistoryStatsResponse:
     buckets = {
-        d.isoformat(): {"total_docs": 0, "hit_docs": 0, "quota_consumed": 0}
+        d.isoformat(): {
+            "uploaded_docs": 0,
+            "completed_docs": 0,
+            "hit_docs": 0,
+            "failed_docs": 0,
+            "pending_docs": 0,
+            "quota_consumed": 0,
+        }
         for d in _build_last_n_dates(days)
     }
 
     for record in records:
-        created_at = _safe_parse_date(record.get("created_at"))
+        created_at = _safe_parse_date(record.created_at)
         if created_at is None:
             continue
 
@@ -404,35 +419,53 @@ def _aggregate_history_stats(records: list[dict[str, Any]], days: int = 7) -> Hi
         if key not in buckets:
             continue
 
-        buckets[key]["total_docs"] += 1
-        if record.get("issues"):
+        buckets[key]["uploaded_docs"] += 1
+        if record.status == "completed":
+            buckets[key]["completed_docs"] += 1
+        elif record.status == "failed":
+            buckets[key]["failed_docs"] += 1
+        elif record.status in {"uploaded", "processing"}:
+            buckets[key]["pending_docs"] += 1
+        if record.status == "completed" and record.issues:
             buckets[key]["hit_docs"] += 1
-        buckets[key]["quota_consumed"] += _safe_int(record.get("quota_consumed", 0) or 0)
+        buckets[key]["quota_consumed"] += _safe_int(record.quota_consumed or 0)
 
     dates = list(buckets.keys())
-    total_docs_series = [buckets[d]["total_docs"] for d in dates]
+    uploaded_docs_series = [buckets[d]["uploaded_docs"] for d in dates]
+    completed_docs_series = [buckets[d]["completed_docs"] for d in dates]
     hit_docs_series = [buckets[d]["hit_docs"] for d in dates]
+    failed_docs_series = [buckets[d]["failed_docs"] for d in dates]
+    pending_docs_series = [buckets[d]["pending_docs"] for d in dates]
     quota_series = [buckets[d]["quota_consumed"] for d in dates]
-    rate_series = [_calc_rate(hit, total) for hit, total in zip(hit_docs_series, total_docs_series)]
+    rate_series = [_calc_rate(hit, completed) for hit, completed in zip(hit_docs_series, completed_docs_series)]
 
-    total_docs = sum(total_docs_series)
+    uploaded_docs = sum(uploaded_docs_series)
+    completed_docs = sum(completed_docs_series)
     hit_docs = sum(hit_docs_series)
+    failed_docs = sum(failed_docs_series)
+    pending_docs = sum(pending_docs_series)
     quota_consumed = sum(quota_series)
 
     return HistoryStatsResponse(
         range="7d",
         timezone="Asia/Shanghai",
         summary=HistoryStatsSummary(
-            total_docs=total_docs,
+            uploaded_docs=uploaded_docs,
+            completed_docs=completed_docs,
             hit_docs=hit_docs,
-            banned_rate=_calc_rate(hit_docs, total_docs),
+            failed_docs=failed_docs,
+            pending_docs=pending_docs,
+            hit_rate=_calc_rate(hit_docs, completed_docs),
             quota_consumed=quota_consumed,
         ),
         trend=HistoryStatsTrend(
             dates=dates,
-            total_docs=total_docs_series,
+            uploaded_docs=uploaded_docs_series,
+            completed_docs=completed_docs_series,
             hit_docs=hit_docs_series,
-            banned_rate=rate_series,
+            failed_docs=failed_docs_series,
+            pending_docs=pending_docs_series,
+            hit_rate=rate_series,
             quota_consumed=quota_series,
         ),
     )
@@ -450,8 +483,9 @@ async def upload_and_inspect(
     """
     上传文档并执行智能体检。
 
-    支持格式：txt、pdf、doc、docx（MVP 阶段按文本解码处理）
+    支持格式：txt、pdf、docx；旧版 .doc 请先在 Word 中另存为 .docx。
     """
+    await require_quota(db, _current_user_id(user))
     filename, _, text = await _read_inspection_upload_text(file)
 
     try:
@@ -482,12 +516,16 @@ async def parse_inspection_file(
     ``/api/v1/document-jobs/{job_id}`` 跟踪进度。PDF/Word 不再在请求线程内
     同步解析直达审查引擎。``/upload`` 仍保留同步体检入口以向后兼容。
     """
+    await require_quota(db, _current_user_id(user))
     filename, ext, content = await _read_bounded_inspection_upload(file)
     user_id = _current_user_id(user)
 
     content_hash = hashlib.sha256(content).hexdigest()
     source_path = f"users/{user_id}/documents/{uuid4().hex}.{ext}"
-    save_file(source_path, content)
+    try:
+        save_file(source_path, content)
+    except FileStorageError as exc:
+        raise HTTPException(status_code=503, detail="文件存储服务暂时不可用") from exc
 
     try:
         source = await prepare_source_artifact(user_id, source_path, content_hash)
@@ -547,6 +585,7 @@ async def inspect_session(
     user: CurrentUserContext = Depends(get_current_user),
 ) -> InspectionReportResponse:
     """基于已解析的会话执行智能体检。"""
+    await require_quota(db, _current_user_id(user))
     user_id = _current_user_id(user)
     session = _get_session_for_user(session_id, user_id)
 
@@ -715,8 +754,9 @@ async def delete_record(
 
 @router.get("/stats/history", response_model=HistoryStatsResponse)
 async def get_history_stats(
-    project_id: str = "default",
+    project_id: str | None = None,
     range: str = "7d",
+    db=Depends(get_db_session),
     user: CurrentUserContext = Depends(get_current_user),
 ) -> HistoryStatsResponse:
     """获取历史统计（MVP: 近7天，按天聚合）。"""
@@ -724,11 +764,13 @@ async def get_history_stats(
         raise HTTPException(status_code=400, detail="当前仅支持 range=7d")
 
     user_id = _current_user_id(user)
-    scoped_records = [
-        record
-        for record in _inspection_records
-        if record.get("project_id") == project_id and record.get("user_id") == user_id
-    ]
+    conditions = [InspectionRecord.user_id == user_id]
+    if project_id is not None:
+        conditions.append(InspectionRecord.project_id == project_id)
+    start = datetime.combine(_build_last_n_dates(7)[0], datetime.min.time())
+    scoped_records = list(
+        (await db.scalars(select(InspectionRecord).where(*conditions, InspectionRecord.created_at >= start))).all()
+    )
     return _aggregate_history_stats(scoped_records, days=7)
 
 

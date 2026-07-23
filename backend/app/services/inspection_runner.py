@@ -5,7 +5,6 @@ inspection.py 与 agent.py 共同引用；workers/tasks.py 的异步 runner 也�
 """
 from __future__ import annotations
 
-import datetime
 import logging
 import uuid
 from typing import Any
@@ -44,10 +43,6 @@ class InspectionReportResponse(BaseModel):
     document_type_label: str = ""
 
 
-# 内存中的体检记录缓存（后续可替换为 PostgreSQL）
-_inspection_records: list[dict[str, Any]] = []
-
-
 def merge_unique_words(*groups: list[str]) -> list[str]:
     seen: set[str] = set()
     merged: list[str] = []
@@ -58,28 +53,6 @@ def merge_unique_words(*groups: list[str]) -> list[str]:
                 seen.add(normalized)
                 merged.append(normalized)
     return merged
-
-
-def inspection_record_to_history_dict(record: InspectionRecord) -> dict[str, Any]:
-    return {
-        "id": record.id,
-        "user_id": record.user_id,
-        "document_name": record.document_name,
-        "project_id": record.project_id,
-        "overall_risk": record.overall_risk,
-        "summary": record.summary,
-        "issues": record.issues or [],
-        "regulation_refs": record.regulation_refs or [],
-        "text_preview": record.text_preview,
-        "created_at": record.created_at,
-        "quota_consumed": record.quota_consumed,
-    }
-
-
-def append_history_record(record: InspectionRecord) -> None:
-    """更新内存缓存：去重后追加（供历史统计读取）。"""
-    _inspection_records[:] = [r for r in _inspection_records if r.get("id") != record.id]
-    _inspection_records.append(inspection_record_to_history_dict(record))
 
 
 async def add_pending_inspection_record(
@@ -105,6 +78,7 @@ async def add_pending_inspection_record(
         document_type=document_type,
         document_type_label=document_type_label,
         project_id=project_id,
+        status="processing",
         overall_risk="pending",
         summary="文件已解析，等待审查",
         issues=[],
@@ -128,7 +102,7 @@ async def create_pending_inspection_record(
     text: str,
     project_id: str = "default",
 ) -> InspectionRecord:
-    """落库一条 pending 记录（已解析、待审查），并更新内存缓存。"""
+    """落库一条 pending 记录（已解析、待审查）。"""
     record = await add_pending_inspection_record(
         db=db,
         user_id=user_id,
@@ -140,7 +114,6 @@ async def create_pending_inspection_record(
     )
     await db.commit()
     await db.refresh(record)
-    append_history_record(record)
     return record
 
 
@@ -181,7 +154,6 @@ async def execute_inspection(
 ) -> InspectionReportResponse:
     """公共审查执行：加载违禁词 → 召回知识库 → 运行 Agent → 保存记录 → 返回报告。"""
 
-    # ── 额度检查：体检前校验剩余配额和订阅有效期 ──
     result_mem = await db.execute(
         select(Membership).where(
             Membership.user_id == user_id,
@@ -190,16 +162,6 @@ async def execute_inspection(
         )
     )
     membership = result_mem.scalar_one_or_none()
-    if membership is not None:
-        if (membership.token_used or 0) >= (membership.token_quota or 0):
-            raise HTTPException(status_code=403, detail="额度已用完，请购买额度包或升级订阅")
-        if membership.expires_at is not None:
-            now_naive = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            expires = membership.expires_at
-            if hasattr(expires, "tzinfo") and expires.tzinfo is not None:
-                expires = expires.replace(tzinfo=None)
-            if expires < now_naive:
-                raise HTTPException(status_code=403, detail="订阅已过期，请续费")
 
     saved_taboo_words = await load_user_taboo_words(db, user_id)
     temporary_taboo_words = [w.strip() for w in taboo_words_input.split(",") if w.strip()]
@@ -242,13 +204,14 @@ async def execute_inspection(
     record.document_type = application_scenario
     record.document_type_label = DOCUMENT_TYPE_LABELS.get(application_scenario, application_scenario)
     record.project_id = project_id
+    record.status = "completed"
     record.overall_risk = result.overall_risk
     record.summary = result.summary
     record.issues = result.issues
     record.regulation_refs = result.regulation_refs
     record.text_preview = text[:500]
     record.parsed_content = encrypt_text(text)
-    record.quota_consumed = result.total_quota_consumed or max(1, len(text) // 500)
+    record.quota_consumed = getattr(result, "total_quota_consumed", 0) or max(1, len(text) // 500)
 
     # ── 扣减用户配额 ──
     if membership is not None:
@@ -256,7 +219,6 @@ async def execute_inspection(
 
     await db.commit()
     await db.refresh(record)
-    append_history_record(record)
 
     return InspectionReportResponse(
         id=record.id,

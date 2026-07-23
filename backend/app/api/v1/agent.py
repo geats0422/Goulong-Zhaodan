@@ -9,6 +9,7 @@ from app.core.agent_auth import get_api_key_user, require_api_scope
 from app.core.constants import validate_application_scenario
 from app.core.data_encryption import decrypt_text
 from app.core.database import get_db_session
+from app.core.quota import require_quota
 from app.models import InspectionRecord
 from app.services.inspection_runner import InspectionReportResponse, create_pending_inspection_record, execute_inspection
 from app.services.agent_job_service import create_job, get_job
@@ -238,6 +239,7 @@ async def agent_inspect(
     db: AsyncSession = Depends(get_db_session),
 ) -> InspectionReportResponse:
     """同步体检：MCP / Agent 客户端直接传入文档正文，一次调用返回完整审查报告。"""
+    await require_quota(db, user["user_id"])
     document_name = body.document_name
     text = body.text
     application_scenario = body.application_scenario
