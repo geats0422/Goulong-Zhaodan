@@ -88,6 +88,39 @@ html[data-theme="light"] {
   }
 }
 
+@keyframes scan-line {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+[data-theme="light"] a:focus-visible,
+[data-theme="light"] button:focus-visible,
+[data-theme="light"] input:focus-visible,
+[data-theme="light"] select:focus-visible,
+[data-theme="light"] textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+[data-theme="light"] .progress-bar-fill,
+[data-theme="light"] .quota-bar-fill {
+  background: linear-gradient(90deg, var(--color-primary), var(--color-cyber));
+  position: relative;
+  overflow: hidden;
+}
+
+[data-theme="light"] .progress-bar-fill::after,
+[data-theme="light"] .quota-bar-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: scan-line 1.5s ease-in-out infinite;
+}
+
 .dashboard-page .material-symbols-outlined {
   font-family: "Material Symbols Outlined";
   font-weight: normal;
