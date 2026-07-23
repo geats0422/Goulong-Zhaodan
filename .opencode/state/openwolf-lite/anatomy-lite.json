@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-22T14:26:04.778Z",
+  "updatedAt": "2026-07-22T17:26:49.270Z",
   "files": {
     "frontend/pricing.html": {
       "desc": "pricing.html: empty or binary content",
@@ -9,8 +9,8 @@
     },
     "frontend/src/style.css": {
       "desc": "style.css: @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&fam",
-      "tokenEstimate": 23637,
-      "lastSeenAt": "2026-07-01T08:36:47.313Z"
+      "tokenEstimate": 23444,
+      "lastSeenAt": "2026-07-22T15:32:25.464Z"
     },
     "frontend/index.html": {
       "desc": "index.html: <!doctype html>",
@@ -204,8 +204,8 @@
     },
     "frontend/src/pages/KnowledgeBasePage.vue": {
       "desc": "KnowledgeBasePage.vue: <script setup>",
-      "tokenEstimate": 5771,
-      "lastSeenAt": "2026-06-12T10:44:39.633Z"
+      "tokenEstimate": 5523,
+      "lastSeenAt": "2026-07-22T14:43:44.920Z"
     },
     "backend/tests/conftest.py": {
       "desc": "conftest.py: from __future__ import annotations",
@@ -269,8 +269,8 @@
     },
     "frontend/src/pages/StatisticsPage.vue": {
       "desc": "StatisticsPage.vue: <script setup>",
-      "tokenEstimate": 2661,
-      "lastSeenAt": "2026-05-30T14:56:38.515Z"
+      "tokenEstimate": 2688,
+      "lastSeenAt": "2026-07-22T14:43:44.892Z"
     },
     "backend/core/weak_passwords.json": {
       "desc": "weak_passwords.json: [",
@@ -334,8 +334,8 @@
     },
     "frontend/src/pages/InspectionDeskPage.vue": {
       "desc": "InspectionDeskPage.vue: <script setup>",
-      "tokenEstimate": 3009,
-      "lastSeenAt": "2026-06-01T13:45:04.370Z"
+      "tokenEstimate": 2011,
+      "lastSeenAt": "2026-07-22T14:43:44.955Z"
     },
     "AGENTS.md": {
       "desc": "AGENTS.md: # AGENTS.md",
@@ -389,8 +389,8 @@
     },
     "frontend/src/pages/DashboardPage.vue": {
       "desc": "DashboardPage.vue: <script setup>",
-      "tokenEstimate": 1781,
-      "lastSeenAt": "2026-06-12T03:57:02.105Z"
+      "tokenEstimate": 1968,
+      "lastSeenAt": "2026-07-22T14:43:44.723Z"
     },
     "README.md": {
       "desc": "README.md: # 句龙照胆 — 工程文档智能体检平台",
@@ -539,8 +539,8 @@
     },
     "frontend/src/pages/SettingsPage.vue": {
       "desc": "SettingsPage.vue: <script setup>",
-      "tokenEstimate": 15351,
-      "lastSeenAt": "2026-06-26T08:48:46.341Z"
+      "tokenEstimate": 19593,
+      "lastSeenAt": "2026-07-22T14:43:44.989Z"
     },
     "docs/designs/2026-06-11-security-hardening-design.md": {
       "desc": "2026-06-11-security-hardening-design.md: # 安全加固设计文档",
@@ -634,8 +634,8 @@
     },
     "frontend/src/components/marketing/MarketingFooter.vue": {
       "desc": "MarketingFooter.vue: <template>",
-      "tokenEstimate": 383,
-      "lastSeenAt": "2026-07-01T12:43:09.810Z"
+      "tokenEstimate": 482,
+      "lastSeenAt": "2026-07-22T14:38:33.461Z"
     },
     "frontend/src/components/app/AppTopNav.vue": {
       "desc": "AppTopNav.vue: <script setup>",
@@ -799,8 +799,8 @@
     },
     "backend/app/services/knowledge_ingestion.py": {
       "desc": "knowledge_ingestion.py: from __future__ import annotations",
-      "tokenEstimate": 1169,
-      "lastSeenAt": "2026-06-29T11:34:17.409Z"
+      "tokenEstimate": 1357,
+      "lastSeenAt": "2026-07-22T17:24:49.975Z"
     },
     "backend/app/services/agent_job_service.py": {
       "desc": "agent_job_service.py: from __future__ import annotations",
@@ -844,8 +844,8 @@
     },
     "backend/app/agents/inspector.py": {
       "desc": "inspector.py: \"\"\"体检台 Agent 协调逻辑\"\"\"",
-      "tokenEstimate": 736,
-      "lastSeenAt": "2026-06-12T10:07:35.774Z"
+      "tokenEstimate": 1079,
+      "lastSeenAt": "2026-07-22T17:23:28.417Z"
     },
     "backend/app/workers/config.py": {
       "desc": "config.py: from __future__ import annotations",
@@ -1234,8 +1234,8 @@
     },
     "backend/app/services/inspection_runner.py": {
       "desc": "inspection_runner.py: \"\"\"体检执行核心 — 从 router 层下沉的业务逻辑（多 Agent 审查流水线）。",
-      "tokenEstimate": 2251,
-      "lastSeenAt": "2026-06-29T14:55:20.841Z"
+      "tokenEstimate": 2511,
+      "lastSeenAt": "2026-07-22T17:23:54.112Z"
     },
     "MCP/evaluation.xml": {
       "desc": "evaluation.xml: <evaluation>",
@@ -1374,8 +1374,8 @@
     },
     "backend/app/core/deps.py": {
       "desc": "deps.py: \"\"\"依赖注入类型定义\"\"\"",
-      "tokenEstimate": 295,
-      "lastSeenAt": "2026-06-29T13:21:53.391Z"
+      "tokenEstimate": 305,
+      "lastSeenAt": "2026-07-22T17:21:59.102Z"
     },
     "frontend/src/pages/DeveloperDocsPage.vue": {
       "desc": "DeveloperDocsPage.vue: <script setup>",
@@ -1411,6 +1411,36 @@
       "desc": "test_report_pdf.py: \"\"\"report_pdf 服务单测：覆盖 HTML 模板渲染（不依赖 weasyprint 系统库）。\"\"\"",
       "tokenEstimate": 898,
       "lastSeenAt": "2026-07-01T12:54:07.510Z"
+    },
+    "frontend/src/components/app/DashboardFooter.vue": {
+      "desc": "DashboardFooter.vue: <template>",
+      "tokenEstimate": 161,
+      "lastSeenAt": "2026-07-22T14:43:44.523Z"
+    },
+    "backend/app/services/markdown_converter.py": {
+      "desc": "markdown_converter.py: from __future__ import annotations",
+      "tokenEstimate": 3029,
+      "lastSeenAt": "2026-07-22T15:00:23.727Z"
+    },
+    "backend/app/models/compute.py": {
+      "desc": "compute.py: from __future__ import annotations",
+      "tokenEstimate": 371,
+      "lastSeenAt": "2026-07-22T17:20:38.257Z"
+    },
+    "backend/app/core/model_config.py": {
+      "desc": "model_config.py: from __future__ import annotations",
+      "tokenEstimate": 435,
+      "lastSeenAt": "2026-07-22T17:20:47.055Z"
+    },
+    "backend/alembic/versions/023_add_compute_usage_records.py": {
+      "desc": "023_add_compute_usage_records.py: \"\"\"add compute usage records table",
+      "tokenEstimate": 605,
+      "lastSeenAt": "2026-07-22T17:21:22.988Z"
+    },
+    "backend/app/services/compute_recorder.py": {
+      "desc": "compute_recorder.py: from __future__ import annotations",
+      "tokenEstimate": 631,
+      "lastSeenAt": "2026-07-22T17:26:49.270Z"
     }
   }
 }
