@@ -2473,13 +2473,9 @@ html[data-theme="light"] {
 [data-theme="light"] .knowledge-page,
 [data-theme="light"] .marketing-shell {
   color: var(--color-text) !important;
-  background-color: var(--color-bg) !important;
-  background-image:
-    radial-gradient(circle at 78% 4%, var(--color-cyber-glow), transparent 28%),
-    radial-gradient(circle at 18% 18%, rgba(117, 80, 0, 0.24), transparent 32%),
-    linear-gradient(rgba(115, 88, 23, 0.18) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 109, 115, 0.12) 1px, transparent 1px),
-    linear-gradient(180deg, var(--color-surface) 0%, var(--color-bg) 48%, var(--color-surface-raised) 100%) !important;
+  background: var(--color-bg) !important;
+  background-image: none !important;
+}
   background-size: auto, auto, 64px 64px, 64px 64px, auto !important;
 }
 
@@ -2633,9 +2629,7 @@ html[data-theme="light"] {
 [data-theme="light"] .settings-page,
 [data-theme="light"] .history-page,
 [data-theme="light"] .inspection-page {
-  background:
-    radial-gradient(circle at 84% 8%, rgba(0, 109, 115, 0.16), transparent 26%),
-    linear-gradient(180deg, var(--color-surface) 0%, var(--color-bg) 52%, var(--color-surface-raised) 100%) !important;
+  background: var(--color-bg) !important;
   color: var(--color-text) !important;
 }
 
