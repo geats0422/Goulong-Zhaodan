@@ -44,8 +44,8 @@ _SAFE_ERROR_MESSAGES = {
 _TRANSITIONS = {
     "queued": frozenset({"detecting", "indexing"}),
     "detecting": frozenset({"parsing_local", "parsing_mineru"}),
-    "parsing_local": frozenset({"parsing_mineru", "indexing"}),
-    "parsing_mineru": frozenset({"indexing"}),
+    "parsing_local": frozenset({"parsing_mineru", "indexing", "inspecting"}),
+    "parsing_mineru": frozenset({"indexing", "inspecting"}),
     "indexing": frozenset({"inspecting", "succeeded"}),
     "inspecting": frozenset({"succeeded"}),
 }
@@ -265,7 +265,7 @@ def validate_document_job_transition(
         return
     if target_stage not in _TRANSITIONS.get(current_stage, frozenset()):
         raise InvalidDocumentJobTransitionError("非法阶段转换")
-    if target_stage in {"indexing", "succeeded"} and not has_valid_markdown:
+    if target_stage in {"indexing", "inspecting", "succeeded"} and not has_valid_markdown:
         raise InvalidDocumentJobTransitionError("进入该阶段前必须有有效 Markdown")
     if target_stage == "inspecting" and job_type != "inspection":
         raise InvalidDocumentJobTransitionError("仅体检任务可进入审查阶段")

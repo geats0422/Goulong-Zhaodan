@@ -47,6 +47,7 @@ def _job(
     lease_version: int = 0,
     progress: int = 0,
     status: str = "queued",
+    dispatch_retry_count: int = 0,
 ):
     return SimpleNamespace(
         job_id="doc_job_1",
@@ -60,6 +61,7 @@ def _job(
         status=status,
         progress=progress,
         retry_count=0,
+        dispatch_retry_count=dispatch_retry_count,
         lease_version=lease_version,
         lease_owner="worker-1",
         mineru_task_id=None,
@@ -303,14 +305,9 @@ async def test_restarted_inspection_claims_a_new_lease_before_deepseek():
     claimed = _advanced(inspecting, "inspecting", 91)
     artifact = _artifact()
     report = SimpleNamespace(overall_risk="low")
-    nodes = [SimpleNamespace(path_label="第一章", node_type="section", position=1, content="持久化节点")]
     with (
         patch("app.workers.tasks._load_document_job", new=AsyncMock(return_value=inspecting)),
         patch("app.workers.tasks._load_valid_markdown", new=AsyncMock(return_value=artifact)),
-        patch(
-            "app.workers.tasks._load_index_artifact",
-            new=AsyncMock(return_value=SimpleNamespace(nodes=nodes, path="users/test/index.json", content_hash="c" * 64)),
-        ),
         patch("app.workers.tasks._advance_document_job", new=AsyncMock(return_value=claimed)) as advance,
         patch(
             "app.workers.tasks._run_resumable_document_inspection",
@@ -320,7 +317,7 @@ async def test_restarted_inspection_claims_a_new_lease_before_deepseek():
     ):
         await document_processing_task({}, inspecting.job_id)
     advance.assert_awaited_once_with(inspecting, stage="inspecting", progress=91, artifact=artifact)
-    inspect.assert_awaited_once_with(claimed, nodes)
+    inspect.assert_awaited_once_with(claimed, [], fallback_text=artifact.markdown)
     commit.assert_awaited_once_with(claimed, artifact, report)
 
 
@@ -338,20 +335,18 @@ async def test_completed_job_is_idempotent_noop():
 
 
 @pytest.mark.asyncio
-async def test_inspection_branch_runs_only_after_index_and_uses_job_owner():
+async def test_inspection_branch_skips_pageindex_and_uses_markdown_text():
     queued = _job(job_type="inspection")
     artifact = _artifact()
-    indexing = _advanced(queued, "indexing", 70)
-    inspecting = _advanced(indexing, "inspecting", 90)
+    inspecting = _advanced(queued, "inspecting", 90)
     report = SimpleNamespace(overall_risk="low")
-    nodes = [SimpleNamespace(path_label="第一章", node_type="section", position=1, content="持久化节点")]
 
     with (
         patch("app.workers.tasks._load_document_job", new=AsyncMock(return_value=queued)),
         patch("app.workers.tasks._load_valid_markdown", new=AsyncMock(return_value=artifact)),
-        patch("app.workers.tasks._advance_document_job", new=AsyncMock(return_value=indexing)),
-        patch("app.workers.tasks._build_document_index", new=AsyncMock(return_value=nodes)),
-        patch("app.workers.tasks._commit_document_index", new=AsyncMock(return_value=inspecting)),
+        patch("app.workers.tasks._advance_document_job", new=AsyncMock(return_value=inspecting)),
+        patch("app.workers.tasks._build_document_index", new=AsyncMock()) as build_index,
+        patch("app.workers.tasks._commit_document_index", new=AsyncMock()) as commit_index,
         patch(
             "app.workers.tasks._run_resumable_document_inspection",
             new=AsyncMock(return_value=SimpleNamespace(job=inspecting, report=report)),
@@ -360,7 +355,9 @@ async def test_inspection_branch_runs_only_after_index_and_uses_job_owner():
     ):
         await document_processing_task({}, queued.job_id)
 
-    inspect.assert_awaited_once_with(inspecting, nodes)
+    build_index.assert_not_awaited()
+    commit_index.assert_not_awaited()
+    inspect.assert_awaited_once_with(inspecting, [], fallback_text=artifact.markdown)
     assert inspect.await_args.args[0].user_id == USER_ID
     commit.assert_awaited_once_with(inspecting, artifact, report)
 
@@ -457,6 +454,24 @@ async def test_retryable_worker_failure_keeps_progress_and_releases_for_redispat
 
 
 @pytest.mark.asyncio
+async def test_worker_uses_persisted_dispatch_attempts_for_final_failure():
+    indexing = _job(stage="indexing", status="running", progress=89, lease_version=4, dispatch_retry_count=2)
+    artifact = _artifact()
+    with (
+        patch("app.workers.tasks._load_document_job", new=AsyncMock(return_value=indexing)),
+        patch("app.workers.tasks._load_valid_markdown", new=AsyncMock(return_value=artifact)),
+        patch("app.workers.tasks._build_document_index", new=AsyncMock(side_effect=RuntimeError("pageindex failed"))),
+        patch("app.workers.tasks._release_document_job", new=AsyncMock(return_value=True)) as release,
+        patch("app.workers.tasks._fail_document_job", new=AsyncMock(return_value=True)) as fail,
+    ):
+        await document_processing_task({"job_try": 1, "max_tries": 3}, indexing.job_id)
+
+    release.assert_not_awaited()
+    fail.assert_awaited_once()
+    assert fail.await_args.kwargs["error_code"] == "indexing_failed"
+
+
+@pytest.mark.asyncio
 async def test_parsing_ceiling_resume_executes_parser_without_same_progress_cas():
     parsing = _job(stage="parsing_local", status="running", progress=60, lease_version=4)
     indexing = _advanced(parsing, "indexing", 70)
@@ -478,11 +493,10 @@ async def test_parsing_ceiling_resume_executes_parser_without_same_progress_cas(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(("job_type", "ceiling"), [("knowledge", 84), ("inspection", 89)])
-async def test_indexing_ceiling_resume_executes_pageindex_without_same_progress_cas(job_type: str, ceiling: int):
-    indexing = _job(stage="indexing", job_type=job_type, status="running", progress=ceiling, lease_version=4)
+async def test_knowledge_indexing_ceiling_resume_executes_pageindex_without_same_progress_cas():
+    indexing = _job(stage="indexing", job_type="knowledge", status="running", progress=84, lease_version=4)
     artifact = _artifact()
-    indexed = _advanced(indexing, "inspecting" if job_type == "inspection" else "indexing", 90 if job_type == "inspection" else 85)
+    indexed = _advanced(indexing, "indexing", 85)
     nodes = [SimpleNamespace(content="node")]
     with (
         patch("app.workers.tasks._load_document_job", new=AsyncMock(return_value=indexing)),

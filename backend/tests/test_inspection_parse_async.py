@@ -228,6 +228,23 @@ async def test_parse_rejects_unsupported_extension(
 
 
 @pytest.mark.asyncio
+async def test_parse_rejects_legacy_doc_with_docx_hint(
+    parse_app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured, _, _, _ = _install_async_parse_mocks(monkeypatch)
+
+    async with _client(parse_app) as client:
+        response = await client.post(
+            "/inspection/parse",
+            files={"file": ("合同初稿.doc", b"fake", "application/msword")},
+        )
+
+    assert response.status_code == 400
+    assert "另存为 .docx" in response.json()["detail"]
+    assert "save_path" not in captured
+
+
+@pytest.mark.asyncio
 async def test_parse_persists_record_and_job_in_single_transaction(
     parse_app: FastAPI, monkeypatch: pytest.MonkeyPatch
 ) -> None:

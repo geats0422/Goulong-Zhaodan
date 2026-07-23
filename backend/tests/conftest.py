@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -15,10 +16,17 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 
 from app.core import database as db_mod
-TEST_DB_URL = os.environ.get(
-    "TEST_DATABASE_URL",
-    "postgresql+asyncpg://localhost:5432/goulong_test",
-)
+from app.core.config import settings
+
+
+def _default_test_database_url() -> str:
+    """Reuse local development credentials while forcing the isolated test database."""
+    source = make_url(settings.database_url)
+    host = "127.0.0.1" if source.host == "localhost" else source.host
+    return source.set(host=host, database="goulong_test").render_as_string(hide_password=False)
+
+
+TEST_DB_URL = os.environ.get("TEST_DATABASE_URL", _default_test_database_url())
 
 
 def assert_safe_database_for_cleanup(database_url: str = TEST_DB_URL) -> None:
@@ -58,7 +66,12 @@ _CLEANUP_TABLES = [
 # NullPool ensures each operation gets a fresh connection, avoiding
 # "another operation is in progress" errors from cross-event-loop sharing.
 # ---------------------------------------------------------------------------
-_test_engine = create_async_engine(TEST_DB_URL, echo=False, poolclass=NullPool)
+_test_engine = create_async_engine(
+    TEST_DB_URL,
+    echo=False,
+    poolclass=NullPool,
+    connect_args={"ssl": False},
+)
 _test_session_factory = async_sessionmaker(_test_engine, class_=AsyncSession, expire_on_commit=False)
 
 db_mod.engine = _test_engine
@@ -70,6 +83,10 @@ async def _create_schema_and_tables(engine: AsyncEngine) -> None:
     from goulong_auth.base import AuthBase
 
     async with engine.begin() as conn:
+        # Tests own the isolated database. Recreate schemas so metadata changes
+        # cannot leave persistent local test tables with an outdated shape.
+        await conn.execute(text("DROP SCHEMA IF EXISTS zhaodan CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS goulong_auth CASCADE"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS goulong_auth"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS zhaodan"))
         await conn.run_sync(Base.metadata.create_all)

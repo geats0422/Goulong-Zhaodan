@@ -127,7 +127,7 @@ def test_alembic_console_can_load_revision_graph() -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "022 (head)"
+    assert result.stdout.strip() == "024 (head)"
 
 
 def test_upgrade_columns_match_model_types_nullability_defaults_and_timezone(monkeypatch) -> None:

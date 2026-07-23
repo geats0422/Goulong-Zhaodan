@@ -35,6 +35,10 @@ class StoredFileValidationError(ValueError):
     """Stable validation failure for a stored source document."""
 
 
+class FileStorageError(RuntimeError):
+    """Stable storage failure that is safe to expose through application APIs."""
+
+
 @dataclass(frozen=True, slots=True)
 class PrivateStoredFile:
     path: Path
@@ -44,10 +48,16 @@ class PrivateStoredFile:
 
 
 def is_oss_enabled() -> bool:
-    """检测 OSS 是否配置完整（配置完整则启用 OSS，否则回退本地）。"""
+    """Only use OSS when it was explicitly selected and fully configured."""
     from app.core.config import settings
 
-    return bool(settings.oss_bucket_name and settings.oss_endpoint)
+    return bool(
+        settings.storage_backend == "oss"
+        and settings.oss_access_key_id
+        and settings.oss_access_key_secret
+        and settings.oss_bucket_name
+        and settings.oss_endpoint
+    )
 
 
 def safe_path_segment(value: str, fallback: str = "untitled", max_length: int = 100) -> str:
@@ -108,7 +118,10 @@ def save_file(storage_path: str, content: bytes) -> str:
     if is_oss_enabled():
         from app.core.oss_client import get_bucket, get_oss_key
 
-        get_bucket().put_object(get_oss_key(storage_path), content)
+        try:
+            get_bucket().put_object(get_oss_key(storage_path), content)
+        except Exception as exc:
+            raise FileStorageError("文件存储服务暂时不可用") from exc
     else:
         local = _local_path(storage_path)
         local.parent.mkdir(parents=True, exist_ok=True)
@@ -122,7 +135,10 @@ def read_file(storage_path: str) -> bytes:
     if is_oss_enabled():
         from app.core.oss_client import get_bucket, get_oss_key
 
-        return get_bucket().get_object(get_oss_key(storage_path)).read()
+        try:
+            return get_bucket().get_object(get_oss_key(storage_path)).read()
+        except Exception as exc:
+            raise FileStorageError("文件存储服务暂时不可用") from exc
     return _local_path(storage_path).read_bytes()
 
 
@@ -307,5 +323,8 @@ def file_exists(storage_path: str) -> bool:
     if is_oss_enabled():
         from app.core.oss_client import get_bucket, get_oss_key
 
-        return get_bucket().object_exists(get_oss_key(storage_path))
+        try:
+            return get_bucket().object_exists(get_oss_key(storage_path))
+        except Exception as exc:
+            raise FileStorageError("文件存储服务暂时不可用") from exc
     return _local_path(storage_path).exists()

@@ -165,7 +165,7 @@ def cleanup_private_temp_dir(*, max_age_seconds: float = DEFAULT_STALE_AGE_SECON
     for path in entries:
         try:
             info = path.lstat()
-            if info.st_mtime > cutoff:
+            if max_age_seconds > 0 and info.st_mtime > cutoff:
                 continue
             if stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode):
                 logger.warning("temporary directory cleanup skipped unexpected directory")

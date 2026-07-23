@@ -331,6 +331,8 @@ async def test_create_persists_dispatch_intent_in_the_caller_transaction() -> No
         ("parsing_local", "parsing_mineru", "knowledge", False),
         ("parsing_local", "indexing", "knowledge", True),
         ("parsing_mineru", "indexing", "knowledge", True),
+        ("parsing_local", "inspecting", "inspection", True),
+        ("parsing_mineru", "inspecting", "inspection", True),
         ("indexing", "inspecting", "inspection", True),
         ("indexing", "succeeded", "knowledge", True),
         ("inspecting", "succeeded", "inspection", True),
@@ -355,6 +357,9 @@ def test_explicit_state_machine_accepts_legal_transitions(
     [
         ("indexing", "parsing_local", "knowledge", 70, 30, True),
         ("queued", "indexing", "knowledge", 0, 70, False),
+        ("parsing_local", "inspecting", "inspection", 60, 90, False),
+        ("parsing_local", "inspecting", "knowledge", 60, 90, True),
+        ("parsing_mineru", "inspecting", "knowledge", 60, 90, True),
         ("indexing", "inspecting", "knowledge", 70, 90, True),
         ("inspecting", "inspecting", "knowledge", 90, 91, True),
         ("detecting", "detecting", "knowledge", 20, 20, False),

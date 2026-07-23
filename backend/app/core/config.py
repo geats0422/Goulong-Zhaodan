@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -116,6 +117,7 @@ class Settings(BaseSettings):
     oss_endpoint: str = ""
     oss_bucket_name: str = ""
     oss_prefix: str = "zhaodan"
+    storage_backend: Literal["local", "oss"] = "local"
 
     # 微信支付（APIv3 / Native 支付）
     wechatpay_app_id: str = ""
@@ -208,3 +210,13 @@ def assert_production_security() -> None:
         raise RuntimeError("生产环境必须配置 DATA_ENCRYPTION_KEY")
     if "your-password" in settings.database_url:
         raise RuntimeError("生产环境必须修改 DATABASE_URL 中的默认密码")
+    if settings.storage_backend == "oss":
+        required_oss_settings = (
+            "oss_access_key_id",
+            "oss_access_key_secret",
+            "oss_endpoint",
+            "oss_bucket_name",
+        )
+        missing = [name.upper() for name in required_oss_settings if not getattr(settings, name).strip()]
+        if missing:
+            raise RuntimeError(f"生产环境 OSS 模式必须配置 {', '.join(missing)}")

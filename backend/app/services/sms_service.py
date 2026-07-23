@@ -216,7 +216,8 @@ async def verify_code(phone: str, code: str) -> bool:
 
     stored = await redis.get(_code_key(phone))
 
-    if stored is None or not hmac.compare_digest(stored, code):
+    stored_code = stored.decode() if isinstance(stored, bytes) else stored
+    if stored_code is None or not hmac.compare_digest(stored_code, code):
         pipe = redis.pipeline()
         pipe.incr(attempts_key)
         pipe.expire(attempts_key, VERIFY_LOCKOUT_SECONDS)

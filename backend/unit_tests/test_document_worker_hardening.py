@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import sys
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -11,8 +13,24 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.lib.private_temp import FileIdentity
-from app.agents.inspector import InspectionResult
 from app.workers import tasks
+
+inspector_module = sys.modules["app.agents.inspector"]
+
+
+@dataclass
+class _InspectionResult:
+    overall_risk: str
+    summary: str
+    issues: list[dict]
+    regulation_refs: list[str]
+    total_quota_consumed: int = 0
+
+
+if not hasattr(inspector_module, "InspectionResult"):
+    inspector_module.InspectionResult = _InspectionResult
+
+InspectionResult = inspector_module.InspectionResult
 
 
 def _job(**changes):

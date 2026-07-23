@@ -48,7 +48,6 @@ async def client(monkeypatch):
     from app.core.rate_limit import register_limiter
     from app.services import email_service
     register_limiter.reset()
-    inspection_router._inspection_records.clear()
     inspection_router._inspection_sessions.clear()
 
     async def _always_true(*args, **kwargs):
@@ -59,7 +58,6 @@ async def client(monkeypatch):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
-    inspection_router._inspection_records.clear()
     inspection_router._inspection_sessions.clear()
 
 

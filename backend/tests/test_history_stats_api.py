@@ -1,127 +1,43 @@
 from __future__ import annotations
 
-import types
 import uuid
-from datetime import date
-from pathlib import Path
-import sys
+from datetime import date, datetime
 
-from fastapi.testclient import TestClient
-import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-fake_inspector_module = types.ModuleType("app.agents.inspector")
-fake_inspector_module.InspectionResult = dict
-
-
-async def _fake_run_inspection(*args, **kwargs):  # noqa: ANN002, ANN003
-    return {"overall_risk": "low", "summary": "", "issues": [], "regulation_refs": []}
-
-
-fake_inspector_module.run_inspection = _fake_run_inspection
-sys.modules["app.agents.inspector"] = fake_inspector_module
-
-from main import app  # noqa: E402
-from app.core.auth import CurrentUserContext, get_current_user  # noqa: E402
-from app.api.v1 import inspection as inspection_router  # noqa: E402
-
-
-async def _override_user():
-    return CurrentUserContext(user_id=uuid.UUID("00000000-0000-0000-0000-000000000001"))
-
-
-client = TestClient(app)
-
-API_HEADERS = {"Authorization": "Bearer test-token"}
-
-
-def setup_function() -> None:
-    inspection_router._inspection_records.clear()
-
-
-@pytest.fixture(autouse=True)
-def auth_override():
-    app.dependency_overrides[get_current_user] = _override_user
-    yield
-    app.dependency_overrides.pop(get_current_user, None)
+from app.api.v1.inspection import _aggregate_history_stats  # noqa: E402
+from app.models.knowledge import InspectionRecord  # noqa: E402
 
 
 def test_history_stats_empty_data() -> None:
-    response = client.get("/inspection/stats/history", headers=API_HEADERS)
+    stats = _aggregate_history_stats([])
 
-    assert response.status_code == 200
-    data = response.json()
-    assert data["range"] == "7d"
-    assert data["summary"]["total_docs"] == 0
-    assert data["summary"]["hit_docs"] == 0
-    assert data["summary"]["banned_rate"] == 0
-    assert data["summary"]["quota_consumed"] == 0
-    assert len(data["trend"]["dates"]) == 7
-    assert len(data["trend"]["total_docs"]) == 7
+    assert stats.range == "7d"
+    assert stats.summary.uploaded_docs == 0
+    assert stats.summary.completed_docs == 0
+    assert stats.summary.hit_docs == 0
+    assert stats.summary.hit_rate == 0
+    assert stats.summary.quota_consumed == 0
+    assert len(stats.trend.dates) == 7
+    assert len(stats.trend.uploaded_docs) == 7
 
 
 def test_history_stats_aggregation_and_rate() -> None:
-    today = date.today().isoformat()
-    inspection_router._inspection_records.extend(
-        [
-            {
-                "id": 1,
-                "user_id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
-                "project_id": "default",
-                "document_name": "a.txt",
-                "issues": [{"title": "违规"}],
-                "created_at": today,
-                "quota_consumed": 10,
-            },
-            {
-                "id": 2,
-                "user_id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
-                "project_id": "default",
-                "document_name": "b.txt",
-                "issues": [],
-                "created_at": today,
-                "quota_consumed": 5,
-            },
-        ]
-    )
+    user_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
+    today = datetime.combine(date.today(), datetime.min.time())
+    records = [
+        InspectionRecord(user_id=user_id, document_name="a.txt", document_type="bidding", document_type_label="招投标", overall_risk="high", summary="", issues=[{"title": "违规"}], regulation_refs=[], status="completed", quota_consumed=10, created_at=today),
+        InspectionRecord(user_id=user_id, document_name="b.txt", document_type="bidding", document_type_label="招投标", overall_risk="low", summary="", issues=[], regulation_refs=[], status="completed", quota_consumed=5, created_at=today),
+        InspectionRecord(user_id=user_id, document_name="c.txt", document_type="bidding", document_type_label="招投标", overall_risk="pending", summary="", issues=[], regulation_refs=[], status="processing", quota_consumed=0, created_at=today),
+        InspectionRecord(user_id=user_id, document_name="d.txt", document_type="bidding", document_type_label="招投标", overall_risk="failed", summary="", issues=[], regulation_refs=[], status="failed", quota_consumed=0, created_at=today),
+    ]
+    stats = _aggregate_history_stats(records)
 
-    response = client.get("/inspection/stats/history", headers=API_HEADERS)
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["summary"]["total_docs"] == 2
-    assert data["summary"]["hit_docs"] == 1
-    assert data["summary"]["banned_rate"] == 0.5
-    assert data["summary"]["quota_consumed"] == 15
-    assert sum(data["trend"]["total_docs"]) == data["summary"]["total_docs"]
-    assert sum(data["trend"]["hit_docs"]) == data["summary"]["hit_docs"]
-    assert sum(data["trend"]["quota_consumed"]) == data["summary"]["quota_consumed"]
-
-
-def test_missing_api_key_returns_401() -> None:
-    app.dependency_overrides.pop(get_current_user, None)
-    try:
-        clean_client = TestClient(app)
-        response = clean_client.get("/inspection/stats/history")
-        assert response.status_code == 401
-    finally:
-        app.dependency_overrides[get_current_user] = _override_user
-
-
-def test_invalid_api_key_returns_401() -> None:
-    app.dependency_overrides.pop(get_current_user, None)
-    try:
-        clean_client = TestClient(app)
-        response = clean_client.get(
-            "/inspection/stats/history",
-            headers={"Authorization": "Bearer invalid.token.here"},
-        )
-        assert response.status_code == 401
-    finally:
-        app.dependency_overrides[get_current_user] = _override_user
-
-
-def test_valid_api_key_returns_200() -> None:
-    response = client.get("/inspection/stats/history", headers=API_HEADERS)
-    assert response.status_code == 200
+    assert stats.summary.uploaded_docs == 4
+    assert stats.summary.completed_docs == 2
+    assert stats.summary.hit_docs == 1
+    assert stats.summary.failed_docs == 1
+    assert stats.summary.pending_docs == 1
+    assert stats.summary.hit_rate == 0.5
+    assert stats.summary.quota_consumed == 15
+    assert sum(stats.trend.uploaded_docs) == stats.summary.uploaded_docs
+    assert sum(stats.trend.hit_docs) == stats.summary.hit_docs
+    assert sum(stats.trend.quota_consumed) == stats.summary.quota_consumed

@@ -96,3 +96,29 @@ def test_production_env_all_configured_passes():
         assert_production_security()
     finally:
         config.settings = original
+
+
+def test_production_oss_mode_requires_complete_oss_configuration():
+    s = Settings(
+        _env_file=None,
+        environment="production",
+        jwt_secret_key="real-jwt-secret",
+        api_key_encryption_secret="real-encryption-secret",
+        data_encryption_key="real-data-key",
+        model_api_key="sk-real-key",
+        model_base_url="https://api.deepseek.com/v1",
+        model_name="deepseek-v4-pro",
+        mineru_api_token="mineru-test-token",
+        mineru_trusted_hosts="objects.example",
+        database_url="postgresql+asyncpg://postgres:test-password@localhost:5432/goulong",
+        storage_backend="oss",
+    )
+    from app.core import config
+
+    original = config.settings
+    config.settings = s
+    try:
+        with pytest.raises(RuntimeError, match="OSS_ACCESS_KEY_ID"):
+            assert_production_security()
+    finally:
+        config.settings = original
