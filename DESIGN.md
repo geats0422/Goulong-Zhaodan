@@ -149,3 +149,20 @@ Large layout containers, dividers, and images must have 0px corner radii to main
 - **Chips:** Monospaced text inside a Bronze-outlined pill shape. Used for tags or system statuses.
 - **Progress Bars:** Gold "circuitry" lines. The track is Deep Charcoal, and the indicator is a solid Gold bar with a "lead" glow effect.
 - **Dividers:** Use ultra-thin (0.5px) lines. Periodically interrupt dividers with small geometric patterns (e.g., three vertical dots or a small square) to mimic decorative joinery.
+# Light Theme Extension
+
+Dark remains the primary brand presentation. Light is a high-readability working mode, but it must not become pale cream or low-contrast parchment. The light mode expression is **Bronze Manuscript HUD**: aged bronze paper, ink-black text, darker brushed-gold authority, and restrained cyan-green circuitry for the near-future cyberpunk signal.
+
+Light palette anchors:
+- **Bronze Paper (`#B8944D`)**: page background. It should feel like aged silk or oxidized paper, not white.
+- **Manuscript Surface (`#D8BF7B`)**: cards, panels, nav, and raised content surfaces.
+- **Old Bronze (`#866A2F`)**: raised depth and lower-page gradients.
+- **Ink Black (`#151007`)**: primary readable text.
+- **Seal Gold (`#2B1A00`)**: primary actions, active states, brand marks, and dividers.
+- **Circuit Teal (`#005E66`)**: sparse glow, hover borders, and grid accents to carry the technological/cyberpunk layer.
+
+All page and component colors must use the semantic tokens defined in `frontend/src/style.css`: `--color-bg`, `--color-surface`, `--color-surface-raised`, `--color-border`, `--color-text`, `--color-muted`, `--color-primary`, and `--color-primary-glow`. Light theme components may also use `--color-cyber` and `--color-cyber-glow` as secondary accents. Typography must use `--font-display`, `--font-body`, or `--font-mono`.
+
+# Theme Behavior
+
+`localStorage[goulong-theme-mode]` and `html[data-theme]` are the only theme sources. The stored mode is `dark`, `light`, or `system`; `system` resolves from `prefers-color-scheme` and updates immediately when the OS setting changes. Every page, including authentication and marketing pages, must consume this global state and must not create a separate persisted theme preference.
