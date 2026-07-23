@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
+import DashboardFooter from '../components/app/DashboardFooter.vue'
 import PaymentModal from '../components/PaymentModal.vue'
 import {
   API_KEY_SCOPES,
@@ -1133,6 +1134,8 @@ onMounted(() => {
         </article>
       </section>
     </main>
+
+    <DashboardFooter />
 
     <PaymentModal
       v-if="modalProduct"

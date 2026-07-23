@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
+import DashboardFooter from '../components/app/DashboardFooter.vue'
 import { useAuth } from '../composables/useAuth.js'
 
 const { fetchWithAuth } = useAuth()
@@ -160,6 +161,8 @@ onMounted(fetchStats)
         </div>
       </section>
     </main>
+
+    <DashboardFooter />
   </div>
 </template>
 

@@ -15,6 +15,8 @@
 
 .dashboard-page {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   color: #e5e2e1;
   background: radial-gradient(circle at 70% 0%, rgba(212, 175, 55, 0.08), transparent 28%), linear-gradient(180deg, #131313 0%, #0f1115 48%, #0e0e0e 100%);
   font-family: "Hanken Grotesk", "Noto Sans SC", sans-serif;
@@ -151,6 +153,7 @@
   display: flex;
   flex-direction: column;
   gap: 32px;
+  flex: 1;
 }
 
 .dashboard-header {
@@ -632,6 +635,15 @@ button.tag {
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.dashboard-footer__filings {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 900px) {

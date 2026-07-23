@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppTopNav from '../components/app/AppTopNav.vue'
+import DashboardFooter from '../components/app/DashboardFooter.vue'
 import InspectionReviewModal from '../components/inspection/InspectionReviewModal.vue'
 import { useAuth } from '../composables/useAuth.js'
 import { fetchInspectionRecords } from '../services/inspectionApi.js'
@@ -193,17 +194,7 @@ onMounted(() => {
       </section>
     </main>
 
-    <footer class="dashboard-footer">
-      <strong>句龙 · 照胆</strong>
-      <div>
-        <a href="/help">帮助中心</a>
-        <a href="/privacy">隐私政策</a>
-        <a href="/terms">服务条款</a>
-        <a href="/docs">技术文档</a>
-      </div>
-      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">杭州焕羽格致智能科技有限公司 · 浙ICP备2026045389号-1</a>
-      <a href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33011002020045" target="_blank" rel="noopener">浙公网安备33011002020045号</a>
-    </footer>
+    <DashboardFooter />
 
     <InspectionReviewModal
       :file="selectedFile"

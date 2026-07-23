@@ -1,5 +1,6 @@
 <script setup>
 import AppTopNav from '../components/app/AppTopNav.vue'
+import DashboardFooter from '../components/app/DashboardFooter.vue'
 
 const issues = [
   {
@@ -92,6 +93,8 @@ const issues = [
         <div class="report-end"><span></span><em>审查结束</em><span></span></div>
       </section>
     </main>
+
+    <DashboardFooter />
   </div>
 </template>
 

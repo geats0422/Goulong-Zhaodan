@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
+import DashboardFooter from '../components/app/DashboardFooter.vue'
 import { useAuth } from '../composables/useAuth.js'
 
 const { fetchWithAuth } = useAuth()
@@ -263,15 +264,7 @@ onMounted(fetchAllData)
       </div>
     </div>
 
-    <footer class="knowledge-footer">
-      <strong>句龙 · 照胆</strong>
-      <p>© 2024 句龙 · 照胆安全系统. All rights reserved.</p>
-      <div>
-        <a href="/security.html">隐私协议</a>
-        <a href="/pricing.html">服务条款</a>
-        <a href="#">合规中心</a>
-      </div>
-    </footer>
+    <DashboardFooter />
   </div>
 </template>
 
@@ -783,42 +776,8 @@ onMounted(fetchAllData)
   cursor: not-allowed;
 }
 
-.knowledge-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 24px;
-  border-top: 1px solid rgba(77, 70, 53, 0.35);
-  padding: 32px 64px;
-  background: #131313;
-  color: rgba(208, 197, 175, 0.5);
-  font-family: "Geist", monospace;
-  font-size: 12px;
-}
-
-.knowledge-footer strong {
-  color: #f2ca50;
-  font-family: "Noto Serif", "Noto Serif SC", serif;
-  font-size: 20px;
-}
-
-.knowledge-footer div {
-  display: flex;
-  gap: 24px;
-}
-
-.knowledge-footer a {
-  color: #d0c5af;
-  text-decoration: none;
-}
-
-.knowledge-footer a:hover {
-  color: #f2ca50;
-}
-
 @media (max-width: 980px) {
-  .knowledge-header,
-  .knowledge-footer {
+  .knowledge-header {
     align-items: flex-start;
     flex-direction: column;
   }
