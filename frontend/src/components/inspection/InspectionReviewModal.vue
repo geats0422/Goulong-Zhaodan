@@ -199,6 +199,7 @@ function handleClose() {
             <div v-if="parseFailedMessage" class="step-error">
               <span class="material-symbols-outlined">error</span>
               <p>{{ parseFailedMessage }}</p>
+              <a v-if="parseFailedMessage.includes('额度')" href="/pricing" class="step-error-cta">前往补充额度 →</a>
               <p v-if="parseNeedsPdf" class="step-error-hint">请将文档转为 PDF 后重新上传。</p>
               <div class="step-error-actions">
                 <button class="action-btn secondary" type="button" @click="handleClose">关闭</button>

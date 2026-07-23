@@ -16,7 +16,10 @@ async function parseResponse(response) {
     if (response.status === 404 && data.detail === '解析会话不存在') {
       throw new Error('解析会话已失效，请关闭弹窗后重新上传文件')
     }
-    throw new Error(data.detail || `请求失败（HTTP ${response.status}）`)
+    const detail = typeof data.detail === 'object' && data.detail !== null
+      ? data.detail.message || JSON.stringify(data.detail)
+      : data.detail
+    throw new Error(detail || `请求失败（HTTP ${response.status}）`)
   }
   return data
 }

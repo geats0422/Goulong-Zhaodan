@@ -818,14 +818,15 @@ onMounted(() => {
               <button v-if="profile.subscription_plan === 'free'" class="primary-btn" type="button" @click="openUpgradeDialog">立即升级</button>
             </div>
           </div>
-          <div class="billing-quota-bar">
+          <div class="billing-quota-bar" :class="{ 'quota-warning': quotaPercent >= 90 }">
             <div class="quota-bar-header">
               <span class="quota-bar-label">已用额度</span>
               <span class="quota-bar-value">{{ profile.quota_used }} / {{ profile.monthly_quota }}</span>
             </div>
             <div class="quota-bar-track">
-              <div class="quota-bar-fill" :style="{ width: Math.min(100, (profile.quota_used / Math.max(1, profile.monthly_quota)) * 100) + '%' }"></div>
+              <div class="quota-bar-fill" :style="{ width: quotaPercent + '%' }"></div>
             </div>
+            <p v-if="quotaPercent >= 90" class="quota-warning-text">额度即将耗尽，建议补充算力包或升级订阅</p>
           </div>
         </article>
 
@@ -941,10 +942,6 @@ onMounted(() => {
               <span class="model-card-tier">{{ card.tier }}</span>
               <span class="model-card-context">上下文：{{ card.context }}</span>
             </div>
-          </div>
-          <div class="model-info-bar">
-            <span>当前服务端：{{ profile.model_base_url }}</span>
-            <span>API Key：{{ profile.model_api_key_preview }}</span>
           </div>
           <label class="switch switch-row" :class="{ active: burnAfterRead }">
             <span class="switch-label-text">启用数据脱敏（身份证 / 手机号 / 银行卡 / 金额）</span>
@@ -1085,22 +1082,19 @@ onMounted(() => {
       </section>
 
       <section v-else-if="!loading && activeTab === 'knowledge'" class="settings-content knowledge-settings">
-        <article v-for="category in knowledge" :key="category.category_key" class="settings-card">
+        <article v-for="group in knowledge" :key="group.owner_type" class="settings-card">
           <header>
             <div class="card-header-main">
-              <span class="card-ref">REF.KB-{{ category.category_key }}</span>
-              <h2>{{ category.category_label }}</h2>
+              <span class="card-ref">REF.KB-{{ group.owner_type }}</span>
+              <h2>{{ group.owner_type === 'system' ? '系统默认知识库' : '我的知识库' }}</h2>
             </div>
           </header>
-          <div v-if="category.subcategories.length" class="knowledge-grid">
-            <div v-for="sub in category.subcategories" :key="sub.id" class="knowledge-sub">
-              <strong class="knowledge-sub-name">{{ sub.name }}</strong>
-              <span v-if="!sub.documents.length" class="empty-state">暂无文档</span>
-              <label v-for="doc in sub.documents" :key="doc.id" class="doc-toggle">
-                <input type="checkbox" :checked="doc.enabled" @change="toggleDocument(doc)" />
-                <span>{{ doc.title }}</span>
-              </label>
-            </div>
+          <div v-if="group.documents.length" class="knowledge-grid">
+            <label v-for="doc in group.documents" :key="doc.id" class="doc-toggle">
+              <input type="checkbox" :checked="doc.enabled" @change="toggleDocument(doc)" />
+              <span>{{ doc.title }}</span>
+              <span class="doc-tag">{{ doc.application_scenario === 'contract' ? '合同' : '招投标' }}</span>
+            </label>
           </div>
           <p v-else class="empty-state">暂无知识库文档</p>
         </article>
@@ -1305,6 +1299,8 @@ onMounted(() => {
 .quota-bar-value { color: #f2ca50; font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 600; }
 .quota-bar-track { width: 100%; height: 6px; background: rgba(212, 175, 55, 0.1); overflow: hidden; }
 .quota-bar-fill { height: 100%; background: linear-gradient(90deg, #d4af37, #f2ca50); box-shadow: 0 0 8px rgba(212, 175, 55, 0.4); transition: width 0.6s ease; }
+.billing-quota-bar.quota-warning .quota-bar-fill { background: linear-gradient(90deg, #e8654c, #f08a4c); box-shadow: 0 0 8px rgba(232, 101, 76, 0.4); }
+.quota-warning-text { margin: 8px 0 0; color: #e8654c; font-size: 12px; font-family: "JetBrains Mono", monospace; }
 
 .section-title { display: flex; align-items: center; gap: 8px; margin: 24px 0 16px; color: #f2ca50; font-family: "Syne", sans-serif; font-size: 20px; font-weight: 700; }
 .section-title .material-symbols-outlined { color: #d4af37; }

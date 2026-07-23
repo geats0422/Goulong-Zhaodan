@@ -13,28 +13,28 @@ const modalProduct = ref(null)
 
 const addons = [
   { code: 'test_0_1', name: '支付测试包', price: '¥0.01', quota: '1万 Token', desc: '仅用于验证支付链路' },
-  { code: 'light', name: '轻量包', price: '¥5', quota: '100万 Token', desc: '适合轻度试用与体验' },
-  { code: 'standard', name: '标准包', price: '¥18', quota: '500万 Token', desc: '适合常规项目审查' },
-  { code: 'large', name: '大额包', price: '¥58', quota: '2000万 Token', desc: '适合高频深度审查（仅 Pro 用户）' },
+  { code: 'light', name: '轻量包', price: '¥9', quota: '100万 Token', desc: '适合轻度试用与体验' },
+  { code: 'standard', name: '标准包', price: '¥29', quota: '500万 Token', desc: '适合常规项目审查' },
+  { code: 'large', name: '大额包', price: '¥89', quota: '2000万 Token', desc: '适合高频深度审查（仅 Pro 用户）' },
 ]
 
 const subscriptions = [
   {
-    code: 'pro_monthly', name: 'Pro 月度', kicker: 'MONTHLY ACCESS', period: '/ 月', price: '¥49',
+    code: 'pro_monthly', name: 'Pro 月度', kicker: 'MONTHLY ACCESS', period: '/ 月', price: '¥69',
     copy: '适合短期项目与临时材料体检',
-    features: ['200万 Token 月度额度', '无限次多文件材料包体检', '核心漏洞精准定位', 'Markdown/PDF 报告导出'],
+    features: ['300万 Token 月度额度', '无限次多文件材料包体检', '核心漏洞精准定位', 'Markdown/PDF 报告导出'],
     featured: false,
   },
   {
-    code: 'pro_quarterly', name: 'Pro 季度', kicker: 'QUARTERLY WINDOW', period: '/ 季', price: '¥139',
+    code: 'pro_quarterly', name: 'Pro 季度', kicker: 'QUARTERLY WINDOW', period: '/ 季', price: '¥179',
     copy: '适合持续审查与季度合规窗口',
-    features: ['600万 Token 季度额度', '无限次多文件材料包体检', '核心漏洞精准定位', 'Markdown/PDF 报告导出'],
+    features: ['900万 Token 季度额度', '无限次多文件材料包体检', '核心漏洞精准定位', 'Markdown/PDF 报告导出'],
     featured: false,
   },
   {
-    code: 'pro_yearly', name: 'Pro 年度', kicker: 'ANNUAL TALLY', period: '/ 年', price: '¥499',
+    code: 'pro_yearly', name: 'Pro 年度', kicker: 'ANNUAL TALLY', period: '/ 年', price: '¥599',
     copy: '专属授权令，覆盖全年审查窗口',
-    features: ['2400万 Token 年度额度', '无限次多文件材料包体检', '核心漏洞精准定位', 'Markdown/PDF 报告导出', '优先队列与专属授权令'],
+    features: ['3600万 Token 年度额度', '无限次多文件材料包体检', '核心漏洞精准定位', 'Markdown/PDF 报告导出', '优先队列与专属授权令'],
     featured: true,
   },
 ]
