@@ -2476,8 +2476,6 @@ html[data-theme="light"] {
   background: var(--color-bg) !important;
   background-image: none !important;
 }
-  background-size: auto, auto, 64px 64px, 64px 64px, auto !important;
-}
 
 [data-theme="light"] .dashboard-nav {
   border-bottom-color: rgba(115, 88, 23, 0.54) !important;
