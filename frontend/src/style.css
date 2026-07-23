@@ -766,46 +766,42 @@ button.tag {
 }
 
 
-[data-theme="light"] {
-  --bg: #f5f0e8;
-  --surface: #ede8de;
-  --surface-2: #e4ddd1;
-  --text: #1a1410;
-  --muted: #3a3220;
-  --line: #c9bfad;
-  --gold: #8a6810;
-  --gold-bright: #5a4400;
-  --gold-soft: rgba(184, 146, 42, 0.18);
-}
-
 [data-theme="light"] .top-nav {
-  background: rgba(245, 240, 232, 0.88);
+  background: rgba(245, 241, 232, 0.88);
+  border-bottom: 1px solid var(--color-border);
 }
 
 [data-theme="light"] .brand {
-  color: #3d2e0f;
+  color: var(--color-text);
 }
 
 [data-theme="light"] h1,
 [data-theme="light"] h2,
 [data-theme="light"] h3 {
-  color: #2c2416;
+  color: var(--color-text);
 }
 
 [data-theme="light"] .btn-primary {
-  color: var(--color-text);
-  background: var(--gold);
+  color: var(--primary-fg);
+  background: var(--primary-bg);
+  border-color: var(--primary-bg);
+}
+
+[data-theme="light"] .btn-primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  box-shadow: var(--hover-glow);
 }
 
 [data-theme="light"] .btn-ghost {
-  color: var(--gold);
-  border-color: var(--gold);
+  color: var(--text-link);
+  border-color: var(--secondary-border);
 }
 
 [data-theme="light"] .nav-links a:hover,
 [data-theme="light"] .app-sidebar a:hover,
 [data-theme="light"] .footer-links a:hover {
-  color: var(--gold);
+  color: var(--text-link);
 }
 
 * {
