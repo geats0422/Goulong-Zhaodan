@@ -214,6 +214,7 @@ async def execute_inspection(
     deps = InspectionDeps(
         project_id=project_id,
         user_id=str(user_id),
+        document_name=document_name,
         application_scenario=application_scenario,
         regulation_base=regulation_base,
         taboo_words=taboo_list or None,
@@ -247,7 +248,7 @@ async def execute_inspection(
     record.regulation_refs = result.regulation_refs
     record.text_preview = text[:500]
     record.parsed_content = encrypt_text(text)
-    record.quota_consumed = max(1, len(text) // 500)
+    record.quota_consumed = result.total_quota_consumed or max(1, len(text) // 500)
 
     # ── 扣减用户配额 ──
     if membership is not None:

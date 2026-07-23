@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,7 +12,9 @@ from app.prompts.inspection_prompts import (
     format_regulation_prompt,
     format_summary_prompt,
 )
+from app.core.config import settings
 from app.core.deps import InspectionDeps
+from app.services.compute_recorder import record_usage
 
 
 def _allowed_refs(deps: InspectionDeps) -> list[str]:
@@ -33,6 +36,7 @@ class InspectionResult:
     summary: str
     issues: list[dict[str, Any]]
     regulation_refs: list[str]
+    total_quota_consumed: int = 0
 
 
 async def run_inspection(
@@ -45,11 +49,21 @@ async def run_inspection(
     流程：法规分析 → 合规检查 → 汇总报告
     """
     scenario = deps.application_scenario
+    total_quota = 0
 
     # 阶段 1: 法规分析
+    t0 = time.monotonic()
     regulation_result = await get_regulation_analyst(scenario).run(
         format_regulation_prompt(document_text, deps.regulation_base),
         deps=deps,
+    )
+    total_quota += await record_usage(
+        deps.db, deps.user_id,
+        business_type="regulation_analysis",
+        document_name=deps.document_name,
+        tokens_used=regulation_result.usage.total_tokens,
+        model_name=settings.model_name,
+        duration_seconds=time.monotonic() - t0,
     )
 
     # 阶段 2: 合规检查（包含违禁词、低级错误等）
@@ -60,9 +74,18 @@ async def run_inspection(
         taboo_words=deps.taboo_words,
     )
 
+    t0 = time.monotonic()
     inspection_result = await get_compliance_inspector(scenario).run(
         inspection_prompt,
         deps=deps,
+    )
+    total_quota += await record_usage(
+        deps.db, deps.user_id,
+        business_type="compliance_inspection",
+        document_name=deps.document_name,
+        tokens_used=inspection_result.usage.total_tokens,
+        model_name=settings.model_name,
+        duration_seconds=time.monotonic() - t0,
     )
 
     # 阶段 3: 汇总报告
@@ -72,9 +95,18 @@ async def run_inspection(
         allowed_refs=_allowed_refs(deps),
     )
 
+    t0 = time.monotonic()
     final_result = await get_inspection_agent().run(
         summary_prompt,
         deps=deps,
+    )
+    total_quota += await record_usage(
+        deps.db, deps.user_id,
+        business_type="inspection_summary",
+        document_name=deps.document_name,
+        tokens_used=final_result.usage.total_tokens,
+        model_name=settings.model_name,
+        duration_seconds=time.monotonic() - t0,
     )
 
     # 尝试解析 JSON
@@ -94,4 +126,5 @@ async def run_inspection(
         summary=data.get("summary", ""),
         issues=data.get("issues", []),
         regulation_refs=data.get("regulation_refs", []),
+        total_quota_consumed=total_quota,
     )

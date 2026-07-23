@@ -10,6 +10,17 @@ MODEL_CATALOG = [
     {"model_name": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "tier": "快速响应", "context": "64K"},
 ]
 
+TOKEN_QUOTA_MULTIPLIER: dict[str, int] = {
+    "deepseek-v4-flash": 1,
+    "deepseek-v4-pro": 3,
+}
+DEFAULT_TOKEN_MULTIPLIER = 3
+
+
+def token_multiplier(model_name: str | None) -> int:
+    normalized = normalize_model_name(model_name) or ""
+    return TOKEN_QUOTA_MULTIPLIER.get(normalized, DEFAULT_TOKEN_MULTIPLIER)
+
 
 def normalize_model_name(model_name: str | None) -> str | None:
     if model_name and model_name.startswith("deepseek-ai/"):

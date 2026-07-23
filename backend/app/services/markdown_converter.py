@@ -37,6 +37,10 @@ def convert_to_markdown(file_path: str | Path) -> str:
         fallback_text = _convert_doc_to_text(path)
         if fallback_text.strip():
             return fallback_text
+    if path.suffix.lower() == ".pdf":
+        fallback_text = _convert_pdf_to_text(path)
+        if fallback_text.strip():
+            return fallback_text
     try:
         md = MarkItDown()
         result = md.convert(str(path))
@@ -68,6 +72,24 @@ def _convert_docx_to_text(path: Path) -> str:
         if text:
             paragraphs.append(text)
     return "\n\n".join(paragraphs)
+
+
+def _convert_pdf_to_text(path: Path) -> str:
+    try:
+        import fitz
+    except ImportError:
+        return ""
+    try:
+        doc = fitz.open(str(path))
+    except Exception:
+        return ""
+    pages: list[str] = []
+    for page in doc:
+        text = page.get_text()
+        if text:
+            pages.append(text)
+    doc.close()
+    return "\n\n".join(pages).strip()
 
 
 def _convert_doc_to_text(path: Path) -> str:

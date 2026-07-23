@@ -13,7 +13,10 @@ from app.models.knowledge import (
 )
 from app.services.file_storage import read_file, save_file
 from app.services.markdown_converter import convert_to_markdown, ConversionError
+from app.lib.mineru import parse_pdf_to_markdown
 from app.services.page_indexer import build_index_nodes, IndexingError
+from app.core.config import settings
+from app.services.compute_recorder import record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +55,12 @@ async def ingest_document_content(
         with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as tmp:
             tmp.write(content)
             tmp_original = tmp.name
-        markdown_text = convert_to_markdown(tmp_original)
+        try:
+            markdown_text = convert_to_markdown(tmp_original)
+        except ConversionError:
+            if ext != "pdf":
+                raise
+            markdown_text = await parse_pdf_to_markdown(tmp_original)
 
         # md 产物存存储抽象层（OSS/本地）
         md_storage_path = _md_storage_path(original_storage_path, safe_stem)
@@ -94,6 +102,15 @@ async def ingest_document_content(
 
         node_count = len(created_nodes)
         version.status = "completed"
+        if document.owner_user_id is not None:
+            await record_usage(
+                db,
+                document.owner_user_id,
+                business_type="knowledge_indexing",
+                document_name=safe_stem,
+                tokens_used=len(markdown_text) // 4,
+                model_name=settings.model_name,
+            )
     except (ConversionError, IndexingError) as exc:
         if isinstance(exc, ConversionError):
             version.status = "convert_failed"
