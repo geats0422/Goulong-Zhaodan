@@ -129,8 +129,8 @@ if (!history.includes('active="inspection"') || !history.includes('viewRecord(re
   throw new Error('History list must highlight 体检台 and open inspection report details')
 }
 
-if (!statistics.includes('AppTopNav') || !statistics.includes('active="statistics"') || !statistics.includes('数据统计') || !statistics.includes('额度消耗') || !statistics.includes('上传文档数') || !statistics.includes('违禁词出现率') || !statistics.includes('体检趋势')) {
-  throw new Error('Statistics page must show MVP metrics: 上传文档数、违禁词出现率、额度消耗 and trend')
+if (!statistics.includes('AppTopNav') || !statistics.includes('active="statistics"') || !statistics.includes('数据统计') || !statistics.includes('额度消耗') || !statistics.includes('上传文档数') || !statistics.includes('问题命中率') || !statistics.includes('体检趋势')) {
+  throw new Error('Statistics page must show upload, hit-rate, quota, and trend metrics')
 }
 
 if (appTopNav.includes('实验室')) {
@@ -153,7 +153,7 @@ if (!appTopNav.includes('toggleNotifications') || !appTopNav.includes('toggleAcc
   throw new Error('AppTopNav icons must have notification, account, and settings actions')
 }
 
-if (!appTopNav.includes('themeMode') || !appTopNav.includes('toggleThemeMenu') || !appTopNav.includes('applyThemeMode')) {
+if (!appTopNav.includes('themeMode') || !appTopNav.includes('toggleThemeMenu') || !appTopNav.includes('setThemeMode')) {
   throw new Error('AppTopNav must provide a theme mode toggle')
 }
 
@@ -161,7 +161,7 @@ if (!appTopNav.includes('深色') || !appTopNav.includes('浅色') || !appTopNav
   throw new Error('Theme toggle must expose 深色、浅色、系统配置 options')
 }
 
-if (!marketingNavbar.includes('themeMode') || !marketingNavbar.includes('toggleThemeMenu') || !marketingNavbar.includes('applyThemeMode')) {
+if (!marketingNavbar.includes('themeMode') || !marketingNavbar.includes('toggleThemeMenu') || !marketingNavbar.includes('setThemeMode')) {
   throw new Error('Marketing navbar must provide the same theme mode toggle as the app')
 }
 

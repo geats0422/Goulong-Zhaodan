@@ -24,12 +24,13 @@ import MarketingNavbar from './MarketingNavbar.vue'
   font-family: "Hanken Grotesk", "Noto Sans SC", sans-serif;
 }
 
-[data-theme="light"] .marketing-shell {
+:global(html[data-theme="light"]) .marketing-shell {
   background:
-    radial-gradient(circle at 75% 0%, rgba(155, 116, 22, 0.12), transparent 30%),
-    linear-gradient(rgba(155, 116, 22, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(155, 116, 22, 0.055) 1px, transparent 1px),
-    linear-gradient(180deg, var(--surface) 0%, var(--bg) 46%, var(--surface-2) 100%);
-  background-size: auto, 64px 64px, 64px 64px, auto;
+    radial-gradient(circle at 78% 4%, var(--color-cyber-glow), transparent 28%),
+    radial-gradient(circle at 18% 18%, var(--color-primary-glow), transparent 32%),
+    linear-gradient(rgba(115, 88, 23, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 109, 115, 0.12) 1px, transparent 1px),
+    linear-gradient(180deg, var(--surface) 0%, var(--bg) 48%, var(--surface-2) 100%);
+  background-size: auto, auto, 64px 64px, 64px 64px, auto;
 }
 </style>

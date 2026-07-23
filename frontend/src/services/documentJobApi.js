@@ -62,6 +62,16 @@ function defaultSchedule(fn, delay) {
   return () => clearTimeout(id)
 }
 
+function documentJobError(job) {
+  if (typeof job?.error === 'string' && job.error) {
+    return new Error(job.error)
+  }
+  if (job?.error && typeof job.error === 'object') {
+    return new Error(job.error.message || job.error.detail || '文档处理失败')
+  }
+  return new Error('文档处理失败')
+}
+
 /**
  * 轮询文档任务状态，直到任务进入终态（succeeded/failed/cancelled）或被取消。
  *
@@ -145,7 +155,7 @@ export function pollDocumentJob(jobId, options = {}) {
       return
     }
     if (TERMINAL_FAILURE_STATUSES.includes(job.status)) {
-      fail(job.error ? new Error(job.error) : new Error('文档处理失败'))
+      fail(documentJobError(job))
       return
     }
 

@@ -119,7 +119,7 @@ function gotoRegister() {
 </script>
 
 <template>
-  <div class="login-page" :data-theme="theme">
+  <div class="login-page">
     <button class="theme-toggle" type="button" @click="toggleTheme" :aria-label="theme === 'dark' ? '切换到浅色' : '切换到深色'">
       <span class="material-symbols-outlined">{{ theme === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
     </button>
@@ -271,7 +271,7 @@ function gotoRegister() {
   overflow: hidden;
 }
 
-.login-page[data-theme="light"] {
+:global(html[data-theme="light"]) .login-page {
   background: #f7f1e3;
 }
 
@@ -286,7 +286,7 @@ function gotoRegister() {
   pointer-events: none;
 }
 
-.login-page[data-theme="light"]::before {
+:global(html[data-theme="light"]) .login-page::before {
   background-image:
     linear-gradient(rgba(155, 116, 22, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(155, 116, 22, 0.05) 1px, transparent 1px);
@@ -309,7 +309,7 @@ function gotoRegister() {
   transition: background 0.2s, border-color 0.2s;
 }
 
-.login-page[data-theme="light"] .theme-toggle {
+:global(html[data-theme="light"]) .login-page .theme-toggle {
   border-color: rgba(155, 116, 22, 0.4);
   color: #9b7416;
 }
@@ -335,7 +335,7 @@ function gotoRegister() {
   box-shadow: 0 0 60px rgba(212, 175, 55, 0.06);
 }
 
-.login-page[data-theme="light"] .login-canvas {
+:global(html[data-theme="light"]) .login-page .login-canvas {
   border-color: rgba(155, 116, 22, 0.28);
   background: var(--surface, #fffaf0);
   box-shadow: 0 20px 60px rgba(88, 65, 15, 0.12);
@@ -352,7 +352,7 @@ function gotoRegister() {
     linear-gradient(180deg, rgba(18, 18, 18, 0.4), rgba(10, 10, 10, 0.6));
 }
 
-.login-page[data-theme="light"] .brand-panel {
+:global(html[data-theme="light"]) .login-page .brand-panel {
   border-right-color: rgba(155, 116, 22, 0.28);
   background:
     radial-gradient(circle at 30% 20%, rgba(155, 116, 22, 0.1), transparent 50%),
@@ -373,7 +373,7 @@ function gotoRegister() {
   letter-spacing: 0.08em;
 }
 
-.login-page[data-theme="light"] .brand-name {
+:global(html[data-theme="light"]) .login-page .brand-name {
   color: #735c00;
 }
 
@@ -390,7 +390,7 @@ function gotoRegister() {
   border-left: 2px solid #d4af37;
 }
 
-.login-page[data-theme="light"] .brand-quote {
+:global(html[data-theme="light"]) .login-page .brand-quote {
   border-left-color: #9b7416;
 }
 
@@ -403,7 +403,7 @@ function gotoRegister() {
   line-height: 1.4;
 }
 
-.login-page[data-theme="light"] .brand-quote p {
+:global(html[data-theme="light"]) .login-page .brand-quote p {
   color: #1f1a12 !important;
 }
 
@@ -438,7 +438,7 @@ function gotoRegister() {
   letter-spacing: 0.18em;
 }
 
-.login-page[data-theme="light"] .form-ref {
+:global(html[data-theme="light"]) .login-page .form-ref {
   color: #9b7416;
 }
 
@@ -450,7 +450,7 @@ function gotoRegister() {
   letter-spacing: 0.06em;
 }
 
-.login-page[data-theme="light"] .form-header h1 {
+:global(html[data-theme="light"]) .login-page .form-header h1 {
   color: #1f1a12;
 }
 
@@ -461,7 +461,7 @@ function gotoRegister() {
   margin-bottom: 24px;
 }
 
-.login-page[data-theme="light"] .tab-bar {
+:global(html[data-theme="light"]) .login-page .tab-bar {
   border-bottom-color: rgba(155, 116, 22, 0.28);
 }
 
@@ -484,7 +484,7 @@ function gotoRegister() {
   font-weight: 600;
 }
 
-.login-page[data-theme="light"] .tab-bar button.active {
+:global(html[data-theme="light"]) .login-page .tab-bar button.active {
   color: #9b7416;
 }
 
@@ -499,7 +499,7 @@ function gotoRegister() {
   box-shadow: 0 0 8px rgba(212, 175, 55, 0.5);
 }
 
-.login-page[data-theme="light"] .tab-bar button.active::after {
+:global(html[data-theme="light"]) .login-page .tab-bar button.active::after {
   background: linear-gradient(90deg, transparent, #9b7416, transparent);
   box-shadow: none;
 }
@@ -556,7 +556,7 @@ function gotoRegister() {
   border-radius: 0;
 }
 
-.login-page[data-theme="light"] .field input {
+:global(html[data-theme="light"]) .login-page .field input {
   border-bottom-color: rgba(155, 116, 22, 0.3);
   color: #1f1a12;
 }
@@ -571,7 +571,7 @@ function gotoRegister() {
   box-shadow: 0 4px 0 -2px rgba(212, 175, 55, 0.3);
 }
 
-.login-page[data-theme="light"] .field input:focus {
+:global(html[data-theme="light"]) .login-page .field input:focus {
   border-bottom-color: #9b7416;
   box-shadow: 0 4px 0 -2px rgba(155, 116, 22, 0.2);
 }
@@ -590,9 +590,9 @@ function gotoRegister() {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.login-page[data-theme="light"] .phone-input,
-.login-page[data-theme="light"] .sms-input,
-.login-page[data-theme="light"] .password-input-wrap {
+:global(html[data-theme="light"]) .login-page .phone-input,
+:global(html[data-theme="light"]) .login-page .sms-input,
+:global(html[data-theme="light"]) .login-page .password-input-wrap {
   border-bottom-color: rgba(155, 116, 22, 0.3);
 }
 
@@ -603,9 +603,9 @@ function gotoRegister() {
   box-shadow: 0 4px 0 -2px rgba(212, 175, 55, 0.3);
 }
 
-.login-page[data-theme="light"] .phone-input:focus-within,
-.login-page[data-theme="light"] .sms-input:focus-within,
-.login-page[data-theme="light"] .password-input-wrap:focus-within {
+:global(html[data-theme="light"]) .login-page .phone-input:focus-within,
+:global(html[data-theme="light"]) .login-page .sms-input:focus-within,
+:global(html[data-theme="light"]) .login-page .password-input-wrap:focus-within {
   border-bottom-color: #9b7416;
   box-shadow: 0 4px 0 -2px rgba(155, 116, 22, 0.2);
 }
@@ -636,7 +636,7 @@ function gotoRegister() {
   font-size: 14px;
 }
 
-.login-page[data-theme="light"] .phone-prefix {
+:global(html[data-theme="light"]) .login-page .phone-prefix {
   border-right-color: rgba(155, 116, 22, 0.3);
   color: #9b7416;
 }
@@ -655,8 +655,8 @@ function gotoRegister() {
   transition: color 0.2s, background 0.2s;
 }
 
-.login-page[data-theme="light"] .sms-btn,
-.login-page[data-theme="light"] .password-toggle {
+:global(html[data-theme="light"]) .login-page .sms-btn,
+:global(html[data-theme="light"]) .login-page .password-toggle {
   color: #9b7416;
 }
 
@@ -666,8 +666,8 @@ function gotoRegister() {
   color: #f2ca50;
 }
 
-.login-page[data-theme="light"] .sms-btn:hover:not(:disabled),
-.login-page[data-theme="light"] .password-toggle:hover {
+:global(html[data-theme="light"]) .login-page .sms-btn:hover:not(:disabled),
+:global(html[data-theme="light"]) .login-page .password-toggle:hover {
   background: rgba(155, 116, 22, 0.1);
   color: #735c00;
 }
@@ -739,7 +739,7 @@ function gotoRegister() {
   text-decoration: underline;
 }
 
-.login-page[data-theme="light"] .terms-row a {
+:global(html[data-theme="light"]) .login-page .terms-row a {
   color: #9b7416;
 }
 
@@ -765,42 +765,42 @@ function gotoRegister() {
   text-decoration: underline;
 }
 
-.login-page[data-theme="light"] .link-btn {
+:global(html[data-theme="light"]) .login-page .link-btn {
   color: #9b7416;
 }
 
-.login-page[data-theme="light"] .brand-sub,
-.login-page[data-theme="light"] .brand-footer,
-.login-page[data-theme="light"] .form-hint,
-.login-page[data-theme="light"] .field > span,
-.login-page[data-theme="light"] .terms-row,
-.login-page[data-theme="light"] .form-footer,
-.login-page[data-theme="light"] .tab-bar button {
+:global(html[data-theme="light"]) .login-page .brand-sub,
+:global(html[data-theme="light"]) .login-page .brand-footer,
+:global(html[data-theme="light"]) .login-page .form-hint,
+:global(html[data-theme="light"]) .login-page .field > span,
+:global(html[data-theme="light"]) .login-page .terms-row,
+:global(html[data-theme="light"]) .login-page .form-footer,
+:global(html[data-theme="light"]) .login-page .tab-bar button {
   color: #66563a;
 }
 
-.login-page[data-theme="light"] .field input::placeholder {
+:global(html[data-theme="light"] .login-page .field input::placeholder) {
   color: #7a6a4d;
   opacity: 0.8;
 }
 
-.login-page[data-theme="light"] .sms-btn:disabled {
+:global(html[data-theme="light"]) .login-page .sms-btn:disabled {
   color: #99907c;
 }
 
-.login-page[data-theme="light"] .primary-btn {
+:global(html[data-theme="light"]) .login-page .primary-btn {
   border-color: #9b7416;
   background: #9b7416;
   color: #fffaf0;
 }
 
-.login-page[data-theme="light"] .primary-btn:hover:not(:disabled) {
+:global(html[data-theme="light"]) .login-page .primary-btn:hover:not(:disabled) {
   background: #735c00;
   border-color: #735c00;
   box-shadow: 0 0 18px rgba(155, 116, 22, 0.25);
 }
 
-.login-page[data-theme="light"] .primary-btn:disabled {
+:global(html[data-theme="light"] .login-page .primary-btn:disabled) {
   opacity: 0.5;
 }
 

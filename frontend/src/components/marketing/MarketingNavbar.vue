@@ -1,10 +1,9 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { applyThemeMode, getStoredThemeMode, persistThemeMode } from '../../theme'
+import { computed, ref } from 'vue'
+import { useTheme } from '../../composables/useTheme.js'
 
 const showThemeMenu = ref(false)
-const themeMode = ref('system')
-let systemThemeQuery
+const { themeMode, setThemeMode } = useTheme()
 
 const themeOptions = [
   { label: '深色', value: 'dark', icon: 'dark_mode' },
@@ -19,27 +18,9 @@ const toggleThemeMenu = () => {
 }
 
 const selectThemeMode = (mode) => {
-  themeMode.value = mode
-  persistThemeMode(mode)
+  setThemeMode(mode)
   showThemeMenu.value = false
 }
-
-const handleSystemThemeChange = () => {
-  if (themeMode.value === 'system') {
-    applyThemeMode('system')
-  }
-}
-
-onMounted(() => {
-  themeMode.value = getStoredThemeMode()
-  systemThemeQuery = window.matchMedia('(prefers-color-scheme: light)')
-  systemThemeQuery.addEventListener('change', handleSystemThemeChange)
-  applyThemeMode(themeMode.value)
-})
-
-onBeforeUnmount(() => {
-  systemThemeQuery?.removeEventListener('change', handleSystemThemeChange)
-})
 </script>
 
 <template>

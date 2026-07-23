@@ -157,7 +157,7 @@ function gotoLogin() {
 </script>
 
 <template>
-  <div class="register-page" :data-theme="theme">
+  <div class="register-page">
     <button class="theme-toggle" type="button" @click="toggleTheme" :aria-label="theme === 'dark' ? '切换到浅色' : '切换到深色'">
       <span class="material-symbols-outlined">{{ theme === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
     </button>
@@ -345,7 +345,7 @@ function gotoLogin() {
   pointer-events: none;
 }
 
-.register-page[data-theme="light"]::before {
+:global(html[data-theme="light"]) .register-page::before {
   background-image:
     linear-gradient(rgba(155, 116, 22, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(155, 116, 22, 0.05) 1px, transparent 1px);
@@ -368,7 +368,7 @@ function gotoLogin() {
   transition: background 0.2s, border-color 0.2s;
 }
 
-.register-page[data-theme="light"] .theme-toggle {
+:global(html[data-theme="light"]) .register-page .theme-toggle {
   border-color: rgba(155, 116, 22, 0.4);
   color: #9b7416;
 }
@@ -394,7 +394,7 @@ function gotoLogin() {
   box-shadow: 0 0 60px rgba(212, 175, 55, 0.06);
 }
 
-.register-page[data-theme="light"] .register-canvas {
+:global(html[data-theme="light"]) .register-page .register-canvas {
   border-color: rgba(155, 116, 22, 0.28);
   background: var(--surface, #fffaf0);
   box-shadow: 0 20px 60px rgba(88, 65, 15, 0.12);
@@ -411,7 +411,7 @@ function gotoLogin() {
     linear-gradient(180deg, rgba(18, 18, 18, 0.4), rgba(10, 10, 10, 0.6));
 }
 
-.register-page[data-theme="light"] .brand-panel {
+:global(html[data-theme="light"]) .register-page .brand-panel {
   border-right-color: rgba(155, 116, 22, 0.28);
   background:
     radial-gradient(circle at 30% 20%, rgba(155, 116, 22, 0.08), transparent 50%),
@@ -432,7 +432,7 @@ function gotoLogin() {
   letter-spacing: 0.08em;
 }
 
-.register-page[data-theme="light"] .brand-name {
+:global(html[data-theme="light"]) .register-page .brand-name {
   color: #735c00;
 }
 
@@ -449,7 +449,7 @@ function gotoLogin() {
   border-left: 2px solid #d4af37;
 }
 
-.register-page[data-theme="light"] .brand-quote {
+:global(html[data-theme="light"]) .register-page .brand-quote {
   border-left-color: #9b7416;
 }
 
@@ -462,7 +462,7 @@ function gotoLogin() {
   line-height: 1.4;
 }
 
-.register-page[data-theme="light"] .brand-quote p {
+:global(html[data-theme="light"]) .register-page .brand-quote p {
   color: #1f1a12;
 }
 
@@ -499,7 +499,7 @@ function gotoLogin() {
   letter-spacing: 0.18em;
 }
 
-.register-page[data-theme="light"] .form-ref {
+:global(html[data-theme="light"]) .register-page .form-ref {
   color: #9b7416;
 }
 
@@ -511,7 +511,7 @@ function gotoLogin() {
   letter-spacing: 0.06em;
 }
 
-.register-page[data-theme="light"] .form-header h1 {
+:global(html[data-theme="light"]) .register-page .form-header h1 {
   color: #1f1a12;
 }
 
@@ -566,7 +566,7 @@ function gotoLogin() {
   border-radius: 0;
 }
 
-.register-page[data-theme="light"] .field input {
+:global(html[data-theme="light"]) .register-page .field input {
   border-bottom-color: rgba(155, 116, 22, 0.3);
   color: #1f1a12;
 }
@@ -581,7 +581,7 @@ function gotoLogin() {
   box-shadow: 0 4px 0 -2px rgba(212, 175, 55, 0.3);
 }
 
-.register-page[data-theme="light"] .field input:focus {
+:global(html[data-theme="light"]) .register-page .field input:focus {
   border-bottom-color: #9b7416;
   box-shadow: 0 4px 0 -2px rgba(155, 116, 22, 0.2);
 }
@@ -600,9 +600,9 @@ function gotoLogin() {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.register-page[data-theme="light"] .phone-input,
-.register-page[data-theme="light"] .sms-input,
-.register-page[data-theme="light"] .password-input-wrap {
+:global(html[data-theme="light"]) .register-page .phone-input,
+:global(html[data-theme="light"]) .register-page .sms-input,
+:global(html[data-theme="light"]) .register-page .password-input-wrap {
   border-bottom-color: rgba(155, 116, 22, 0.3);
 }
 
@@ -613,9 +613,9 @@ function gotoLogin() {
   box-shadow: 0 4px 0 -2px rgba(212, 175, 55, 0.3);
 }
 
-.register-page[data-theme="light"] .phone-input:focus-within,
-.register-page[data-theme="light"] .sms-input:focus-within,
-.register-page[data-theme="light"] .password-input-wrap:focus-within {
+:global(html[data-theme="light"]) .register-page .phone-input:focus-within,
+:global(html[data-theme="light"]) .register-page .sms-input:focus-within,
+:global(html[data-theme="light"]) .register-page .password-input-wrap:focus-within {
   border-bottom-color: #9b7416;
   box-shadow: 0 4px 0 -2px rgba(155, 116, 22, 0.2);
 }
@@ -646,7 +646,7 @@ function gotoLogin() {
   font-size: 13px;
 }
 
-.register-page[data-theme="light"] .phone-prefix {
+:global(html[data-theme="light"]) .register-page .phone-prefix {
   border-right-color: rgba(155, 116, 22, 0.3);
   color: #9b7416;
 }
@@ -665,8 +665,8 @@ function gotoLogin() {
   transition: color 0.2s, background 0.2s;
 }
 
-.register-page[data-theme="light"] .sms-btn,
-.register-page[data-theme="light"] .password-toggle {
+:global(html[data-theme="light"]) .register-page .sms-btn,
+:global(html[data-theme="light"]) .register-page .password-toggle {
   color: #9b7416;
 }
 
@@ -676,8 +676,8 @@ function gotoLogin() {
   color: #f2ca50;
 }
 
-.register-page[data-theme="light"] .sms-btn:hover:not(:disabled),
-.register-page[data-theme="light"] .password-toggle:hover {
+:global(html[data-theme="light"]) .register-page .sms-btn:hover:not(:disabled),
+:global(html[data-theme="light"]) .register-page .password-toggle:hover {
   background: rgba(155, 116, 22, 0.1);
   color: #735c00;
 }
@@ -706,7 +706,7 @@ function gotoLogin() {
   font-size: 12px;
 }
 
-.register-page[data-theme="light"] .password-rules {
+:global(html[data-theme="light"]) .register-page .password-rules {
   border-color: rgba(155, 116, 22, 0.2);
   background: rgba(255, 250, 240, 0.5);
 }
@@ -725,7 +725,7 @@ function gotoLogin() {
   color: #99907c;
 }
 
-.register-page[data-theme="light"] .rule-item.fail {
+:global(html[data-theme="light"]) .register-page .rule-item.fail {
   color: #66563a;
 }
 
@@ -789,7 +789,7 @@ function gotoLogin() {
   text-decoration: underline;
 }
 
-.register-page[data-theme="light"] .terms-row a {
+:global(html[data-theme="light"]) .register-page .terms-row a {
   color: #9b7416;
 }
 
@@ -815,41 +815,41 @@ function gotoLogin() {
   text-decoration: underline;
 }
 
-.register-page[data-theme="light"] .link-btn {
+:global(html[data-theme="light"]) .register-page .link-btn {
   color: #9b7416;
 }
 
-.register-page[data-theme="light"] .brand-sub,
-.register-page[data-theme="light"] .brand-footer,
-.register-page[data-theme="light"] .form-sub,
-.register-page[data-theme="light"] .field > span,
-.register-page[data-theme="light"] .terms-row,
-.register-page[data-theme="light"] .form-footer {
+:global(html[data-theme="light"]) .register-page .brand-sub,
+:global(html[data-theme="light"]) .register-page .brand-footer,
+:global(html[data-theme="light"]) .register-page .form-sub,
+:global(html[data-theme="light"]) .register-page .field > span,
+:global(html[data-theme="light"]) .register-page .terms-row,
+:global(html[data-theme="light"]) .register-page .form-footer {
   color: #66563a;
 }
 
-.register-page[data-theme="light"] .field input::placeholder {
+:global(html[data-theme="light"] .register-page .field input::placeholder) {
   color: #7a6a4d;
   opacity: 0.8;
 }
 
-.register-page[data-theme="light"] .sms-btn:disabled {
+:global(html[data-theme="light"]) .register-page .sms-btn:disabled {
   color: #99907c;
 }
 
-.register-page[data-theme="light"] .primary-btn {
+:global(html[data-theme="light"]) .register-page .primary-btn {
   border-color: #9b7416;
   background: #9b7416;
   color: #fffaf0;
 }
 
-.register-page[data-theme="light"] .primary-btn:hover:not(:disabled) {
+:global(html[data-theme="light"]) .register-page .primary-btn:hover:not(:disabled) {
   background: #735c00;
   border-color: #735c00;
   box-shadow: 0 0 18px rgba(155, 116, 22, 0.25);
 }
 
-.register-page[data-theme="light"] .primary-btn:disabled {
+:global(html[data-theme="light"] .register-page .primary-btn:disabled) {
   opacity: 0.5;
 }
 

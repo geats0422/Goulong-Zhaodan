@@ -29,7 +29,10 @@ const plans = [
         <div class="gold-rule"></div>
         <p class="eyebrow">AUTHORIZATION INSPECTION AGENT</p>
         <h1>句龙 · 照胆</h1>
-        <p class="hero-subtitle">业务提交前审查 Agent：把明显错误和材料缺口挡在流程外</p>
+        <p class="hero-subtitle">
+          <span>业务提交前审查 <span class="subtitle-agent">Agent：</span></span>
+          <span>把明显错误和材料缺口挡在流程外</span>
+        </p>
         <p class="lead">
           在 OA、合同审批、采购申请、项目审批、付款申请正式提交前，对多文件材料包进行一致性与完整性审查，输出可执行问题清单、修改建议和证据定位。
         </p>
@@ -163,11 +166,26 @@ const plans = [
 }
 
 .hero-subtitle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   color: var(--text);
   font-family: "Syne", "Noto Serif SC", serif;
   font-size: clamp(1.5rem, 3vw, 2.6rem);
   font-weight: 800;
+  line-height: 1.18;
   max-width: 900px;
+}
+
+.hero-subtitle span {
+  display: block;
+  max-width: 100%;
+}
+
+.subtitle-agent {
+  display: inline-block !important;
+  white-space: nowrap;
 }
 
 .lead {
@@ -337,11 +355,27 @@ const plans = [
   background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--gold) 18%, transparent), transparent 45%), var(--surface);
 }
 
-[data-theme="light"] .problem-grid article,
-[data-theme="light"] .metrics-grid article,
-[data-theme="light"] .circuit-card,
-[data-theme="light"] .final-cta {
-  box-shadow: 0 16px 42px rgba(88, 65, 15, 0.08);
+:global(html[data-theme="light"]) .problem-grid article,
+:global(html[data-theme="light"]) .metrics-grid article,
+:global(html[data-theme="light"]) .circuit-card,
+:global(html[data-theme="light"]) .final-cta {
+  border-color: rgba(95, 71, 16, 0.34);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 84%, var(--surface-2)), color-mix(in srgb, var(--bg) 76%, var(--surface-2)));
+  box-shadow: 0 18px 44px rgba(36, 26, 6, 0.16), inset 0 0 0 1px rgba(0, 109, 115, 0.06);
+}
+
+:global(html[data-theme="light"]) .home-hero h1 {
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(0, 109, 115, 0.12);
+}
+
+:global(html[data-theme="light"]) .lead {
+  color: var(--muted);
+}
+
+:global(html[data-theme="light"]) .secondary-link {
+  border-color: rgba(95, 71, 16, 0.46);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
 
 @media (max-width: 980px) {

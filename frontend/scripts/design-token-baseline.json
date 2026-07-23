@@ -1,0 +1,4 @@
+{
+  "strategy": "Only newly added CSS declarations are enforced; legacy declarations are migrated incrementally.",
+  "accepted": []
+}

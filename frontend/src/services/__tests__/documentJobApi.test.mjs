@@ -126,6 +126,26 @@ test('pollDocumentJob: failed 触发 onError 并停止', async () => {
   assert.equal(scheduler.calls.length, 0, '失败后不应再调度')
 })
 
+test('pollDocumentJob: failed error 对象使用 message 文案', async () => {
+  const job = { id: 'j2-object-error', status: 'failed', error: { code: 'inspection_failed', message: '文档审查失败，请稍后重试' } }
+  const fetcher = async () => job
+  const scheduler = createFakeScheduler()
+  let errored = null
+
+  pollDocumentJob('j2-object-error', {
+    fetcher,
+    scheduler,
+    onError: (e) => {
+      errored = e
+    },
+  })
+  await settle()
+
+  assert.ok(errored instanceof Error)
+  assert.equal(errored.message, '文档审查失败，请稍后重试')
+  assert.equal(scheduler.calls.length, 0)
+})
+
 test('pollDocumentJob: cancelled 状态触发 onError 并停止', async () => {
   const job = { id: 'j3', status: 'cancelled' }
   const fetcher = async () => job

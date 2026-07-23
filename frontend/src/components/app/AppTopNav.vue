@@ -1,8 +1,8 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth.js'
-import { applyThemeMode, getStoredThemeMode, persistThemeMode } from '../../theme'
+import { useTheme } from '../../composables/useTheme.js'
 
 defineProps({
   active: { type: String, required: true },
@@ -13,8 +13,7 @@ const { currentUser, logout } = useAuth()
 const showNotifications = ref(false)
 const showAccountMenu = ref(false)
 const showThemeMenu = ref(false)
-const themeMode = ref('system')
-let systemThemeQuery
+const { themeMode, setThemeMode } = useTheme()
 
 const themeOptions = [
   { label: '深色', value: 'dark', icon: 'dark_mode' },
@@ -50,8 +49,7 @@ const goToNavItem = (href) => {
 }
 
 const selectThemeMode = (mode) => {
-  themeMode.value = mode
-  persistThemeMode(mode)
+  setThemeMode(mode)
   showThemeMenu.value = false
 }
 
@@ -72,22 +70,6 @@ const activeThemeOption = computed(() => themeOptions.find((item) => item.value 
 const username = computed(() => currentUser.value?.nickname || '用户')
 const avatarText = computed(() => username.value.slice(0, 1).toUpperCase())
 
-const handleSystemThemeChange = () => {
-  if (themeMode.value === 'system') {
-    applyThemeMode('system')
-  }
-}
-
-onMounted(() => {
-  themeMode.value = getStoredThemeMode()
-  systemThemeQuery = window.matchMedia('(prefers-color-scheme: light)')
-  systemThemeQuery.addEventListener('change', handleSystemThemeChange)
-  applyThemeMode(themeMode.value)
-})
-
-onBeforeUnmount(() => {
-  systemThemeQuery?.removeEventListener('change', handleSystemThemeChange)
-})
 </script>
 
 <template>

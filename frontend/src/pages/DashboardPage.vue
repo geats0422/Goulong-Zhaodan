@@ -122,7 +122,7 @@ onMounted(() => {
             <span class="material-symbols-outlined">add_circle</span>
             发起智能初审
           </button>
-          <input ref="fileInput" class="visually-hidden-file" type="file" accept=".pdf,.doc,.docx,.txt,.md" @change="handleFileSelected" />
+          <input ref="fileInput" class="visually-hidden-file" type="file" accept=".pdf,.docx,.txt" @change="handleFileSelected" />
         </div>
       </section>
 

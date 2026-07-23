@@ -12,22 +12,22 @@ const viewMode = ref('table')
 const stats = ref({
   range: '7d',
   timezone: 'Asia/Shanghai',
-  summary: { total_docs: 0, hit_docs: 0, banned_rate: 0, quota_consumed: 0 },
-  trend: { dates: [], total_docs: [], hit_docs: [], banned_rate: [], quota_consumed: [] },
+  summary: { uploaded_docs: 0, completed_docs: 0, hit_docs: 0, failed_docs: 0, pending_docs: 0, hit_rate: 0, quota_consumed: 0 },
+  trend: { dates: [], uploaded_docs: [], completed_docs: [], hit_docs: [], failed_docs: [], pending_docs: [], hit_rate: [], quota_consumed: [] },
 })
 
 const summaryCards = computed(() => [
-  { label: '上传文档数', value: `${stats.value.summary.total_docs}`, detail: '近 7 天累计上传' },
-  { label: '违禁词出现率', value: `${(stats.value.summary.banned_rate * 100).toFixed(1)}%`, detail: '命中文档 / 总文档' },
+  { label: '上传文档数', value: `${stats.value.summary.uploaded_docs}`, detail: '近 7 天累计上传' },
+  { label: '问题命中率', value: `${(stats.value.summary.hit_rate * 100).toFixed(1)}%`, detail: '命中文档 / 已完成文档' },
   { label: '额度消耗', value: `${stats.value.summary.quota_consumed}`, detail: '近 7 天累计消耗' },
 ])
 
 const trendRows = computed(() =>
   stats.value.trend.dates.map((date, index) => ({
     date,
-    totalDocs: stats.value.trend.total_docs[index] ?? 0,
+    totalDocs: stats.value.trend.uploaded_docs[index] ?? 0,
     hitDocs: stats.value.trend.hit_docs[index] ?? 0,
-    bannedRate: `${((stats.value.trend.banned_rate[index] ?? 0) * 100).toFixed(1)}%`,
+    bannedRate: `${((stats.value.trend.hit_rate[index] ?? 0) * 100).toFixed(1)}%`,
     quotaConsumed: stats.value.trend.quota_consumed[index] ?? 0,
   }))
 )
@@ -43,7 +43,7 @@ const trendChartRows = computed(() => {
   }))
 })
 
-const isEmpty = computed(() => stats.value.summary.total_docs === 0)
+const isEmpty = computed(() => stats.value.summary.uploaded_docs === 0)
 
 async function fetchStats() {
   loading.value = true
@@ -56,12 +56,6 @@ async function fetchStats() {
     stats.value = await response.json()
   } catch (err) {
     error.value = err instanceof Error ? err.message : '未知错误'
-    stats.value = {
-      range: '7d',
-      timezone: 'Asia/Shanghai',
-      summary: { total_docs: 0, hit_docs: 0, banned_rate: 0, quota_consumed: 0 },
-      trend: { dates: [], total_docs: [], hit_docs: [], banned_rate: [], quota_consumed: [] },
-    }
   } finally {
     loading.value = false
   }
@@ -129,7 +123,7 @@ onMounted(fetchStats)
               <th>日期</th>
               <th>上传文档数</th>
               <th>命中文档数</th>
-              <th>违禁词出现率</th>
+              <th>问题命中率</th>
               <th>额度消耗</th>
             </tr>
           </thead>
@@ -155,7 +149,7 @@ onMounted(fetchStats)
           </div>
           <div class="legend">
             <span><i class="docs"></i> 上传文档数</span>
-            <span><i class="banned"></i> 违禁词出现率</span>
+            <span><i class="banned"></i> 问题命中率</span>
             <span><i class="quota"></i> 额度消耗</span>
           </div>
         </div>

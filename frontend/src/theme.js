@@ -18,6 +18,7 @@ export const applyThemeMode = (mode) => {
 }
 
 export const persistThemeMode = (mode) => {
+  if (!themeModes.includes(mode)) return
   localStorage.setItem(THEME_STORAGE_KEY, mode)
   applyThemeMode(mode)
 }
