@@ -4,11 +4,16 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from app.services.report_pdf import _build_html, render_report_pdf
+from app.services.report_pdf import (
+    _build_html,
+    _fallback_pdf,
+    _wrap_text,
+    render_report_pdf,
+)
 
 
-def _fake_record():
-    return SimpleNamespace(
+def _fake_record(**overrides):
+    base = dict(
         document_name="测试合同.docx",
         document_type_label="合同",
         overall_risk="high",
@@ -31,6 +36,8 @@ def _fake_record():
         ],
         created_at=None,
     )
+    base.update(overrides)
+    return SimpleNamespace(**base)
 
 
 def test_build_html_contains_design_elements():
@@ -106,3 +113,61 @@ def test_render_report_pdf_fallback_returns_pdf_magic():
 
         assert result.startswith(b"%PDF")
         mock_fallback.assert_called_once()
+
+
+def test_wrap_text_breaks_long_cjk_line():
+    """超长中文行应按宽度折行，避免右侧裁切。"""
+    long = "甲" * 80
+    parts = _wrap_text(long, max_units=42.0)
+    assert len(parts) >= 2
+    assert "".join(parts) == long
+    assert all(len(p) <= 42 for p in parts)
+
+
+def test_wrap_text_preserves_explicit_newlines():
+    parts = _wrap_text("第一行\n第二行", max_units=42.0)
+    assert parts == ["第一行", "第二行"]
+
+
+def _extract_fallback_text(pdf: bytes) -> str:
+    """从 fallback PDF 的 Tj hex 内容流还原全文（忽略折行）。"""
+    import re
+
+    chunks = re.findall(rb"<([0-9A-F]+)> Tj", pdf)
+    return "".join(bytes.fromhex(chunk.decode("ascii")).decode("utf-16-be") for chunk in chunks)
+
+
+def test_fallback_pdf_includes_full_long_suggestion():
+    """长建议文本应完整写入 PDF 内容流（折行后拼接仍完整）。"""
+    long_suggestion = (
+        "删除“乙方不得提出任何异议”，改为“调整范围应经双方书面确认；"
+        "因此增加或减少的工程量，应按本合同约定价款相应调整工期和结算金额。”"
+        "并同步明确变更审批流程与时限。"
+    )
+    record = _fake_record(
+        summary="本合同权利义务严重失衡，多处条款赋予甲方单方决定权并免除其基本义务，"
+        "将付款、变更、解除、安全等核心风险过度转嫁乙方，违约金畸高且存在逻辑矛盾，整体法律风险极高。",
+        issues=[
+            {
+                "location": "2.2",
+                "severity": "error",
+                "suggestion": long_suggestion,
+            }
+        ]
+        + [
+            {
+                "location": f"条款{i}",
+                "severity": "warning",
+                "suggestion": f"建议修订条款{i}，明确双方权利义务与违约责任承担方式。",
+            }
+            for i in range(20)
+        ],
+    )
+    pdf = _fallback_pdf(record)
+    assert pdf.startswith(b"%PDF")
+    text = _extract_fallback_text(pdf)
+    assert long_suggestion in text
+    assert "较高风险" in text  # 风险等级中文化
+    assert "建议：删除“乙方不得提出任何异议”" in text
+    # 长列表应触发多页
+    assert b"/Count 2 >>" in pdf or pdf.count(b"/Type /Page ") >= 2
