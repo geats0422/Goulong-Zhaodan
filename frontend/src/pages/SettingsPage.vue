@@ -3,6 +3,9 @@ import { computed, onMounted, ref } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
 import DashboardFooter from '../components/app/DashboardFooter.vue'
 import PaymentModal from '../components/PaymentModal.vue'
+import BaseToggle from '../components/ui/BaseToggle.vue'
+import BaseRadio from '../components/ui/BaseRadio.vue'
+import BaseCheckbox from '../components/ui/BaseCheckbox.vue'
 import {
   API_KEY_SCOPES,
   MODEL_CATALOG,
@@ -290,14 +293,15 @@ async function submitChangePassword() {
   }
 }
 
-async function toggleBurnAfterRead() {
-  burnAfterRead.value = !burnAfterRead.value
+async function toggleBurnAfterRead(next) {
+  const target = typeof next === 'boolean' ? next : !burnAfterRead.value
+  burnAfterRead.value = target
   saving.value = true
   try {
     profile.value = await updateProfile({ burn_after_read: burnAfterRead.value })
     message.value = burnAfterRead.value ? '已开启数据脱敏' : '已关闭数据脱敏'
   } catch (err) {
-    burnAfterRead.value = !burnAfterRead.value
+    burnAfterRead.value = !target
     error.value = err.message
   } finally {
     saving.value = false
@@ -542,8 +546,8 @@ async function submitCreateApiKey() {
   }
 }
 
-async function toggleDocument(doc) {
-  const next = !doc.enabled
+async function toggleDocument(doc, next) {
+  next = typeof next === 'boolean' ? next : !doc.enabled
   doc.enabled = next
   try {
     await updateKnowledgeDocument(doc.id, next)
@@ -701,8 +705,7 @@ onMounted(() => {
               <h2>数据安全锁</h2>
             </div>
             <label class="switch" :class="{ active: burnAfterRead }">
-              <input type="checkbox" :checked="burnAfterRead" @change="toggleBurnAfterRead" />
-              <span class="switch-track"></span>
+              <BaseToggle :model-value="burnAfterRead" @update:model-value="toggleBurnAfterRead" />
               <span class="switch-label">{{ burnAfterRead ? '已激活' : '未激活' }}</span>
             </label>
           </header>
@@ -946,8 +949,7 @@ onMounted(() => {
           <label class="switch switch-row" :class="{ active: burnAfterRead }">
             <span class="switch-label-text">启用数据脱敏（身份证 / 手机号 / 银行卡 / 金额）</span>
             <span class="switch-track-wrap">
-              <input type="checkbox" :checked="burnAfterRead" @change="toggleBurnAfterRead" />
-              <span class="switch-track"></span>
+              <BaseToggle :model-value="burnAfterRead" @update:model-value="toggleBurnAfterRead" />
             </span>
           </label>
         </article>
@@ -1019,26 +1021,26 @@ onMounted(() => {
               <div class="form-row">
                 <span>权限模板</span>
                 <div class="scope-template-grid">
-                  <label v-for="tpl in SCOPE_TEMPLATES" :key="tpl.key" class="scope-template-card" :class="{ selected: newKeyForm.scope_template === tpl.key }">
-                    <input v-model="newKeyForm.scope_template" type="radio" :value="tpl.key" />
+                  <div v-for="tpl in SCOPE_TEMPLATES" :key="tpl.key" class="scope-template-card" :class="{ selected: newKeyForm.scope_template === tpl.key }">
+                    <BaseRadio v-model="newKeyForm.scope_template" :value="tpl.key" name="scope_template" />
                     <div>
                       <strong>{{ tpl.label }}</strong>
                       <span>{{ tpl.description }}</span>
                     </div>
-                  </label>
+                  </div>
                 </div>
               </div>
               <div v-if="newKeyForm.scope_template === 'advanced_custom'" class="form-row">
                 <span>自定义权限 <em>*</em></span>
                 <div class="custom-scope-grid">
-                  <label v-for="scope in API_KEY_SCOPES" :key="scope.key" class="custom-scope-card" :class="{ selected: newKeyForm.custom_scopes.includes(scope.key) }">
-                    <input v-model="newKeyForm.custom_scopes" type="checkbox" :value="scope.key" />
+                  <div v-for="scope in API_KEY_SCOPES" :key="scope.key" class="custom-scope-card" :class="{ selected: newKeyForm.custom_scopes.includes(scope.key) }">
+                    <BaseCheckbox v-model="newKeyForm.custom_scopes" :value="scope.key" />
                     <div>
                       <strong>{{ scope.label }}</strong>
                       <code>{{ scope.key }}</code>
                       <span>{{ scope.description }}</span>
                     </div>
-                  </label>
+                  </div>
                 </div>
                 <p class="form-hint">不包含删除记录等破坏性权限；创建后的 API Key 可按权限用于 MCP、CLI 或 Agent。</p>
               </div>
@@ -1090,11 +1092,11 @@ onMounted(() => {
             </div>
           </header>
           <div v-if="group.documents.length" class="knowledge-grid">
-            <label v-for="doc in group.documents" :key="doc.id" class="doc-toggle">
-              <input type="checkbox" :checked="doc.enabled" @change="toggleDocument(doc)" />
+            <div v-for="doc in group.documents" :key="doc.id" class="doc-toggle">
+              <BaseToggle :model-value="doc.enabled" @update:model-value="(v) => toggleDocument(doc, v)" />
               <span>{{ doc.title }}</span>
               <span class="doc-tag">{{ doc.application_scenario === 'contract' ? '合同' : '招投标' }}</span>
-            </label>
+            </div>
           </div>
           <p v-else class="empty-state">暂无知识库文档</p>
         </article>

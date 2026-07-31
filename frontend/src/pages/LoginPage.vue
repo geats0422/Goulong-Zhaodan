@@ -3,6 +3,7 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 import { useTheme } from '../composables/useTheme.js'
+import BaseCheckbox from '../components/ui/BaseCheckbox.vue'
 
 const { login, sendSmsCode, loginByCode } = useAuth()
 const router = useRouter()
@@ -246,10 +247,10 @@ function gotoRegister() {
           </button>
         </form>
 
-        <label class="terms-row">
-          <input v-model="agreedToTerms" type="checkbox" />
+        <div class="terms-row">
+          <BaseCheckbox v-model="agreedToTerms" />
           <span>登录即代表同意 <a href="#">《服务条款》</a> 与 <a href="#">《隐私政策》</a></span>
-        </label>
+        </div>
 
         <footer class="form-footer">
           还没有账号？<button type="button" class="link-btn" @click="gotoRegister">立即注册</button>

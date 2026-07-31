@@ -3,6 +3,9 @@ import { onMounted, ref, watch } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
 import DocumentPreviewPane from '../components/inspection/DocumentPreviewPane.vue'
 import InspectionReportPane from '../components/inspection/InspectionReportPane.vue'
+import InspectionDetailModal from '../components/inspection/InspectionDetailModal.vue'
+import BaseSelect from '../components/ui/BaseSelect.vue'
+import { confirmDialog } from '../composables/useConfirm.js'
 import {
   burnInspectionRecord,
   deleteInspectionRecord,
@@ -12,6 +15,13 @@ import {
   inspectInspectionRecord,
 } from '../services/inspectionApi.js'
 
+const RISK_OPTIONS = [
+  { value: '', label: '全部' },
+  { value: 'low', label: '纯净通过' },
+  { value: 'medium', label: '发现疑点' },
+  { value: 'high', label: '高风险偏离' },
+]
+
 const records = ref([])
 const pagination = ref({ page: 1, page_size: 10, total: 0, total_pages: 1 })
 const loading = ref(false)
@@ -20,6 +30,8 @@ const searchKeyword = ref('')
 const riskLevel = ref('')
 const selectedRecord = ref(null)
 const detailLoading = ref(false)
+const detailModalOpen = ref(false)
+const detailRecordId = ref(null)
 const reviewModalOpen = ref(false)
 const reviewRecord = ref(null)
 const reviewReport = ref(null)
@@ -85,12 +97,28 @@ async function viewRecord(record) {
   }
 }
 
+function openDetailSteps(record) {
+  detailRecordId.value = record.id
+  detailModalOpen.value = true
+}
+
+function closeDetailSteps() {
+  detailModalOpen.value = false
+  detailRecordId.value = null
+}
+
 function closeRecordDetail() {
   selectedRecord.value = null
 }
 
 async function removeRecord(record) {
-  if (!window.confirm(`确认删除「${record.document_name}」这条审查记录吗？删除后不可恢复。`)) return
+  const ok = await confirmDialog({
+    title: '删除审查记录',
+    message: `确认删除「${record.document_name}」这条审查记录吗？删除后不可恢复。`,
+    confirmText: '删除',
+    danger: true,
+  })
+  if (!ok) return
   error.value = ''
   try {
     await deleteInspectionRecord(record.id)
@@ -140,7 +168,13 @@ async function exportReviewReport() {
 
 async function burnRecordContent() {
   if (!selectedRecord.value) return
-  if (!window.confirm('焚烧后原文不可恢复，确认焚烧？')) return
+  const ok = await confirmDialog({
+    title: '焚烧原文',
+    message: '焚烧后原文不可恢复，确认焚烧？',
+    confirmText: '确认焚烧',
+    danger: true,
+  })
+  if (!ok) return
   error.value = ''
   try {
     await burnInspectionRecord(selectedRecord.value.id)
@@ -170,15 +204,7 @@ onMounted(() => loadRecords(1))
             <span class="material-symbols-outlined">search</span>
             <input v-model="searchKeyword" type="search" placeholder="检索案卷名称..." />
           </label>
-          <label class="select-box">
-            <span>诊断结果</span>
-            <select v-model="riskLevel">
-              <option value="">全部</option>
-              <option value="low">纯净通过</option>
-              <option value="medium">发现疑点</option>
-              <option value="high">高风险偏离</option>
-            </select>
-          </label>
+          <BaseSelect v-model="riskLevel" label="诊断结果" :options="RISK_OPTIONS" />
         </div>
       </header>
 
@@ -223,6 +249,9 @@ onMounted(() => loadRecords(1))
                 <button v-if="record.overall_risk === 'pending'" type="button" @click="reviewPendingRecord(record)">
                   <span class="material-symbols-outlined">policy</span>审查
                 </button>
+                <button type="button" @click="openDetailSteps(record)">
+                  <span class="material-symbols-outlined">view_timeline</span>详情
+                </button>
                 <button type="button" @click="viewRecord(record)">
                   <span class="material-symbols-outlined">visibility</span>查看报告
                 </button>
@@ -253,6 +282,12 @@ onMounted(() => loadRecords(1))
         <button type="button" :disabled="pagination.page >= pagination.total_pages || loading" @click="goToPage(pagination.page + 1)">下一页</button>
       </nav>
     </main>
+
+    <InspectionDetailModal
+      :open="detailModalOpen"
+      :record-id="detailRecordId"
+      @close="closeDetailSteps"
+    />
 
     <div v-if="reviewModalOpen" class="review-modal-overlay" @click.self="closeReviewModal">
       <div class="review-modal-container">

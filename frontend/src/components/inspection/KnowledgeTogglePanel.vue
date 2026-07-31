@@ -1,10 +1,12 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import { getSettingsOverview, updateKnowledgeDocument } from '../../services/settingsApi.js'
+import BaseToggle from '../ui/BaseToggle.vue'
 
 const props = defineProps({
   documentType: { type: String, default: 'bidding' },
   documentTypeLabel: { type: String, default: '招投标文件' },
+  readonly: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['start-inspection', 'update:selectedScenario'])
@@ -75,13 +77,29 @@ async function toggleDocument(doc) {
 }
 
 function switchScenario(scenario) {
+  if (props.readonly) return
   userOverridden.value = true
   selectedScenario.value = scenario
   emit('update:selectedScenario', scenario)
 }
 
 function handleStartInspection() {
+  if (props.readonly) return
   emit('start-inspection', effectiveScenario.value)
+}
+
+async function onToggleDoc(doc, enabled) {
+  if (props.readonly) return
+  const list = doc.owner_type === 'system' ? systemDocs : userDocs
+  const index = list.value.findIndex(item => item.id === doc.id)
+  if (index === -1) return
+  const previous = doc.enabled
+  try {
+    list.value[index].enabled = enabled
+    await updateKnowledgeDocument(doc.id, enabled)
+  } catch {
+    list.value[index].enabled = previous
+  }
 }
 </script>
 
@@ -95,7 +113,7 @@ function handleStartInspection() {
       <span class="section-label">识别文档类型</span>
       <span class="type-badge">{{ DOCUMENT_TYPE_LABELS[effectiveScenario] || documentTypeLabel }}</span>
       <div v-if="autoDetectedHint" class="auto-detect-hint">{{ autoDetectedHint }}</div>
-      <div class="scenario-switch">
+      <div v-if="!readonly" class="scenario-switch">
         <span class="section-label">切换场景</span>
         <div class="scenario-buttons">
           <button
@@ -105,6 +123,10 @@ function handleStartInspection() {
             @click="switchScenario(opt.value)"
           >{{ opt.label }}</button>
         </div>
+      </div>
+      <div v-else class="scenario-switch">
+        <span class="section-label">审查场景</span>
+        <span class="type-badge">{{ DOCUMENT_TYPE_LABELS[effectiveScenario] || documentTypeLabel }}</span>
       </div>
     </div>
 
@@ -122,10 +144,11 @@ function handleStartInspection() {
       <div v-if="availableUserDocs.length" class="panel-section">
         <span class="section-label">用户知识库</span>
         <div v-for="doc in availableUserDocs" :key="doc.id" class="doc-row">
-          <label class="doc-toggle">
-            <input type="checkbox" :checked="doc.enabled" @change="toggleDocument(doc)" />
-            <span class="toggle-slider" />
-          </label>
+          <BaseToggle
+            :model-value="!!doc.enabled"
+            :disabled="readonly"
+            @update:model-value="(v) => onToggleDoc(doc, v)"
+          />
           <span class="doc-name">{{ doc.name || doc.filename }}</span>
         </div>
       </div>
@@ -135,7 +158,7 @@ function handleStartInspection() {
       </div>
     </template>
 
-    <div class="panel-action">
+    <div v-if="!readonly" class="panel-action">
       <button class="start-btn" :disabled="loading" @click="handleStartInspection">
         <span class="material-symbols-outlined">play_arrow</span>
         开始审查

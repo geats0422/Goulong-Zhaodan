@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
 import DashboardFooter from '../components/app/DashboardFooter.vue'
+import BaseSelect from '../components/ui/BaseSelect.vue'
 import { useAuth } from '../composables/useAuth.js'
 
 const { fetchWithAuth } = useAuth()
@@ -10,6 +11,11 @@ const CATEGORIES = [
   { key: 'new_infrastructure', label: '新基建' },
   { key: 'traditional', label: '传统基建' },
   { key: 'urban_renewal', label: '城市更新' },
+]
+const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c.key, label: c.label }))
+const SCENARIO_OPTIONS = [
+  { value: 'bidding', label: '招投标' },
+  { value: 'contract', label: '合同' },
 ]
 
 const loading = ref(false)
@@ -131,6 +137,17 @@ const currentCategorySubcategories = computed(() => {
   return group.subcategories || []
 })
 
+const subcategoryOptions = computed(() => [
+  { value: '', label: '-- 选择已有子类 --' },
+  ...currentCategorySubcategories.value.map((sub) => ({ value: String(sub.id), label: sub.name })),
+])
+
+const uploadFileName = computed(() => uploadForm.value.file?.name || '未选择文件')
+
+function triggerUploadFile(inputEl) {
+  inputEl?.click()
+}
+
 onMounted(fetchAllData)
 </script>
 
@@ -232,28 +249,30 @@ onMounted(fetchAllData)
         <h3>上传新卷宗</h3>
         <div class="upload-field">
           <label>选择文件</label>
-          <input type="file" @change="handleFileChange" />
+          <div class="file-picker">
+            <input ref="uploadFileInput" class="visually-hidden-file" type="file" @change="handleFileChange" />
+            <button type="button" class="file-picker-btn" @click="triggerUploadFile($refs.uploadFileInput)">
+              <span class="material-symbols-outlined">upload_file</span>
+              选择文件
+            </button>
+            <span class="file-picker-name">{{ uploadFileName }}</span>
+          </div>
         </div>
         <div class="upload-field">
-          <label>大类</label>
-          <select v-model="uploadForm.category">
-            <option v-for="cat in CATEGORIES" :key="cat.key" :value="cat.key">{{ cat.label }}</option>
-          </select>
+          <BaseSelect v-model="uploadForm.category" label="大类" :options="CATEGORY_OPTIONS" />
         </div>
         <div class="upload-field">
-          <label>子类（可选）</label>
-          <select v-if="currentCategorySubcategories.length > 0" v-model="uploadForm.subcategory_id">
-            <option value="">-- 选择已有子类 --</option>
-            <option v-for="sub in currentCategorySubcategories" :key="sub.id" :value="String(sub.id)">{{ sub.name }}</option>
-          </select>
+          <BaseSelect
+            v-if="currentCategorySubcategories.length > 0"
+            v-model="uploadForm.subcategory_id"
+            label="子类（可选）"
+            :options="subcategoryOptions"
+          />
+          <label v-else>子类（可选）</label>
           <input v-model="uploadForm.subcategory_name" placeholder="或输入新子类名称" />
         </div>
         <div class="upload-field">
-          <label>应用场景</label>
-          <select v-model="uploadForm.application_scenario">
-            <option value="bidding">招投标</option>
-            <option value="contract">合同</option>
-          </select>
+          <BaseSelect v-model="uploadForm.application_scenario" label="应用场景" :options="SCENARIO_OPTIONS" />
         </div>
         <div class="upload-actions">
           <button type="button" class="btn-cancel" @click="closeUploadModal" :disabled="uploading">取消</button>
@@ -721,6 +740,51 @@ onMounted(fetchAllData)
   color: #e5e2e1;
   font-family: "Geist", monospace;
   font-size: 13px;
+}
+
+.visually-hidden-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.file-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.file-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: transparent;
+  color: #f2ca50;
+  font-family: "Geist", monospace;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.file-picker-btn:hover {
+  background: rgba(212, 175, 55, 0.12);
+}
+
+.file-picker-name {
+  color: #99907c;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .upload-field select {
