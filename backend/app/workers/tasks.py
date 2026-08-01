@@ -722,9 +722,12 @@ async def _persist_inspection_call_state(
 
 
 def _serialize_inspection_result(report: Any, *, classification: Any | None = None) -> bytes:
+    from app.services.risk_policy import finalize_overall_risk
+
+    # 任务11：缓存中持久化服务端最终化的风险等级，避免恢复时回灌未归一化的模型原始标签。
     payload: dict[str, Any] = {
         "issues": report.issues,
-        "overall_risk": report.overall_risk,
+        "overall_risk": finalize_overall_risk(report.overall_risk, report.issues),
         "regulation_refs": report.regulation_refs,
         "summary": report.summary,
     }
@@ -902,8 +905,11 @@ async def _commit_inspection_success(
 ) -> bool:
     from app.core.data_encryption import encrypt_text
     from app.services.inspection_runner import DOCUMENT_TYPE_LABELS
+    from app.services.risk_policy import finalize_overall_risk
 
     inspection_input = await _load_owned_inspection_input(job)
+    # 任务11：worker 路径与同步审查共享风险最终化契约，避免缓存恢复时回灌非法原始标签。
+    final_overall_risk = finalize_overall_risk(report.overall_risk, report.issues)
     record: InspectionRecord | None = None
     async with async_session() as db:
         async with db.begin():
@@ -941,7 +947,7 @@ async def _commit_inspection_success(
             )
             record.project_id = inspection_input.project_id
             record.status = "completed"
-            record.overall_risk = report.overall_risk
+            record.overall_risk = final_overall_risk
             record.summary = report.summary
             record.issues = report.issues
             record.regulation_refs = report.regulation_refs

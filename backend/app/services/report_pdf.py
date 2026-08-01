@@ -158,7 +158,13 @@ def _render_issues(issues: list[dict] | None) -> str:
     for issue in issues:
         title = issue.get("location") or issue.get("title") or "未命名问题"
         sev = (issue.get("severity") or "info").lower()
-        sev_label, sev_color = _SEVERITY_STYLE.get(sev, (sev, "#66563a"))
+        # 任务11：issue severity 与 overall_risk 共享 low/medium/high/critical 术语体系，
+        # 命中风险样式时渲染中文标签；旧 error/warning/info 仍按 severity 样式渲染；
+        # 其余未知值兜底为「提示」，不向用户泄露未经归一化的原始字符串。
+        if sev in _RISK_STYLE:
+            sev_label, sev_color = _RISK_STYLE[sev]
+        else:
+            sev_label, sev_color = _SEVERITY_STYLE.get(sev, ("提示", "#66563a"))
         category = issue.get("category") or ""
         original = issue.get("original") or ""
         suggestion = issue.get("suggestion") or ""
@@ -180,8 +186,13 @@ def _render_issues(issues: list[dict] | None) -> str:
 
 def _build_html(record) -> str:
     title = f"{_strip_ext(record.document_name)} 审查报告"
-    risk = (record.overall_risk or "unknown").lower()
-    risk_label, risk_color = _RISK_STYLE.get(risk, (record.overall_risk or "未知", "#66563a"))
+    risk = (record.overall_risk or "").lower()
+    # 任务11契约：UI/API/PDF 不直接消费未经服务端归一化的风险标签。
+    # 非白名单值（历史脏数据、pending 等）统一展示为中性「未知」标签，避免泄露原始字符串。
+    if risk not in _RISK_STYLE:
+        risk_label, risk_color = "未知", "#66563a"
+    else:
+        risk_label, risk_color = _RISK_STYLE[risk]
     refs = record.regulation_refs or []
     created = record.created_at
     if isinstance(created, datetime):
@@ -256,12 +267,16 @@ def _wrap_text(text: str, max_units: float = 42.0) -> list[str]:
 
 def _risk_label(risk: str | None) -> str:
     key = (risk or "").lower()
-    return _RISK_STYLE.get(key, (risk or "未知", ""))[0]
+    # 非白名单值统一展示为「未知」，避免向用户泄露未经服务端归一化的原始标签。
+    return _RISK_STYLE.get(key, ("未知", ""))[0]
 
 
 def _severity_label(severity: str | None) -> str:
     key = (severity or "").lower()
-    return _SEVERITY_STYLE.get(key, (severity or "提示", ""))[0]
+    # 与 _render_issues 一致：风险样式优先，其次 severity 样式，未知值兜底为「提示」。
+    if key in _RISK_STYLE:
+        return _RISK_STYLE[key][0]
+    return _SEVERITY_STYLE.get(key, ("提示", ""))[0]
 
 
 def _fallback_pdf(record) -> bytes:

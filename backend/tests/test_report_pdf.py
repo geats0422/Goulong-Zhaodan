@@ -91,6 +91,41 @@ def test_build_html_empty_issues():
     assert "低风险" in html
 
 
+def test_build_html_renders_unknown_risk_as_neutral_label():
+    """历史脏数据出现非白名单 overall_risk 时，PDF 应展示中性「未知」标签。
+
+    任务11契约：UI/API/PDF 不直接消费未经服务端归一化的风险标签。
+    """
+    record = SimpleNamespace(
+        document_name="legacy.docx",
+        document_type_label="合同",
+        overall_risk="pending",
+        summary="等待审查",
+        regulation_refs=[],
+        issues=[],
+        created_at=None,
+    )
+    html = _build_html(record)
+    assert "未知" in html
+    # 不应把非白名单原值（如 pending）直接渲染给用户。
+    assert "pending" not in html.lower()
+
+
+def test_build_html_uses_finalized_risk_for_critical():
+    """落库 record.overall_risk 已是服务端归一化后的 critical 时，PDF 应展示「严重风险」。"""
+    record = SimpleNamespace(
+        document_name="finalized.docx",
+        document_type_label="合同",
+        overall_risk="critical",
+        summary="严重风险合同",
+        regulation_refs=[],
+        issues=[{"location": "违约金", "severity": "critical", "suggestion": "修订"}],
+        created_at=None,
+    )
+    html = _build_html(record)
+    assert "严重风险" in html
+
+
 def test_render_report_pdf_fallback_returns_pdf_magic():
     """weasyprint 不可用时应回退裸 PDF，仍以 %PDF 开头。"""
     with patch("app.services.report_pdf._fallback_pdf") as mock_fallback:

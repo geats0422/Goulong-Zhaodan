@@ -29,6 +29,7 @@ from app.models.knowledge import (
 from app.services.knowledge_retrieval import retrieve_regulation_base
 from app.services.contract_classifier import ContractClassification, classify_contract
 from app.services.contract_classifier import screen_contract_rules
+from app.services.risk_policy import finalize_overall_risk
 
 _logger = logging.getLogger(__name__)
 ENGINEERING_TYPE_NAMES = {
@@ -368,6 +369,9 @@ async def execute_inspection(
         ) from exc
     sanitize_inspection_result_refs(result, allowed_regulation_refs(regulation_base, taboo_list))
 
+    # 任务11：服务端按问题最高严重等级最终化 overall_risk，所有 API/历史/PDF 消费此归一化值。
+    final_overall_risk = finalize_overall_risk(result.overall_risk, result.issues)
+
     record = None
     if record_id is not None:
         record = await db.scalar(select(InspectionRecord).where(InspectionRecord.id == record_id, InspectionRecord.user_id == user_id))
@@ -380,7 +384,7 @@ async def execute_inspection(
     record.document_type_label = DOCUMENT_TYPE_LABELS.get(application_scenario, application_scenario)
     record.project_id = project_id
     record.status = "completed"
-    record.overall_risk = result.overall_risk
+    record.overall_risk = final_overall_risk
     record.summary = result.summary
     record.issues = result.issues
     record.regulation_refs = result.regulation_refs
@@ -437,7 +441,7 @@ async def execute_inspection(
 
     return InspectionReportResponse(
         id=record.id,
-        overall_risk=result.overall_risk,
+        overall_risk=final_overall_risk,
         summary=result.summary,
         issues=result.issues,
         regulation_refs=result.regulation_refs,
