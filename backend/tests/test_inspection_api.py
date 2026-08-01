@@ -39,10 +39,12 @@ from app.models.knowledge import (  # noqa: E402
     InspectionRecord,
     InspectionType,
     KnowledgeDocument,
+    KnowledgeDocumentSetting,
     TabooWord,
 )
 from app.api.v1 import inspection as inspection_router  # noqa: E402
 from app.services import inspection_runner  # noqa: E402
+from app.services.inspection_history import rule_package_keys_display  # noqa: E402
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
 
 
@@ -96,7 +98,7 @@ async def register_and_create_parse_session(
     """
     headers, user_id = await register_and_auth(client, username)
     file_format = Path(filename).suffix.lstrip(".").lower()
-    session = inspection_router._create_inspection_session(
+    parse_session = inspection_router._create_inspection_session(
         user_id=uuid.UUID(user_id),
         filename=filename,
         file_size=len(text.encode("utf-8")),
@@ -105,7 +107,7 @@ async def register_and_create_parse_session(
         document_type_label=document_type_label,
         text=text,
     )
-    return headers, session["id"]
+    return headers, parse_session["id"]
 
 
 @pytest.mark.asyncio
@@ -960,7 +962,7 @@ async def test_step2_submission_validates_independent_types_and_document_access(
         await session.refresh(document)
         document_id = document.id
 
-    session = inspection_router._create_inspection_session(
+    parse_session = inspection_router._create_inspection_session(
         user_id=uuid.UUID(user_id), filename="合同.txt", file_size=10, file_format="txt",
         document_type="contract", document_type_label="合同", text="甲乙双方签订合同并约定违约责任。",
     )
@@ -976,7 +978,7 @@ async def test_step2_submission_validates_independent_types_and_document_access(
     monkeypatch.setattr("app.api.v1.inspection.execute_inspection", fake_execute)
     try:
         response = await client.post(
-            f"/inspection/sessions/{session['id']}/inspect", headers=headers,
+            f"/inspection/sessions/{parse_session['id']}/inspect", headers=headers,
             json={
                 "engineering_type_key": "private-engineering",
                 "contract_type_key": "private-contract",
@@ -985,15 +987,31 @@ async def test_step2_submission_validates_independent_types_and_document_access(
         )
         assert response.status_code == 200
 
+        async with async_session() as db_session:
+            db_session.add(KnowledgeDocumentSetting(
+                user_id=uuid.UUID(user_id), document_id=document_id, enabled=False,
+            ))
+            await db_session.commit()
+        disabled_document = await client.post(
+            f"/inspection/sessions/{parse_session['id']}/inspect", headers=headers,
+            json={
+                "engineering_type_key": "private-engineering",
+                "contract_type_key": "private-contract",
+                "knowledge_document_ids": [document_id],
+            },
+        )
+        assert disabled_document.status_code == 422
+        assert disabled_document.json()["detail"]["code"] == "invalid_knowledge_document"
+
         cross_dimension = await client.post(
-            f"/inspection/sessions/{session['id']}/inspect", headers=headers,
+            f"/inspection/sessions/{parse_session['id']}/inspect", headers=headers,
             json={"engineering_type_key": "private-contract", "contract_type_key": "private-contract"},
         )
         assert cross_dimension.status_code == 422
         assert cross_dimension.json()["detail"]["code"] == "invalid_engineering_type"
 
         cross_user = await client.post(
-            f"/inspection/sessions/{session['id']}/inspect", headers=headers,
+            f"/inspection/sessions/{parse_session['id']}/inspect", headers=headers,
             json={"engineering_type_key": "private-engineering", "contract_type_key": "other-contract"},
         )
         assert cross_user.status_code == 422
@@ -1007,3 +1025,155 @@ async def test_step2_submission_validates_independent_types_and_document_access(
                 )
             )
             await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_inspection_record_persists_full_rule_package_keys_snapshot(client: AsyncClient):
+    """历史报告必须从持久化快照恢复完整规则包列表，不从单值推导。
+
+    多包快照需落库到 inspection_records.rule_package_keys_snapshot，新会话读取时
+    仍能得到完整列表，而不是退化成 rule_package_key 单值。
+    """
+    headers, user_id = await register_and_auth(client, "snapshot_user")
+    del headers
+    async with async_session() as session:
+        record = InspectionRecord(
+            user_id=uuid.UUID(user_id),
+            document_name="合同.txt",
+            document_type="contract",
+            document_type_label="合同",
+            status="completed",
+            overall_risk="low",
+            summary="ok",
+            rule_package_key="pkg-a:v1",
+            rule_package_keys_snapshot=["pkg-a:v1", "pkg-b:v1"],
+        )
+        session.add(record)
+        await session.commit()
+        await session.refresh(record)
+        saved_id = record.id
+
+    async with async_session() as session:
+        restored = await session.get(InspectionRecord, saved_id)
+
+    assert restored is not None
+    assert rule_package_keys_display(restored) == ["pkg-a:v1", "pkg-b:v1"]
+
+
+@pytest.mark.asyncio
+async def test_history_record_endpoint_returns_full_rule_package_keys_snapshot(
+    client: AsyncClient,
+):
+    """GET /inspection/records/{id} 必须返回持久化的完整规则包快照。"""
+    headers, user_id = await register_and_auth(client, "history_snapshot_user")
+    async with async_session() as session:
+        record = InspectionRecord(
+            user_id=uuid.UUID(user_id),
+            document_name="合同.txt",
+            document_type="contract",
+            document_type_label="合同",
+            status="completed",
+            overall_risk="low",
+            summary="ok",
+            rule_package_key="pkg-a:v1",
+            rule_package_keys_snapshot=["pkg-a:v1", "pkg-b:v1"],
+        )
+        session.add(record)
+        await session.commit()
+        await session.refresh(record)
+        record_id = record.id
+
+    response = await client.get(f"/inspection/records/{record_id}", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["rule_package_keys"] == ["pkg-a:v1", "pkg-b:v1"]
+
+
+@pytest.mark.asyncio
+async def test_execute_inspection_manual_selection_writes_manual_source_and_keeps_detected(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch,
+):
+    """重审时手动选择类别：source=manual、快照取选择值，且保留 detected 与证据。"""
+    headers, user_id = await register_and_auth(client, "manual_resubmit_user")
+    del headers
+    async with async_session() as session:
+        session.add_all([
+            InspectionType(
+                key="municipal-road", name="市政道路", dimension="engineering",
+                owner_type="system", enabled=True,
+            ),
+            InspectionType(
+                key="labor-subcontract", name="劳务分包", dimension="contract",
+                owner_type="system", enabled=True,
+            ),
+        ])
+        record = InspectionRecord(
+            user_id=uuid.UUID(user_id),
+            document_name="合同.txt",
+            document_type="contract",
+            document_type_label="合同",
+            status="processing",
+            overall_risk="pending",
+            summary="等待审查",
+            detected_engineering_type="general-engineering",
+            detected_contract_type="other",
+            classification_confidence="medium",
+            classification_source="model",
+            classification_evidence=["初筛关键词"],
+        )
+        session.add(record)
+        await session.commit()
+        await session.refresh(record)
+        record_id = record.id
+
+    async def fake_retrieve_regulation_base(db, *args, **kwargs):
+        return {
+            "snippets": [],
+            "sources": [],
+            "rule_package_keys": ["pkg-x:v1"],
+            "rule_package_key": "pkg-x:v1",
+        }
+
+    async def fake_run_inspection(document_text: str, deps):
+        return SimpleNamespace(
+            overall_risk="low", summary="ok", issues=[], regulation_refs=[],
+        )
+
+    monkeypatch.setattr(
+        "app.services.inspection_runner.retrieve_regulation_base",
+        fake_retrieve_regulation_base,
+    )
+    monkeypatch.setattr(
+        "app.services.inspection_runner.run_inspection", fake_run_inspection,
+    )
+
+    async with async_session() as session:
+        report = await inspection_runner.execute_inspection(
+            db=session,
+            user_id=uuid.UUID(user_id),
+            document_name="合同.txt",
+            text="甲乙双方签订工程施工合同并约定违约责任条款。",
+            project_id="default",
+            application_scenario="contract",
+            record_id=record_id,
+            engineering_type_key="municipal-road",
+            contract_type_key="labor-subcontract",
+        )
+
+    assert report.final_engineering_type == "municipal-road"
+    assert report.final_contract_type == "labor-subcontract"
+    assert report.classification_confidence == "medium"
+    assert report.rule_package_keys == ["pkg-x:v1"]
+
+    async with async_session() as session:
+        restored = await session.get(InspectionRecord, record_id)
+
+    assert restored is not None
+    assert restored.classification_source == "manual"
+    assert restored.engineering_type_snapshot == "市政道路"
+    assert restored.contract_type_snapshot == "劳务分包"
+    # 手动选择不得抹掉历史 detected 与证据
+    assert restored.detected_engineering_type == "general-engineering"
+    assert restored.detected_contract_type == "other"
+    assert restored.classification_evidence == ["初筛关键词"]
+    assert restored.rule_package_keys_snapshot == ["pkg-x:v1"]

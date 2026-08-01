@@ -65,6 +65,7 @@ def test_worker_persists_actual_classification_and_empty_sources_snapshot() -> N
         "classification_source": "model",
         "classification_evidence": ["市政道路", "劳务分包"],
         "rule_package_key": None,
+        "rule_package_keys_snapshot": [],
         "engineering_type_snapshot": "市政道路",
         "contract_type_snapshot": "劳务分包",
         "knowledge_sources_snapshot": [],

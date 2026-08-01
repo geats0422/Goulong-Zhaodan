@@ -16,7 +16,7 @@ def classification_display(record: Mapping[str, Any] | object) -> str:
     """为新旧记录提供稳定的历史类别文案，不触发重新分类。"""
     if (
         _value(record, "application_scenario") == "bidding"
-        and _value(record, "classification_source") == "archived_legacy"
+        or _value(record, "document_type") == "bidding"
     ):
         return "历史记录 / 招投标资料已归档，无法按旧场景重审"
     if _value(record, "classification_source") == "legacy":
@@ -26,6 +26,15 @@ def classification_display(record: Mapping[str, Any] | object) -> str:
     if engineering and contract:
         return f"{engineering} / {contract}"
     return "历史记录 / 通用工程合同"
+
+
+def rule_package_keys_display(record: Mapping[str, Any] | object) -> list[str]:
+    """返回报告保存时使用的完整规则包快照，兼容旧单值记录。"""
+    snapshot = _value(record, "rule_package_keys_snapshot")
+    if isinstance(snapshot, list):
+        return [str(key) for key in snapshot if str(key).strip()]
+    single = _value(record, "rule_package_key")
+    return [str(single)] if single else []
 
 
 def is_archived_legacy_record(record: Mapping[str, Any] | object) -> bool:

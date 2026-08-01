@@ -18,8 +18,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.inspector import run_inspection
 from app.core.data_encryption import encrypt_text
 from app.core.deps import InspectionDeps
-from app.models.knowledge import DocumentVersion, InspectionRecord, InspectionType, KnowledgeDocument, TabooWord
-from app.services.knowledge_retrieval import DEFAULT_RULE_PACKAGE_KEY, retrieve_regulation_base
+from app.models.knowledge import (
+    DocumentVersion,
+    InspectionRecord,
+    InspectionType,
+    KnowledgeDocument,
+    KnowledgeDocumentSetting,
+    TabooWord,
+)
+from app.services.knowledge_retrieval import retrieve_regulation_base
 from app.services.contract_classifier import ContractClassification, classify_contract
 from app.services.contract_classifier import screen_contract_rules
 
@@ -63,15 +70,25 @@ async def validate_inspection_submission(
     if knowledge_document_ids:
         if len(set(knowledge_document_ids)) != len(knowledge_document_ids):
             raise HTTPException(status_code=422, detail={"code": "invalid_knowledge_document", "message": "知识库文档 ID 不得重复"})
-        documents = list((await db.scalars(select(KnowledgeDocument).join(
+        documents = list((await db.scalars(select(KnowledgeDocument).outerjoin(
             DocumentVersion, KnowledgeDocument.current_version_id == DocumentVersion.id,
+        ).outerjoin(
+            KnowledgeDocumentSetting,
+            (KnowledgeDocumentSetting.document_id == KnowledgeDocument.id)
+            & (KnowledgeDocumentSetting.user_id == user_id),
         ).where(
             KnowledgeDocument.id.in_(knowledge_document_ids),
             KnowledgeDocument.application_scenario == "contract",
             KnowledgeDocument.is_active.is_(True),
             DocumentVersion.status == "completed",
-            (((KnowledgeDocument.owner_type == "user") & (KnowledgeDocument.owner_user_id == user_id))
-             | ((KnowledgeDocument.owner_type == "system") & (KnowledgeDocument.rule_package_key == DEFAULT_RULE_PACKAGE_KEY))),
+            (
+                (KnowledgeDocument.owner_type == "system")
+                | (
+                    (KnowledgeDocument.owner_type == "user")
+                    & (KnowledgeDocument.owner_user_id == user_id)
+                    & (KnowledgeDocumentSetting.id.is_(None) | KnowledgeDocumentSetting.enabled.is_(True))
+                )
+            ),
         ))).all())
         if {doc.id for doc in documents} != set(knowledge_document_ids):
             raise HTTPException(status_code=422, detail={"code": "invalid_knowledge_document", "message": "知识库文档不存在、已停用或无权使用"})
@@ -99,6 +116,7 @@ def classification_record_values(
         "classification_source": classification.source,
         "classification_evidence": list(classification.evidence),
         "rule_package_key": base.get("rule_package_key"),
+        "rule_package_keys_snapshot": list(base.get("rule_package_keys", [])),
         "engineering_type_snapshot": ENGINEERING_TYPE_NAMES.get(classification.engineering_type_key),
         "contract_type_snapshot": CONTRACT_TYPE_NAMES.get(classification.contract_type_key),
         "knowledge_sources_snapshot": [
@@ -386,7 +404,21 @@ async def execute_inspection(
             ),
         }
     )
+    if existing_record is not None:
+        # 重审不得抹掉历史 detected、置信度与证据：旧记录的检测结果优先保留。
+        record_values.update(
+            {
+                "detected_engineering_type": existing_record.detected_engineering_type or record_values["detected_engineering_type"],
+                "detected_contract_type": existing_record.detected_contract_type or record_values["detected_contract_type"],
+                "classification_confidence": existing_record.classification_confidence or record_values["classification_confidence"],
+                "classification_evidence": existing_record.classification_evidence or record_values["classification_evidence"],
+                "classification_source": existing_record.classification_source or record_values["classification_source"],
+                "engineering_type_snapshot": existing_record.engineering_type_snapshot or record_values["engineering_type_snapshot"],
+                "contract_type_snapshot": existing_record.contract_type_snapshot or record_values["contract_type_snapshot"],
+            }
+        )
     if selection is not None:
+        # 手动确认的类别快照与 manual 来源必须最后写入，不被旧记录快照覆盖。
         record_values.update(
             {
                 "classification_source": "manual",
@@ -394,17 +426,9 @@ async def execute_inspection(
                 "contract_type_snapshot": selection["contract_type_snapshot"],
             }
         )
-    if existing_record is not None:
-        record_values.update(
-            {
-                "detected_engineering_type": existing_record.detected_engineering_type or record_values["detected_engineering_type"],
-                "detected_contract_type": existing_record.detected_contract_type or record_values["detected_contract_type"],
-                "classification_evidence": existing_record.classification_evidence or record_values["classification_evidence"],
-                "classification_source": existing_record.classification_source or record_values["classification_source"],
-                "engineering_type_snapshot": existing_record.engineering_type_snapshot or record_values["engineering_type_snapshot"],
-                "contract_type_snapshot": existing_record.contract_type_snapshot or record_values["contract_type_snapshot"],
-            }
-        )
+    record_values["rule_package_keys_snapshot"] = list(
+        regulation_base.get("rule_package_keys", [])
+    )
     for field_name, value in record_values.items():
         setattr(record, field_name, value)
 
@@ -432,6 +456,6 @@ async def execute_inspection(
         final_contract_type=record.final_contract_type,
         classification_confidence=record.classification_confidence,
         rule_package_key=record.rule_package_key,
-        rule_package_keys=regulation_base.get("rule_package_keys", []),
+        rule_package_keys=list(record.rule_package_keys_snapshot or regulation_base.get("rule_package_keys", [])),
         knowledge_sources_snapshot=record.knowledge_sources_snapshot or [],
     )

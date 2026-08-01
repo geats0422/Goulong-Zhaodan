@@ -114,6 +114,29 @@ async def test_retrieve_regulation_base_returns_empty_structure():
 
 
 @pytest.mark.asyncio
+async def test_explicit_empty_document_selection_does_not_expand_to_all_documents():
+    user_id = await _create_user("explicit_empty_selection_user")
+    await _create_document_with_node(
+        title="用户规则", content="用户片段", owner_type="user", owner_user_id=user_id,
+        application_scenario="contract",
+    )
+    await _create_document_with_node(
+        title="系统规则", content="系统片段", owner_type="system", application_scenario="contract",
+        rule_package_key="general-engineering-contract-rules:v1",
+    )
+
+    async with async_session() as session:
+        result = await retrieve_regulation_base(
+            session, user_id=user_id, application_scenario="contract", limit=10,
+            document_ids=[],
+        )
+
+    assert result["snippets"] == []
+    assert result["sources"] == []
+    assert result["selection_mode"] == "empty_selection"
+
+
+@pytest.mark.asyncio
 async def test_retrieve_regulation_base_returns_only_matching_system_completed_nodes():
     user_id = await _create_user()
     await _create_document_with_node(

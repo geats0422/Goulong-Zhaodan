@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.inspection_history import classification_display
+from app.services.inspection_history import classification_display, rule_package_keys_display
 from app.services.risk_policy import finalize_overall_risk
 
 
@@ -45,3 +45,15 @@ def test_legacy_record_with_missing_classification_fields_uses_compatibility_dis
 
 def test_archived_legacy_bidding_display_is_a_strict_contract() -> None:
     assert classification_display({"application_scenario": "bidding", "classification_source": "archived_legacy"}) == "历史记录 / 招投标资料已归档，无法按旧场景重审"
+
+
+def test_archived_bidding_uses_document_type_for_legacy_records() -> None:
+    assert classification_display({"document_type": "bidding"}) == "历史记录 / 招投标资料已归档，无法按旧场景重审"
+
+
+def test_rule_package_keys_display_prefers_full_snapshot_and_keeps_legacy_compatibility() -> None:
+    assert rule_package_keys_display({
+        "rule_package_keys_snapshot": ["package:a", "package:b"],
+        "rule_package_key": "package:old",
+    }) == ["package:a", "package:b"]
+    assert rule_package_keys_display({"rule_package_key": "package:old"}) == ["package:old"]

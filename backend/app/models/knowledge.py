@@ -261,6 +261,7 @@ class InspectionRecord(Base):
     final_contract_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     classification_confidence: Mapped[str | None] = mapped_column(String(20), nullable=True)
     rule_package_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    rule_package_keys_snapshot: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     classification_source: Mapped[str | None] = mapped_column(String(30), nullable=True)
     engineering_type_snapshot: Mapped[str | None] = mapped_column(String(100), nullable=True)
     contract_type_snapshot: Mapped[str | None] = mapped_column(String(100), nullable=True)

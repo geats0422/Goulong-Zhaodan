@@ -53,7 +53,7 @@ def _base_statement(*, user_id: uuid.UUID, engineering_type_key: str, contract_t
             IndexNode.content.is_not(None),
             _binding_filter(KnowledgeDocument.engineering_type_key, engineering_type_key),
             _binding_filter(KnowledgeDocument.contract_type_key, contract_type_key),
-            *( [KnowledgeDocument.id.in_(document_ids)] if document_ids else [] ),
+            *( [KnowledgeDocument.id.in_(document_ids)] if document_ids is not None else [] ),
         )
     )
 
@@ -111,6 +111,8 @@ async def retrieve_regulation_base(
     """按用户优先策略召回合同规则，系统规则只在用户无匹配时回退。"""
     if application_scenario != "contract":
         return _to_result([], "system_fallback", FALLBACK_NOTICE)
+    if document_ids == []:
+        return _to_result([], "empty_selection", None)
 
     engineering_type_key = engineering_type_key or DEFAULT_ENGINEERING_TYPE_KEY
     contract_type_key = contract_type_key or DEFAULT_CONTRACT_TYPE_KEY

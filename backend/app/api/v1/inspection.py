@@ -46,7 +46,11 @@ from app.services.inspection_runner import (
 )
 from app.services.markdown_converter import ConversionError, convert_to_markdown
 from app.services.report_pdf import render_report_pdf
-from app.services.inspection_history import classification_display, is_archived_legacy_record
+from app.services.inspection_history import (
+    classification_display,
+    is_archived_legacy_record,
+    rule_package_keys_display,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -961,7 +965,7 @@ async def get_record(
             "final_contract_type": record.final_contract_type,
             "classification_confidence": record.classification_confidence,
             "rule_package_key": record.rule_package_key,
-            "rule_package_keys": [record.rule_package_key] if record.rule_package_key else [],
+            "rule_package_keys": rule_package_keys_display(record),
             "engineering_type_snapshot": record.engineering_type_snapshot,
             "contract_type_snapshot": record.contract_type_snapshot,
             "knowledge_sources_snapshot": record.knowledge_sources_snapshot or [],
