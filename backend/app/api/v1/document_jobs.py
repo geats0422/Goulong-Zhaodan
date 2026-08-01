@@ -77,7 +77,7 @@ def _response(job, record=None) -> DocumentJobResponse:
             "engineering_type_key": record.final_engineering_type or record.detected_engineering_type,
             "contract_type_key": record.final_contract_type or record.detected_contract_type,
             "confidence": record.classification_confidence or "low",
-            "evidence": [],
+            "evidence": record.classification_evidence or [],
             "source": record.classification_source or "fallback",
             "requires_confirmation": (record.classification_confidence or "low") != "high",
         }

@@ -12,9 +12,10 @@ from app.core.database import get_db_session
 from app.core.quota import require_quota
 from app.models import InspectionRecord
 from app.services.inspection_runner import InspectionReportResponse, create_pending_inspection_record, execute_inspection
+from app.services.inspection_history import classification_display
 from app.services.agent_job_service import create_job, get_job
 from app.services.knowledge_retrieval import retrieve_regulation_base
-from app.api.v1.inspection import _detect_document_type, _read_inspection_upload_text
+from app.api.v1.inspection import _read_inspection_upload_text
 
 router = APIRouter(prefix="/api/v1/agent", tags=["Agent API"])
 
@@ -114,6 +115,8 @@ def _record_detail(record: InspectionRecord) -> dict:
         "summary": record.summary,
         "issues": record.issues,
         "regulation_refs": record.regulation_refs,
+        "classification_evidence": record.classification_evidence or [],
+        "classification_display": classification_display(record),
         "text_preview": record.text_preview,
         "quota_consumed": record.quota_consumed,
         "created_at": record.created_at.isoformat() if record.created_at else None,
@@ -154,7 +157,7 @@ async def get_record_detail(
 
 class KnowledgeSearchRequest(BaseModel):
     query: str
-    application_scenario: str = "bidding"
+    application_scenario: str = "contract"
     limit: int = 10
 
     @field_validator("limit")
@@ -169,6 +172,11 @@ async def search_knowledge(
     user: dict = Depends(require_api_scope("knowledge:read")),
     db: AsyncSession = Depends(get_db_session),
 ):
+    if body.application_scenario == "bidding":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "deprecated_application_scenario", "message": "新知识检索仅支持合同场景"},
+        )
     return await retrieve_regulation_base(
         db,
         user_id=user["user_id"],
@@ -194,21 +202,20 @@ async def agent_parse(
 ) -> AgentParseResponse:
     """同步解析：MCP / Agent 客户端上传文件，返回可二次体检的 record_id。"""
     filename, _, text = await _read_inspection_upload_text(file)
-    detected_type = _detect_document_type(filename, text)
     record = await create_pending_inspection_record(
         db=db,
         user_id=user["user_id"],
         document_name=filename,
-        document_type=detected_type["document_type"],
-        document_type_label=detected_type["document_type_label"],
+        document_type="contract",
+        document_type_label="合同",
         text=text,
         project_id=project_id,
     )
     return AgentParseResponse(
         record_id=record.id,
         document_name=filename,
-        document_type=detected_type["document_type"],
-        document_type_label=detected_type["document_type_label"],
+        document_type="contract",
+        document_type_label="合同",
         text_preview=text[:500],
     )
 
@@ -217,7 +224,7 @@ class AgentInspectRequest(BaseModel):
     document_name: str | None = None
     text: str | None = None
     record_id: int | None = None
-    application_scenario: str = "bidding"
+    application_scenario: str = "contract"
     taboo_words: str = ""
     project_id: str = "default"
 
@@ -244,6 +251,12 @@ async def agent_inspect(
     text = body.text
     application_scenario = body.application_scenario
 
+    if application_scenario == "bidding":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "deprecated_application_scenario", "message": "新体检仅支持合同场景"},
+        )
+
     if body.record_id is not None:
         record = await db.scalar(
             select(InspectionRecord).where(
@@ -253,11 +266,16 @@ async def agent_inspect(
         )
         if record is None:
             raise HTTPException(status_code=404, detail="record_not_found")
+        if record.document_type == "bidding" or record.classification_source == "archived_legacy":
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "deprecated_application_scenario", "message": "历史招投标记录不可按旧场景重审"},
+            )
         if not record.parsed_content.strip():
             raise HTTPException(status_code=400, detail="该记录缺少完整解析正文，请重新上传后审查")
         document_name = record.document_name
         text = decrypt_text(record.parsed_content)
-        application_scenario = record.document_type if record.document_type != "unknown" else body.application_scenario
+        application_scenario = "contract"
 
     if document_name is None or text is None:
         raise HTTPException(status_code=400, detail="请提供 record_id 或 document_name + text")

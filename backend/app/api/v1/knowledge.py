@@ -279,7 +279,7 @@ async def list_subcategories(
 async def upload_and_ingest(
     file: UploadFile = File(...),
     category: str = Form(...),
-    application_scenario: str = Form("bidding"),
+    application_scenario: str = Form("contract"),
     subcategory_id: int | None = Form(None),
     subcategory_name: str | None = Form(None),
     db=Depends(get_db_session),
@@ -291,6 +291,11 @@ async def upload_and_ingest(
         ext = validate_file_type(filename)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if application_scenario == "bidding":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "deprecated_application_scenario", "message": "新知识库仅支持合同场景"},
+        )
 
     try:
         validate_application_scenario(application_scenario)

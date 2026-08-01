@@ -386,13 +386,9 @@ async def test_knowledge_search(client: AsyncClient):
             json={"query": "招投标法规", "application_scenario": "bidding", "limit": 5},
         )
 
-    assert response.status_code == 200
-    data = response.json()
-    assert "snippets" in data
-    assert "sources" in data
-    assert len(data["snippets"]) == 1
-    assert data["snippets"][0]["content"] == "在中华人民共和国境内进行招投标活动，适用本法。"
-    mock_retrieve.assert_awaited_once()
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "deprecated_application_scenario"
+    mock_retrieve.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -425,13 +421,8 @@ async def test_agent_inspect_success(client: AsyncClient):
         },
     )
 
-    assert response.status_code == 200
-    data = response.json()
-    assert data["document_name"] == "测试招标文件.pdf"
-    assert data["overall_risk"] in ("low", "medium", "high", "critical")
-    assert "summary" in data
-    assert "issues" in data
-    assert "regulation_refs" in data
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "deprecated_application_scenario"
 
 
 @pytest.mark.asyncio
@@ -449,7 +440,7 @@ async def test_agent_parse_creates_pending_record(client: AsyncClient):
     data = response.json()
     assert data["record_id"] > 0
     assert data["document_name"] == "招标文件.txt"
-    assert data["document_type"] == "bidding"
+    assert data["document_type"] == "contract"
     assert "公开招标" in data["text_preview"]
 
 
@@ -476,7 +467,7 @@ async def test_agent_inspect_by_record_id(client: AsyncClient):
     data = response.json()
     assert data["id"] == record_id
     assert data["document_name"] == "待审查招标文件.txt"
-    assert data["document_type"] == "bidding"
+    assert data["document_type"] == "contract"
 
 
 @pytest.mark.asyncio

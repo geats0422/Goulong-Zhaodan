@@ -112,7 +112,7 @@ class KnowledgeDocument(Base):
     )
     owner_type: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
     owner_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("goulong_auth.users.id"), nullable=True)
-    application_scenario: Mapped[str] = mapped_column(String(20), nullable=False, default="bidding")
+    application_scenario: Mapped[str] = mapped_column(String(20), nullable=False, default="contract")
     engineering_type_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
     contract_type_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
@@ -251,6 +251,7 @@ class InspectionRecord(Base):
     engineering_type_snapshot: Mapped[str | None] = mapped_column(String(100), nullable=True)
     contract_type_snapshot: Mapped[str | None] = mapped_column(String(100), nullable=True)
     knowledge_sources_snapshot: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    classification_evidence: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow)
 
     __table_args__ = (

@@ -50,6 +50,7 @@ from app.services.contract_classifier import (
 )
 from app.services.markdown_converter import ConversionError, convert_to_markdown
 from app.services.report_pdf import render_report_pdf
+from app.services.inspection_history import classification_display
 
 _logger = logging.getLogger(__name__)
 
@@ -312,7 +313,13 @@ def _detect_document_type(filename: str, text: str) -> dict[str, str]:
             "confidence": "low",
         }
 
-    document_type = max(("contract", "bidding"), key=lambda item: (scores[item], item == "bidding"))
+    if scores["contract"] == 0:
+        return {
+            "document_type": "unknown",
+            "document_type_label": DOCUMENT_TYPE_LABELS["unknown"],
+            "confidence": "low",
+        }
+    document_type = "contract"
     return {
         "document_type": document_type,
         "document_type_label": DOCUMENT_TYPE_LABELS[document_type],
@@ -520,7 +527,7 @@ def _classification_response_from_record(record: InspectionRecord) -> ContractCl
         engineering_type_key=record.final_engineering_type or record.detected_engineering_type,
         contract_type_key=record.final_contract_type or record.detected_contract_type,
         confidence=record.classification_confidence or "low",
-        evidence=[],
+        evidence=record.classification_evidence or [],
         source=record.classification_source or "fallback",
         requires_confirmation=(record.classification_confidence or "low") != "high",
     )
@@ -939,11 +946,7 @@ async def get_record(
             "document_type": record.document_type,
             "document_type_label": record.document_type_label,
             "classification": classification.model_dump() if classification else None,
-            "classification_display": (
-                "历史记录 / 招投标资料已归档，无法按旧场景重审"
-                if record.document_type == "bidding"
-                else None
-            ),
+            "classification_display": classification_display(record),
             "rule_package_key": record.rule_package_key,
             "engineering_type_snapshot": record.engineering_type_snapshot,
             "contract_type_snapshot": record.contract_type_snapshot,
@@ -987,6 +990,10 @@ async def inspect_record(
     record = await db.scalar(select(InspectionRecord).where(InspectionRecord.id == record_id, InspectionRecord.user_id == user_id))
     if record is None:
         raise HTTPException(status_code=404, detail="记录不存在")
+    if body.application_scenario == "bidding":
+        raise _type_error(400, "deprecated_application_scenario", "新体检仅支持合同场景")
+    if record.document_type == "bidding" or record.classification_source == "archived_legacy":
+        raise _type_error(400, "deprecated_application_scenario", "历史招投标记录不可按旧场景重审")
     if not record.parsed_content.strip():
         raise HTTPException(status_code=400, detail="该记录缺少完整解析正文，请重新上传后审查")
 

@@ -85,11 +85,14 @@ def _classification_record_values(classification: Any, regulation_base: dict[str
     safe_sources = [dict(source) for source in sources if isinstance(source, dict)]
     return {
         "detected_engineering_type": engineering,
-        "final_engineering_type": engineering,
+        "final_engineering_type": None,
         "detected_contract_type": contract,
-        "final_contract_type": contract,
+        "final_contract_type": None,
         "classification_confidence": confidence,
         "classification_source": source,
+        "classification_evidence": [
+            item for item in getattr(classification, "evidence", []) if isinstance(item, str)
+        ],
         "rule_package_key": regulation_base.get("rule_package_key") or _DEFAULT_RULE_PACKAGE_KEY,
         "engineering_type_snapshot": _ENGINEERING_TYPE_NAMES.get(
             engineering, engineering
@@ -1261,6 +1264,15 @@ async def document_processing_task(ctx: dict[str, Any], job_id: str) -> None:
             raise
 
 
+def _require_contract_scenario(payload: dict[str, Any]) -> str:
+    scenario = payload.get("application_scenario", "contract")
+    if scenario == "bidding":
+        raise ValueError("deprecated_application_scenario")
+    if scenario != "contract":
+        raise ValueError("invalid_application_scenario")
+    return "contract"
+
+
 async def _run_inspect(ctx, job_id: str) -> dict:
     """从 job.input_payload 取文档正文，运行体检，返回结果摘要。"""
     from sqlalchemy import select
@@ -1284,7 +1296,7 @@ async def _run_inspect(ctx, job_id: str) -> dict:
             document_name=payload.get("document_name", "未命名文档"),
             text=text,
             project_id=payload.get("project_id", "default"),
-            application_scenario=payload.get("application_scenario", "bidding"),
+            application_scenario=_require_contract_scenario(payload),
             taboo_words_input=payload.get("taboo_words", ""),
         )
         return {
@@ -1307,11 +1319,7 @@ async def _run_parse(ctx, job_id: str) -> dict:
 
     from sqlalchemy import select
 
-    from app.api.v1.inspection import (
-        _detect_document_type,
-        _inspection_file_format,
-        _validate_inspection_filename,
-    )
+    from app.api.v1.inspection import _inspection_file_format, _validate_inspection_filename
     from app.core.file_magic import validate_file_magic
     from app.models.api_keys import AgentJob
     from app.services.document_job_service import create_document_job, prepare_source_artifact
@@ -1324,6 +1332,7 @@ async def _run_parse(ctx, job_id: str) -> dict:
             raise ValueError(f"job_not_found: {job_id}")
 
         payload = job.input_payload or {}
+        _require_contract_scenario(payload)
         document_name = payload.get("document_name") or payload.get("filename") or "未命名文档.txt"
         text = payload.get("text")
 
@@ -1332,21 +1341,20 @@ async def _run_parse(ctx, job_id: str) -> dict:
             text = str(text)
             if len(text.strip()) < 10:
                 raise ValueError("input_payload.text 缺失或过短，无法解析")
-            detected_type = _detect_document_type(document_name, text)
             record = await create_pending_inspection_record(
                 db=db,
                 user_id=job.user_id,
                 document_name=document_name,
-                document_type=detected_type["document_type"],
-                document_type_label=detected_type["document_type_label"],
+                document_type="contract",
+                document_type_label="合同",
                 text=text,
                 project_id=payload.get("project_id", "default"),
             )
             return {
                 "record_id": record.id,
                 "document_name": document_name,
-                "document_type": detected_type["document_type"],
-                "document_type_label": detected_type["document_type_label"],
+                "document_type": "contract",
+                "document_type_label": "合同",
                 "text_preview": text[:500],
             }
 
@@ -1423,7 +1431,7 @@ async def _run_knowledge_upload(ctx, job_id: str) -> dict:
         result = await upload_and_ingest(
             file=upload_file,  # type: ignore[arg-type]
             category=payload.get("category", "general"),
-            application_scenario=payload.get("application_scenario", "bidding"),
+            application_scenario=_require_contract_scenario(payload),
             subcategory_id=payload.get("subcategory_id"),
             subcategory_name=payload.get("subcategory_name"),
             db=db,
