@@ -282,6 +282,43 @@ async def test_model_timeout_uses_deadline_and_confirmation_fallback() -> None:
     assert cancelled.is_set()
     assert result.engineering_type_key == "municipal-road"
     assert result.contract_type_key == "labor-subcontract"
+    assert result.confidence == "low"
+    assert result.requires_confirmation is True
+
+
+@pytest.mark.asyncio
+async def test_model_timeout_error_returns_rule_screening_fallback() -> None:
+    filename = "施工合同.txt"
+    text = "甲乙双方签订合同"
+    rules = _rule_screening()
+    model = _model(side_effect=TimeoutError("model timeout"))
+
+    result = await classify_contract(
+        filename=filename, text=text, rule_screening=rules, model=model
+    )
+
+    _assert_model_call(model, filename=filename, text=text, rule_screening=rules)
+    assert result.engineering_type_key == "municipal-road"
+    assert result.contract_type_key == "labor-subcontract"
+    assert result.confidence == "low"
+    assert result.requires_confirmation is True
+
+
+@pytest.mark.asyncio
+async def test_model_unexpected_error_returns_rule_screening_fallback() -> None:
+    filename = "施工合同.txt"
+    text = "甲乙双方签订合同"
+    rules = _rule_screening()
+    model = _model(side_effect=RuntimeError("model unavailable"))
+
+    result = await classify_contract(
+        filename=filename, text=text, rule_screening=rules, model=model
+    )
+
+    _assert_model_call(model, filename=filename, text=text, rule_screening=rules)
+    assert result.engineering_type_key == "municipal-road"
+    assert result.contract_type_key == "labor-subcontract"
+    assert result.confidence == "low"
     assert result.requires_confirmation is True
 
 
