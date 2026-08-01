@@ -4,19 +4,19 @@ import AppTopNav from '../components/app/AppTopNav.vue'
 import DashboardFooter from '../components/app/DashboardFooter.vue'
 import BaseSelect from '../components/ui/BaseSelect.vue'
 import { useAuth } from '../composables/useAuth.js'
+import { ENGINEERING_TYPES, CONTRACT_TYPES } from '../composables/inspectionPrepare.js'
+import {
+  buildUploadFields,
+  isDocumentVisible,
+  FIXED_UPLOAD_CATEGORY,
+} from '../composables/knowledgeArchive.js'
 
 const { fetchWithAuth } = useAuth()
 
-const CATEGORIES = [
-  { key: 'new_infrastructure', label: '新基建' },
-  { key: 'traditional', label: '传统基建' },
-  { key: 'urban_renewal', label: '城市更新' },
-]
-const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c.key, label: c.label }))
-const SCENARIO_OPTIONS = [
-  { value: 'bidding', label: '招投标' },
-  { value: 'contract', label: '合同' },
-]
+// 工程/合同类别选项（取代旧"新基建/传统基建/城市更新"大类）。
+// 照胆只做合同初审，上传固定合同场景，不再提供招投标场景。
+const ENGINEERING_OPTIONS = ENGINEERING_TYPES.map((t) => ({ value: t.key, label: t.name }))
+const CONTRACT_OPTIONS = CONTRACT_TYPES.map((t) => ({ value: t.key, label: t.name }))
 
 const loading = ref(false)
 const error = ref(null)
@@ -25,10 +25,10 @@ const showUploadModal = ref(false)
 const uploading = ref(false)
 const uploadForm = ref({
   file: null,
-  category: 'traditional',
+  engineering_type_key: 'general-engineering',
+  contract_type_key: 'other',
   subcategory_id: '',
   subcategory_name: '',
-  application_scenario: 'bidding',
 })
 
 function mapDocumentStatus(status) {
@@ -42,11 +42,6 @@ function mapDocumentStatus(status) {
 function getIcon(name) {
   if (!name) return 'description'
   return name.endsWith('.pdf') ? 'picture_as_pdf' : 'description'
-}
-
-function mapApplicationScenario(scenario) {
-  if (scenario === 'contract') return '合同'
-  return '招投标'
 }
 
 async function fetchAllData() {
@@ -67,7 +62,9 @@ async function fetchAllData() {
       subcategories: (cat.subcategories || []).map((sub) => ({
         id: sub.id,
         name: sub.name,
-        assets: (sub.documents || []).map((doc) => {
+        // 防御性二次过滤：停用的招投标文档（is_active=false）归档隐藏。
+        // 后端 overview 已过滤，前端在字段缺失时不误伤正常文档。
+        assets: (sub.documents || []).filter(isDocumentVisible).map((doc) => {
           const mapped = mapDocumentStatus(doc.current_version?.status)
           return {
             id: doc.id,
@@ -77,7 +74,8 @@ async function fetchAllData() {
             state: mapped.state,
             size: '',
             owner_type: doc.owner_type,
-            application_scenario: doc.application_scenario,
+            engineering_type_key: doc.engineering_type_key,
+            contract_type_key: doc.contract_type_key,
           }
         }),
       })),
@@ -90,7 +88,13 @@ async function fetchAllData() {
 }
 
 function openUploadModal() {
-  uploadForm.value = { file: null, category: 'traditional', subcategory_id: '', subcategory_name: '', application_scenario: 'bidding' }
+  uploadForm.value = {
+    file: null,
+    engineering_type_key: 'general-engineering',
+    contract_type_key: 'other',
+    subcategory_id: '',
+    subcategory_name: '',
+  }
   showUploadModal.value = true
 }
 
@@ -106,16 +110,19 @@ async function submitUpload() {
   if (!uploadForm.value.file) return
   uploading.value = true
   try {
+    // 上传字段由 knowledgeArchive.buildUploadFields 构造：固定合同场景，
+    // 工程/合同类别绑定，不再提交 bidding 场景或旧大类分类。
+    const fields = buildUploadFields({
+      engineering_type_key: uploadForm.value.engineering_type_key,
+      contract_type_key: uploadForm.value.contract_type_key,
+      subcategory_id: uploadForm.value.subcategory_id,
+      subcategory_name: uploadForm.value.subcategory_name,
+    })
     const form = new FormData()
     form.append('file', uploadForm.value.file)
-    form.append('category', uploadForm.value.category)
-    if (uploadForm.value.subcategory_id) {
-      form.append('subcategory_id', uploadForm.value.subcategory_id)
+    for (const [key, value] of Object.entries(fields)) {
+      form.append(key, value)
     }
-    if (uploadForm.value.subcategory_name) {
-      form.append('subcategory_name', uploadForm.value.subcategory_name)
-    }
-    form.append('application_scenario', uploadForm.value.application_scenario)
     const res = await fetchWithAuth('/api/v1/knowledge/upload', { method: 'POST', body: form })
     if (!res.ok) throw new Error('上传失败')
     const uploadContentType = res.headers.get('content-type')
@@ -132,7 +139,8 @@ async function submitUpload() {
 }
 
 const currentCategorySubcategories = computed(() => {
-  const group = categoryGroups.value.find((g) => g.key === uploadForm.value.category)
+  // 上传固定写入 FIXED_UPLOAD_CATEGORY，子类列表基于该大类查询。
+  const group = categoryGroups.value.find((g) => g.key === FIXED_UPLOAD_CATEGORY)
   if (!group) return []
   return group.subcategories || []
 })
@@ -213,7 +221,6 @@ onMounted(fetchAllData)
 
                   <div class="asset-body">
                     <h3>{{ asset.name }}</h3>
-                    <p class="asset-scenario">任务场景：{{ mapApplicationScenario(asset.application_scenario) }}</p>
                     <div class="asset-meta">
                       <span v-if="asset.owner_type === 'system'" class="status-chip status-system">
                         <i></i>
@@ -259,7 +266,10 @@ onMounted(fetchAllData)
           </div>
         </div>
         <div class="upload-field">
-          <BaseSelect v-model="uploadForm.category" label="大类" :options="CATEGORY_OPTIONS" />
+          <BaseSelect v-model="uploadForm.engineering_type_key" label="工程类别" :options="ENGINEERING_OPTIONS" />
+        </div>
+        <div class="upload-field">
+          <BaseSelect v-model="uploadForm.contract_type_key" label="合同类别" :options="CONTRACT_OPTIONS" />
         </div>
         <div class="upload-field">
           <BaseSelect
@@ -270,9 +280,6 @@ onMounted(fetchAllData)
           />
           <label v-else>子类（可选）</label>
           <input v-model="uploadForm.subcategory_name" placeholder="或输入新子类名称" />
-        </div>
-        <div class="upload-field">
-          <BaseSelect v-model="uploadForm.application_scenario" label="应用场景" :options="SCENARIO_OPTIONS" />
         </div>
         <div class="upload-actions">
           <button type="button" class="btn-cancel" @click="closeUploadModal" :disabled="uploading">取消</button>
@@ -622,14 +629,6 @@ onMounted(fetchAllData)
   color: #f2ca50;
 }
 
-.asset-scenario {
-  margin: 10px 0 0;
-  color: #d0c5af;
-  font-family: "Geist", "Noto Sans SC", sans-serif;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
 .asset-meta {
   display: flex;
   flex-wrap: wrap;
@@ -863,11 +862,6 @@ onMounted(fetchAllData)
 [data-theme="light"] .upload-dialog {
   background: #ffffff;
   border-color: rgba(180, 160, 100, 0.4);
-}
-
-[data-theme="light"] .asset-scenario {
-  color: #6f5630;
-  font-weight: 600;
 }
 
 [data-theme="light"] .upload-dialog h3 {

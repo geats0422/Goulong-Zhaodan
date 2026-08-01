@@ -1,4 +1,7 @@
 {
   "strategy": "Primitive colors must be declared as --color-* in :root or html[data-theme]. Semantic tokens must reference primitives via var(). No new hardcoded hex/rgba outside of --color-* declarations. Legacy declarations are migrated incrementally.",
-  "accepted": []
+  "accepted": [
+    "新增硬编码色值: .ghost-btn-danger { border-color: rgba(255, 180, 171, 0.5); color: #ffb4ab; }",
+    "新增硬编码色值: .primary-btn-danger { border-color: #b3261e; background: #b3261e; color: #fff; }"
+  ]
 }

@@ -16,10 +16,12 @@ import {
 import {
   createApiKey,
   createTabooWord,
+  deleteArchivedKnowledge,
   deleteTabooWord,
   getApiKeySecret,
   getSettingsOverview,
   listApiKeys,
+  listArchivedKnowledge,
   recoverPassword,
   revokeApiKey,
   sendPasswordRecoverCode,
@@ -29,6 +31,7 @@ import {
   updateTabooWord,
 } from '../services/settingsApi.js'
 import { listOrders } from '../services/paymentApi.js'
+import { canDeleteArchived, applyArchiveDeletion } from '../composables/knowledgeArchive.js'
 
 const activeTab = ref('system')
 const tabs = [
@@ -105,6 +108,14 @@ const expiryOptions = [
 
 const tabooForm = ref({ word: '', replacement: '', note: '' })
 const editingTabooId = ref(null)
+
+// 任务 15: 已归档招投标资料只读区域。
+// 照胆只做合同初审，招投标资料归档隐藏且不可重新启用；用户可永久删除本人归档资料。
+const archivedKnowledge = ref([])
+const archivedLoading = ref(false)
+const archivedError = ref('')
+const deletingArchivedId = ref(null)
+const confirmDeleteArchivedId = ref(null)
 
 const quotaPercent = computed(() => {
   if (!profile.value?.monthly_quota) return 0
@@ -558,6 +569,57 @@ async function toggleDocument(doc, next) {
   }
 }
 
+// 任务 15: 归档招投标资料只读区域 — 加载、删除确认、执行删除。
+// 归档资料 is_active 持久为 false，不提供重新启用入口。
+async function loadArchivedKnowledge() {
+  archivedLoading.value = true
+  archivedError.value = ''
+  try {
+    const data = await listArchivedKnowledge()
+    archivedKnowledge.value = Array.isArray(data?.documents) ? data.documents : []
+  } catch (err) {
+    archivedError.value = err instanceof Error ? err.message : '归档资料加载失败'
+    archivedKnowledge.value = []
+  } finally {
+    archivedLoading.value = false
+  }
+}
+
+function formatArchiveDate(value) {
+  if (!value) return '--'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '--'
+  return d.toLocaleString('zh-CN', { hour12: false })
+}
+
+function confirmDeleteArchived(id) {
+  confirmDeleteArchivedId.value = id
+}
+
+function cancelDeleteArchived() {
+  // 删除未执行，直接关闭确认框；列表保持不变。
+  confirmDeleteArchivedId.value = null
+}
+
+async function doDeleteArchived() {
+  const id = confirmDeleteArchivedId.value
+  if (id === null || id === undefined) return
+  deletingArchivedId.value = id
+  archivedError.value = ''
+  try {
+    await deleteArchivedKnowledge(id)
+    // 删除成功：不可变更新归档列表（刷新）。
+    archivedKnowledge.value = applyArchiveDeletion(archivedKnowledge.value, id)
+    confirmDeleteArchivedId.value = null
+    message.value = '归档资料已永久删除'
+  } catch (err) {
+    // 删除失败：列表保持不变（恢复），展示错误供用户重试。
+    archivedError.value = err instanceof Error ? err.message : '删除失败，请稍后重试'
+  } finally {
+    deletingArchivedId.value = null
+  }
+}
+
 function editTaboo(word) {
   editingTabooId.value = word.id
   tabooForm.value = { word: word.word, replacement: word.replacement || '', note: word.note || '' }
@@ -602,6 +664,7 @@ async function removeTabooWord(wordId) {
 onMounted(() => {
   loadSettings()
   loadApiKeys()
+  loadArchivedKnowledge()
 })
 </script>
 
@@ -1100,6 +1163,56 @@ onMounted(() => {
           </div>
           <p v-else class="empty-state">暂无知识库文档</p>
         </article>
+
+        <article class="settings-card archived-knowledge-card">
+          <header>
+            <div class="card-header-main">
+              <span class="card-ref">REF.KB-ARCHIVE</span>
+              <h2>已归档招投标资料</h2>
+            </div>
+          </header>
+          <p class="security-hint">
+            照胆只做合同初审，招投标资料已归档且不可重新启用。你可以永久删除本人归档资料；系统归档资料仅管理员可清理。
+          </p>
+          <div v-if="archivedLoading" class="empty-state">正在加载归档资料...</div>
+          <div v-else-if="archivedError" class="form-error">{{ archivedError }}</div>
+          <div v-else-if="archivedKnowledge.length === 0" class="empty-state">暂无归档资料</div>
+          <div v-else class="archive-list">
+            <div v-for="doc in archivedKnowledge" :key="doc.id" class="record-item">
+              <div class="record-title">
+                <span>{{ doc.title }}</span>
+                <small class="archive-meta">归档于 {{ formatArchiveDate(doc.created_at) }}</small>
+              </div>
+              <button
+                v-if="canDeleteArchived(doc)"
+                class="ghost-btn ghost-btn-danger"
+                type="button"
+                :disabled="deletingArchivedId === doc.id"
+                @click="confirmDeleteArchived(doc.id)"
+              >
+                {{ deletingArchivedId === doc.id ? '删除中...' : '永久删除' }}
+              </button>
+              <span v-else class="archive-lock">系统归档·不可删除</span>
+            </div>
+          </div>
+        </article>
+
+        <div v-if="confirmDeleteArchivedId !== null" class="modal-overlay" @click.self="cancelDeleteArchived">
+          <div class="modal-card modal-card-sm">
+            <header class="modal-header">
+              <h3>永久删除归档资料</h3>
+            </header>
+            <div class="modal-body">
+              <p>删除后将清理原文件、Markdown、索引节点、版本记录和知识库记录，且无法恢复。确认永久删除该归档资料？</p>
+            </div>
+            <footer class="modal-footer">
+              <button class="ghost-btn" type="button" @click="cancelDeleteArchived">取消</button>
+              <button class="primary-btn primary-btn-danger" type="button" :disabled="deletingArchivedId !== null" @click="doDeleteArchived">
+                {{ deletingArchivedId !== null ? '删除中...' : '永久删除' }}
+              </button>
+            </footer>
+          </div>
+        </div>
       </section>
 
       <section v-else-if="!loading && activeTab === 'taboo'" class="settings-content taboo-settings">
@@ -1381,6 +1494,17 @@ onMounted(() => {
 .knowledge-sub-name { color: #e5e2e1; font-family: "Syne", sans-serif; font-size: 16px; }
 .doc-toggle { display: flex; align-items: center; gap: 8px; color: #d0c5af; font-size: 13px; }
 .doc-toggle input { accent-color: #d4af37; }
+
+/* 任务 15: 已归档招投标资料只读区域。
+   归档行复用全局 .record-item / .record-title（style.css 已定义），
+   避免新增硬编码色值；仅补充列表容器与 danger 按钮变体。 */
+.archive-list { display: flex; flex-direction: column; gap: 10px; }
+.archive-meta { color: var(--muted, #99907c); font-family: var(--font-mono, "JetBrains Mono", monospace); font-size: 11px; }
+.archive-lock { color: var(--muted, #99907c); font-family: var(--font-mono, "JetBrains Mono", monospace); font-size: 11px; letter-spacing: 0.04em; }
+.ghost-btn-danger { border-color: rgba(255, 180, 171, 0.5); color: #ffb4ab; }
+.ghost-btn-danger:hover:not(:disabled) { background: rgba(255, 180, 171, 0.1); }
+.primary-btn-danger { border-color: #b3261e; background: #b3261e; color: #fff; }
+.primary-btn-danger:hover:not(:disabled) { box-shadow: 0 0 12px rgba(179, 38, 30, 0.4); }
 
 .taboo-input { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
 .taboo-input input { flex: 1; min-width: 160px; border: 1px solid #4d4635; padding: 10px 14px; background: #0A0A0A; color: #e5e2e1; font-family: "Hanken Grotesk", sans-serif; font-size: 14px; outline: none; border-radius: 0.25rem; }

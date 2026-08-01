@@ -107,3 +107,22 @@ export async function revokeApiKey(keyId) {
     method: 'DELETE',
   }))
 }
+
+// ---------------------------------------------------------------------------
+// 任务 15: 归档招投标资料只读列表与用户完整删除。
+// 设计依据：docs/designs/2026-08-01-contract-inspection-type-and-quota-design.md
+// 后端契约（任务 9 提供）：
+//   GET    /inspection/archived-knowledge          → { documents: [...] }
+//   DELETE /inspection/archived-knowledge/{id}     → 204 / 404 / 503
+// 归档资料 is_active 持久为 false，且不提供任何重新启用入口。
+// ---------------------------------------------------------------------------
+
+export async function listArchivedKnowledge() {
+  return parseResponse(await fetchWithAuth('/inspection/archived-knowledge'))
+}
+
+export async function deleteArchivedKnowledge(documentId) {
+  return parseResponse(await fetchWithAuth(`/inspection/archived-knowledge/${documentId}`, {
+    method: 'DELETE',
+  }))
+}

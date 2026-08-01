@@ -9,6 +9,7 @@
     "test:routes": "node scripts/verify-routes.mjs",
     "test:theme": "node scripts/theme-behavior.test.mjs",
     "test:step2": "node scripts/verify-step2-no-bidding.mjs",
+    "test:knowledge-archive": "node scripts/verify-knowledge-archive.mjs",
     "design:check": "node scripts/check-design-tokens.mjs",
     "preview": "vite preview"
   },
