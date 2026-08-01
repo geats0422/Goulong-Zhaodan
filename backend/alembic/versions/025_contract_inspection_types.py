@@ -28,8 +28,8 @@ def upgrade() -> None:
         sa.Column("owner_type", sa.String(length=20), nullable=False),
         sa.Column("owner_user_id", sa.UUID(), nullable=True),
         sa.Column("enabled", sa.Boolean(), server_default=sa.true(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.CheckConstraint(
             "dimension IN ('engineering', 'contract')",
             name="ck_inspection_types_dimension",
@@ -42,6 +42,10 @@ def upgrade() -> None:
             "(owner_type = 'system' AND owner_user_id IS NULL) OR "
             "(owner_type = 'user' AND owner_user_id IS NOT NULL)",
             name="ck_inspection_types_owner_scope",
+        ),
+        sa.CheckConstraint(
+            "enabled IN (TRUE, FALSE)",
+            name="ck_inspection_types_enabled",
         ),
         sa.ForeignKeyConstraint(["owner_user_id"], ["goulong_auth.users.id"]),
         sa.PrimaryKeyConstraint("id"),
@@ -86,11 +90,28 @@ def upgrade() -> None:
         for name, column_type in columns.items():
             kwargs = {"server_default": sa.true()} if name == "is_active" else {}
             op.add_column(table, sa.Column(name, column_type, nullable=name != "is_active", **kwargs), schema=SCHEMA)
-        if table == "knowledge_documents":
-            op.alter_column(table, "is_active", server_default=None, schema=SCHEMA)
+    op.create_check_constraint(
+        "ck_inspection_records_classification_confidence",
+        "inspection_records",
+        "classification_confidence IS NULL OR classification_confidence IN ('high', 'medium', 'low')",
+        schema=SCHEMA,
+    )
+    op.create_check_constraint(
+        "ck_inspection_records_classification_source",
+        "inspection_records",
+        "classification_source IS NULL OR classification_source IN "
+        "('legacy', 'archived_legacy', 'rule', 'model', 'manual', 'fallback')",
+        schema=SCHEMA,
+    )
 
 
 def downgrade() -> None:
+    op.drop_constraint(
+        "ck_inspection_records_classification_source", "inspection_records", schema=SCHEMA,
+    )
+    op.drop_constraint(
+        "ck_inspection_records_classification_confidence", "inspection_records", schema=SCHEMA,
+    )
     for name in (
         "knowledge_sources_snapshot",
         "contract_type_snapshot",

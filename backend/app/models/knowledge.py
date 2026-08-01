@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import uuid
 
+import sqlalchemy as sa
 from sqlalchemy import BigInteger, Boolean, CheckConstraint, ForeignKey, Index, Integer, JSON, MetaData, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -55,9 +56,11 @@ class InspectionType(Base):
     owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("goulong_auth.users.id"), nullable=True,
     )
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
-    created_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow)
-    updated_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=sa.true())
+    created_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow, server_default=sa.func.now())
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        default=_utcnow, onupdate=_utcnow, server_default=sa.func.now(),
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -72,6 +75,10 @@ class InspectionType(Base):
             "(owner_type = 'system' AND owner_user_id IS NULL) OR "
             "(owner_type = 'user' AND owner_user_id IS NOT NULL)",
             name="ck_inspection_types_owner_scope",
+        ),
+        CheckConstraint(
+            "enabled IN (TRUE, FALSE)",
+            name="ck_inspection_types_enabled",
         ),
         Index(
             "uq_inspection_types_system_key", "dimension", "key",
@@ -250,6 +257,15 @@ class InspectionRecord(Base):
         CheckConstraint(
             "status IN ('uploaded', 'processing', 'completed', 'failed', 'cancelled')",
             name="ck_inspection_records_status",
+        ),
+        CheckConstraint(
+            "classification_confidence IS NULL OR classification_confidence IN ('high', 'medium', 'low')",
+            name="ck_inspection_records_classification_confidence",
+        ),
+        CheckConstraint(
+            "classification_source IS NULL OR classification_source IN "
+            "('legacy', 'archived_legacy', 'rule', 'model', 'manual', 'fallback')",
+            name="ck_inspection_records_classification_source",
         ),
         Index("ix_inspection_records_user_created_at", "user_id", "created_at"),
         Index("ix_inspection_records_user_project_created_at", "user_id", "project_id", "created_at"),
