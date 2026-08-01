@@ -145,10 +145,13 @@ async def test_parse_saves_file_creates_inspection_job_and_returns_202(
     data = response.json()
     assert data["job_id"] == "doc_job_async"
     assert data["session_id"]
+    assert data["status"] == "processing"
+    assert data["file"]["document_type"] == "contract"
     classification = data["file"]["classification"]
     assert classification["engineering_type_key"] == "general-engineering"
     assert classification["contract_type_key"] == "other"
     assert classification["confidence"] == "low"
+    assert classification["source"] == "pending"
     assert classification["requires_confirmation"] is True
 
     save_path = captured["save_path"]

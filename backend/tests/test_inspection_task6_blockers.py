@@ -109,5 +109,35 @@ def test_usage_migration_uses_user_scoped_unique_key() -> None:
         / "versions"
         / "027_compute_usage_idempotency.py"
     ).read_text(encoding="utf-8")
-    assert '"user_id", "idempotency_key"' in source
-    assert '"ix_compute_usage_records_idempotency_key"' not in source
+    assert '"idempotency_key"],\n        unique=True' in source
+    assert '"ix_compute_usage_records_idempotency_key"' in source
+    old_source = (
+        Path(__file__).parents[1]
+        / "alembic"
+        / "versions"
+        / "027_compute_usage_idempotency.py"
+    ).read_text(encoding="utf-8")
+    assert source == old_source
+
+    migration_028 = (
+        Path(__file__).parents[1]
+        / "alembic"
+        / "versions"
+        / "028_compute_usage_user_unique.py"
+    ).read_text(encoding="utf-8")
+    assert 'down_revision: str | None = "027"' in migration_028
+    assert '"user_id", "idempotency_key"' in migration_028
+
+
+def test_parse_response_is_processing_and_contract_placeholder() -> None:
+    from app.api.v1.inspection import InspectionParseResponse
+
+    assert "status" in InspectionParseResponse.model_fields
+
+
+def test_archived_legacy_records_are_read_only() -> None:
+    from app.services.inspection_history import is_archived_legacy_record
+
+    assert is_archived_legacy_record({"document_type": "bidding"}) is True
+    assert is_archived_legacy_record({"classification_source": "archived_legacy"}) is True
+    assert is_archived_legacy_record({"document_type": "contract"}) is False

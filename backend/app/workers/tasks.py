@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import importlib
 import json
 import logging
 import uuid
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 from sqlalchemy import delete, select, update
@@ -61,47 +63,10 @@ _CONTRACT_TYPE_NAMES = {
 
 
 def _classification_record_values(classification: Any, regulation_base: dict[str, Any]) -> dict[str, Any]:
-    """将已通过分类器边界校验的结果转换为记录快照。"""
-    from app.services.contract_classifier import (
-        CONTRACT_TYPE_KEYS,
-        DEFAULT_CONTRACT_TYPE,
-        DEFAULT_ENGINEERING_TYPE,
-        ENGINEERING_TYPE_KEYS,
-    )
+    """与同步审查共享分类快照写入契约。"""
+    from app.services.inspection_runner import classification_record_values
 
-    engineering = (
-        classification.engineering_type_key
-        if classification.engineering_type_key in ENGINEERING_TYPE_KEYS
-        else DEFAULT_ENGINEERING_TYPE
-    )
-    contract = (
-        classification.contract_type_key
-        if classification.contract_type_key in CONTRACT_TYPE_KEYS
-        else DEFAULT_CONTRACT_TYPE
-    )
-    confidence = classification.confidence if classification.confidence in {"high", "medium", "low"} else "low"
-    source = classification.source if classification.source in {"rule", "model", "fallback", "manual"} else "fallback"
-    sources = regulation_base.get("sources", [])
-    safe_sources = [dict(source) for source in sources if isinstance(source, dict)]
-    return {
-        "detected_engineering_type": engineering,
-        "final_engineering_type": None,
-        "detected_contract_type": contract,
-        "final_contract_type": None,
-        "classification_confidence": confidence,
-        "classification_source": source,
-        "classification_evidence": [
-            item for item in getattr(classification, "evidence", []) if isinstance(item, str)
-        ],
-        "rule_package_key": regulation_base.get("rule_package_key") or _DEFAULT_RULE_PACKAGE_KEY,
-        "engineering_type_snapshot": _ENGINEERING_TYPE_NAMES.get(
-            engineering, engineering
-        ),
-        "contract_type_snapshot": _CONTRACT_TYPE_NAMES.get(
-            contract, contract
-        ),
-        "knowledge_sources_snapshot": safe_sources,
-    }
+    return classification_record_values(classification, regulation_base)
 
 
 @dataclass(frozen=True, slots=True)
@@ -655,7 +620,7 @@ async def _run_owned_document_inspection(
             regulation_base=inspection_input.regulation_base,
             taboo_words=inspection_input.taboo_words or None,
             db=db,
-            usage_idempotency_prefix=f"{job.job_id}:{getattr(job, 'inspection_input_hash', '')}",
+            usage_idempotency_prefix=f"job:{job.job_id}",
         )
         result = await run_inspection(structured_text, deps)
         await db.commit()
@@ -751,7 +716,8 @@ def _serialize_inspection_result(report: Any, *, classification: Any | None = No
 
 
 async def _load_inspection_result_artifact(job: _DocumentJobSnapshot) -> Any | None:
-    from app.agents.inspector import InspectionResult
+    inspector_module = importlib.import_module("app.agents.inspector")
+    AgentInspectionResult: Any = getattr(inspector_module, "InspectionResult", SimpleNamespace)
     from app.services.contract_classifier import (
         CONTRACT_TYPE_KEYS,
         ContractClassification,
@@ -792,7 +758,7 @@ async def _load_inspection_result_artifact(job: _DocumentJobSnapshot) -> Any | N
             or any(not isinstance(ref, str) for ref in regulation_refs)
         ):
             raise ValueError
-        report = InspectionResult(
+        report = AgentInspectionResult(
             overall_risk=overall_risk,
             summary=summary,
             issues=issues,

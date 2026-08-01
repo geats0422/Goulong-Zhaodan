@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -88,17 +88,16 @@ async def record_usage(
         else:
             db.add(ComputeUsageRecord(**values))
 
-        membership = (
+        if inserted:
             await db.execute(
-                select(Membership).where(
+                update(Membership)
+                .where(
                     Membership.user_id == user_id,
                     Membership.product == PRODUCT,
                     Membership.status == "active",
                 )
+                .values(token_used=func.coalesce(Membership.token_used, 0) + quota_consumed)
             )
-        ).scalar_one_or_none()
-        if inserted and membership is not None:
-            membership.token_used = (membership.token_used or 0) + quota_consumed
 
         await db.flush()
         return quota_consumed

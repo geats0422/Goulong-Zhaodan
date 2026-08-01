@@ -191,7 +191,11 @@ async def search_knowledge(
     user: dict = Depends(require_api_scope("knowledge:read")),
     db: AsyncSession = Depends(get_db_session),
 ):
-    if body.application_scenario == "bidding":
+    try:
+        validate_application_scenario(body.application_scenario)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="非法应用场景") from exc
+    if body.application_scenario != "contract":
         raise HTTPException(
             status_code=400,
             detail={"code": "deprecated_application_scenario", "message": "新知识检索仅支持合同场景"},

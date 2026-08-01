@@ -121,8 +121,9 @@ async def test_parse_returns_job_id_and_pending_record(client: AsyncClient):
     assert file_meta["size"] == len(file_content)
     assert file_meta["format"] == "txt"
     # 异步入口不再同步检测文档类型/解析正文，交由后台 worker 填充。
-    assert file_meta["document_type"] == "unknown"
-    assert file_meta["document_type_label"] == "未知类型"
+    assert file_meta["document_type"] == "contract"
+    assert file_meta["document_type_label"] == "合同"
+    assert data["status"] == "processing"
     assert file_meta["text_preview"] == ""
     assert file_meta["parsed_content"] == ""
 
@@ -153,7 +154,7 @@ async def test_parse_defers_document_type_detection_to_worker(client: AsyncClien
 
     assert response.status_code == 202
     file_meta = response.json()["file"]
-    assert file_meta["document_type"] == "unknown"
+    assert file_meta["document_type"] == "contract"
 
 
 @pytest.mark.asyncio

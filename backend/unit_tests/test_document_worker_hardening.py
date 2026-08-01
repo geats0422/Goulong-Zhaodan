@@ -423,7 +423,10 @@ async def test_inspection_result_loader_validates_hash_utf8_shape_and_whitelists
 
     with patch("app.workers.tasks._read_bounded_storage", side_effect=read_off_event_loop):
         report = await tasks._load_inspection_result_artifact(job)
-    assert report == InspectionResult("low", "有效报告", [], ["招标法"])
+    assert report.overall_risk == "low"
+    assert report.summary == "有效报告"
+    assert report.issues == []
+    assert report.regulation_refs == ["招标法"]
     assert not hasattr(report, "untrusted_extra")
 
     malformed = b'{"overall_risk":"low","summary":1,"issues":[],"regulation_refs":[]}'

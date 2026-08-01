@@ -40,17 +40,11 @@ from app.services.inspection_runner import (
     DOCUMENT_TYPE_LABELS,
     InspectionReportResponse,
     add_pending_inspection_record,
-    classify_inspection_document,
     execute_inspection,
-)
-from app.services.contract_classifier import (
-    ContractClassification,
-    DEFAULT_CONTRACT_TYPE,
-    DEFAULT_ENGINEERING_TYPE,
 )
 from app.services.markdown_converter import ConversionError, convert_to_markdown
 from app.services.report_pdf import render_report_pdf
-from app.services.inspection_history import classification_display
+from app.services.inspection_history import classification_display, is_archived_legacy_record
 
 _logger = logging.getLogger(__name__)
 
@@ -553,6 +547,7 @@ class InspectionParseResponse(BaseModel):
     session_id: str
     job_id: str
     file: InspectionParseFileResponse
+    status: str = "processing"
 
 
 class InspectionRecordListItem(BaseModel):
@@ -805,23 +800,11 @@ async def parse_inspection_file(
         filename=filename,
         file_size=len(content),
         file_format=ext,
-        document_type="unknown",
-        document_type_label=DOCUMENT_TYPE_LABELS["unknown"],
+        document_type="contract",
+        document_type_label=DOCUMENT_TYPE_LABELS["contract"],
         text="",
         record_id=record.id,
     )
-
-    try:
-        classification = await classify_inspection_document(document_name=filename, text="")
-    except Exception:
-        classification = ContractClassification(
-            engineering_type_key=DEFAULT_ENGINEERING_TYPE,
-            contract_type_key=DEFAULT_CONTRACT_TYPE,
-            confidence="low",
-            evidence=[],
-            source="fallback",
-            requires_confirmation=True,
-        )
 
     return InspectionParseResponse(
         session_id=session["id"],
@@ -830,13 +813,21 @@ async def parse_inspection_file(
             name=filename,
             size=len(content),
             format=ext,
-            document_type="unknown",
-            documentType="unknown",
-            document_type_label=DOCUMENT_TYPE_LABELS["unknown"],
+            document_type="contract",
+            documentType="contract",
+            document_type_label=DOCUMENT_TYPE_LABELS["contract"],
             text_preview="",
             parsed_content="",
-            classification=ContractClassificationResponse(**classification.__dict__),
+            classification=ContractClassificationResponse(
+                engineering_type_key="general-engineering",
+                contract_type_key="other",
+                confidence="low",
+                evidence=[],
+                source="pending",
+                requires_confirmation=True,
+            ),
         ),
+        status="processing",
     )
 
 
@@ -992,7 +983,7 @@ async def inspect_record(
         raise HTTPException(status_code=404, detail="记录不存在")
     if body.application_scenario == "bidding":
         raise _type_error(400, "deprecated_application_scenario", "新体检仅支持合同场景")
-    if record.document_type == "bidding" or record.classification_source == "archived_legacy":
+    if is_archived_legacy_record(record):
         raise _type_error(400, "deprecated_application_scenario", "历史招投标记录不可按旧场景重审")
     if not record.parsed_content.strip():
         raise HTTPException(status_code=400, detail="该记录缺少完整解析正文，请重新上传后审查")
@@ -1022,6 +1013,8 @@ async def delete_record(
     record = await db.scalar(select(InspectionRecord).where(InspectionRecord.id == record_id, InspectionRecord.user_id == user_id))
     if record is None:
         raise HTTPException(status_code=404, detail="记录不存在")
+    if is_archived_legacy_record(record):
+        raise _type_error(400, "deprecated_application_scenario", "历史招投标记录只读，不可删除")
 
     await db.delete(record)
     await db.commit()
@@ -1066,6 +1059,8 @@ async def burn_record_content(
     record = result.scalar_one_or_none()
     if record is None:
         raise HTTPException(status_code=404, detail="记录不存在")
+    if is_archived_legacy_record(record):
+        raise _type_error(400, "deprecated_application_scenario", "历史招投标记录只读，不可销毁")
     record.parsed_content = ""
     await db.commit()
     return {"id": record.id, "burned": True}

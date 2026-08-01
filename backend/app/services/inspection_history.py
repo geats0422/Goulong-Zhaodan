@@ -26,3 +26,9 @@ def classification_display(record: Mapping[str, Any] | object) -> str:
     if engineering and contract:
         return f"{engineering} / {contract}"
     return "历史记录 / 通用工程合同"
+
+
+def is_archived_legacy_record(record: Mapping[str, Any] | object) -> bool:
+    return _value(record, "application_scenario") == "bidding" or _value(
+        record, "document_type"
+    ) == "bidding" or _value(record, "classification_source") == "archived_legacy"

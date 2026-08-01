@@ -6,7 +6,6 @@ inspection.py 与 agent.py 共同引用；workers/tasks.py 的异步 runner 也�
 from __future__ import annotations
 
 import logging
-import hashlib
 import uuid
 from typing import Any
 
@@ -24,6 +23,36 @@ from app.services.contract_classifier import ContractClassification, classify_co
 from app.services.contract_classifier import screen_contract_rules
 
 _logger = logging.getLogger(__name__)
+DEFAULT_RULE_PACKAGE_KEY = "general-engineering-contract-rules:v1"
+ENGINEERING_TYPE_NAMES = {
+    "building-construction": "房建施工", "municipal-road": "市政道路",
+    "decoration-renovation": "装饰装修", "mechanical-electrical-installation": "机电安装",
+    "steel-structure": "钢结构", "general-engineering": "通用工程",
+}
+CONTRACT_TYPE_NAMES = {
+    "labor-subcontract": "劳务分包", "professional-subcontract": "专业工程分包", "other": "其他类",
+}
+
+
+def classification_record_values(
+    classification: ContractClassification, regulation_base: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    base = regulation_base or {}
+    return {
+        "detected_engineering_type": classification.engineering_type_key,
+        "final_engineering_type": None,
+        "detected_contract_type": classification.contract_type_key,
+        "final_contract_type": None,
+        "classification_confidence": classification.confidence,
+        "classification_source": classification.source,
+        "classification_evidence": list(classification.evidence),
+        "rule_package_key": base.get("rule_package_key") or DEFAULT_RULE_PACKAGE_KEY,
+        "engineering_type_snapshot": ENGINEERING_TYPE_NAMES.get(classification.engineering_type_key),
+        "contract_type_snapshot": CONTRACT_TYPE_NAMES.get(classification.contract_type_key),
+        "knowledge_sources_snapshot": [
+            dict(source) for source in base.get("sources", []) if isinstance(source, dict)
+        ],
+    }
 
 
 async def classify_inspection_document(
@@ -97,12 +126,10 @@ async def add_pending_inspection_record(
         text_preview=text[:500],
         parsed_content=encrypt_text(text),
         quota_consumed=0,
-        detected_engineering_type=classification.engineering_type_key if classification else None,
-        detected_contract_type=classification.contract_type_key if classification else None,
-        classification_confidence=classification.confidence if classification else None,
-        classification_source=classification.source if classification else None,
-        classification_evidence=classification.evidence if classification else None,
     )
+    if classification is not None:
+        for field_name, value in classification_record_values(classification).items():
+            setattr(record, field_name, value)
     db.add(record)
     await db.flush()
     return record
@@ -218,9 +245,9 @@ async def execute_inspection(
         regulation_base=regulation_base,
         taboo_words=taboo_list or None,
         db=db,
-        usage_idempotency_prefix="inspection:" + hashlib.sha256(
-            f"{document_name}\n{text}\n{project_id}\n{application_scenario}".encode("utf-8")
-        ).hexdigest(),
+        usage_idempotency_prefix=(
+            f"record:{record_id}" if record_id is not None else f"inspection:{uuid.uuid4().hex}"
+        ),
     )
 
     try:
@@ -252,11 +279,8 @@ async def execute_inspection(
     record.text_preview = text[:500]
     record.parsed_content = encrypt_text(text)
     record.quota_consumed = getattr(result, "total_quota_consumed", 0) or max(1, len(text) // 500)
-    record.detected_engineering_type = classification.engineering_type_key
-    record.detected_contract_type = classification.contract_type_key
-    record.classification_confidence = classification.confidence
-    record.classification_source = classification.source
-    record.classification_evidence = classification.evidence
+    for field_name, value in classification_record_values(classification, regulation_base).items():
+        setattr(record, field_name, value)
 
     await db.commit()
     await db.refresh(record)
