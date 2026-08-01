@@ -12,10 +12,11 @@ from typing import Any
 from urllib.parse import quote
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, exists, func, or_, select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.auth import CurrentUserContext, get_current_user
 from app.core.constants import validate_application_scenario
@@ -24,6 +25,12 @@ from app.core.database import get_db_session
 from app.core.file_magic import validate_file_magic
 from app.core.quota import require_quota
 from app.models.knowledge import InspectionRecord
+from app.models.knowledge import InspectionType, KnowledgeDocument
+from app.schemas.inspection_types import (
+    InspectionTypeCreate,
+    InspectionTypeResponse,
+    InspectionTypeUpdate,
+)
 from app.services.document_job_service import (
     create_document_job,
     prepare_source_artifact,
@@ -63,6 +70,196 @@ def _current_user_id(user: CurrentUserContext) -> uuid_mod.UUID:
         return user.user_id
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=401, detail="Invalid user") from exc
+
+
+def _type_error(status_code: int, code: str, message: str) -> HTTPException:
+    return HTTPException(status_code=status_code, detail={"code": code, "message": message})
+
+
+def _serialize_inspection_type(item: InspectionType) -> InspectionTypeResponse:
+    return InspectionTypeResponse(
+        id=item.id,
+        key=item.key,
+        name=item.name,
+        dimension=item.dimension,
+        owner_type=item.owner_type,
+        owner_user_id=str(item.owner_user_id) if item.owner_user_id else None,
+        enabled=item.enabled,
+        created_at=item.created_at.isoformat(),
+        updated_at=item.updated_at.isoformat(),
+    )
+
+
+async def _list_inspection_types(db, dimension: str, user_id: uuid_mod.UUID) -> list[InspectionTypeResponse]:
+    result = await db.scalars(
+        select(InspectionType)
+        .where(
+            InspectionType.dimension == dimension,
+            InspectionType.enabled.is_(True),
+            or_(InspectionType.owner_type == "system", InspectionType.owner_user_id == user_id),
+        )
+        .order_by(InspectionType.owner_type, InspectionType.name, InspectionType.id)
+    )
+    return [_serialize_inspection_type(item) for item in result.all()]
+
+
+async def _create_inspection_type(db, dimension: str, body: InspectionTypeCreate, user_id: uuid_mod.UUID) -> InspectionTypeResponse:
+    if body.dimension is not None and body.dimension != dimension:
+        raise _type_error(422, "invalid_dimension", "类别维度与路由不一致")
+    duplicate = await db.scalar(
+        select(InspectionType).where(
+            InspectionType.dimension == dimension,
+            or_(InspectionType.owner_type == "system", InspectionType.owner_user_id == user_id),
+            or_(InspectionType.key == body.key, InspectionType.name == body.name),
+        )
+    )
+    if duplicate is not None:
+        raise _type_error(409, "duplicate_inspection_type", "类别 key 或名称已存在")
+    item = InspectionType(
+        key=body.key,
+        name=body.name,
+        dimension=dimension,
+        owner_type="user",
+        owner_user_id=user_id,
+        enabled=True,
+    )
+    db.add(item)
+    try:
+        await db.commit()
+        await db.refresh(item)
+    except IntegrityError as exc:
+        await db.rollback()
+        raise _type_error(409, "duplicate_inspection_type", "类别 key 或名称已存在") from exc
+    return _serialize_inspection_type(item)
+
+
+async def _get_owned_or_system_type(db, type_id: int, user_id: uuid_mod.UUID) -> InspectionType:
+    item = await db.scalar(
+        select(InspectionType).where(
+            InspectionType.id == type_id,
+            or_(InspectionType.owner_type == "system", InspectionType.owner_user_id == user_id),
+        )
+    )
+    if item is None:
+        raise _type_error(404, "inspection_type_not_found", "类别不存在")
+    return item
+
+
+async def _type_is_referenced(db, item: InspectionType) -> bool:
+    key_columns = (
+        InspectionRecord.detected_engineering_type,
+        InspectionRecord.final_engineering_type,
+    ) if item.dimension == "engineering" else (
+        InspectionRecord.detected_contract_type,
+        InspectionRecord.final_contract_type,
+    )
+    record_reference = await db.scalar(
+        select(exists().where(InspectionRecord.user_id == item.owner_user_id, or_(*[column == item.key for column in key_columns])))
+    )
+    document_column = KnowledgeDocument.engineering_type_key if item.dimension == "engineering" else KnowledgeDocument.contract_type_key
+    document_reference = await db.scalar(
+        select(exists().where(document_column == item.key, KnowledgeDocument.owner_user_id == item.owner_user_id))
+    )
+    return bool(record_reference or document_reference)
+
+
+async def _update_inspection_type(db, type_id: int, body: InspectionTypeUpdate, user_id: uuid_mod.UUID) -> InspectionTypeResponse:
+    item = await _get_owned_or_system_type(db, type_id, user_id)
+    if item.owner_type == "system":
+        raise _type_error(403, "system_type_protected", "系统类别不可修改")
+    if (body.key is not None or body.name is not None) and await _type_is_referenced(db, item):
+        raise _type_error(409, "inspection_type_in_use", "已被引用的类别只能停用")
+    if body.key is not None or body.name is not None:
+        duplicate = await db.scalar(
+            select(InspectionType).where(
+                InspectionType.id != item.id,
+                InspectionType.dimension == item.dimension,
+                or_(InspectionType.owner_type == "system", InspectionType.owner_user_id == user_id),
+                or_(
+                    InspectionType.key == (body.key if body.key is not None else item.key),
+                    InspectionType.name == (body.name if body.name is not None else item.name),
+                ),
+            )
+        )
+        if duplicate is not None:
+            raise _type_error(409, "duplicate_inspection_type", "类别 key 或名称已存在")
+    if body.key is not None:
+        item.key = body.key
+    if body.name is not None:
+        item.name = body.name
+    if body.enabled is not None:
+        item.enabled = body.enabled
+    try:
+        await db.commit()
+        await db.refresh(item)
+    except IntegrityError as exc:
+        await db.rollback()
+        raise _type_error(409, "duplicate_inspection_type", "类别 key 或名称已存在") from exc
+    return _serialize_inspection_type(item)
+
+
+async def _delete_inspection_type(db, type_id: int, user_id: uuid_mod.UUID) -> None:
+    item = await _get_owned_or_system_type(db, type_id, user_id)
+    if item.owner_type == "system":
+        raise _type_error(403, "system_type_protected", "系统类别不可删除")
+    if await _type_is_referenced(db, item):
+        raise _type_error(409, "inspection_type_in_use", "已被引用的类别只能停用")
+    await db.delete(item)
+    await db.commit()
+
+
+@router.get("/engineering-types", response_model=list[InspectionTypeResponse])
+async def list_engineering_types(db=Depends(get_db_session), user: CurrentUserContext = Depends(get_current_user)):
+    return await _list_inspection_types(db, "engineering", _current_user_id(user))
+
+
+@router.post("/engineering-types", response_model=InspectionTypeResponse, status_code=status.HTTP_201_CREATED)
+async def create_engineering_type(body: InspectionTypeCreate, db=Depends(get_db_session), user: CurrentUserContext = Depends(get_current_user)):
+    return await _create_inspection_type(db, "engineering", body, _current_user_id(user))
+
+
+@router.patch("/engineering-types/{type_id}", response_model=InspectionTypeResponse)
+async def update_engineering_type(type_id: int, body: InspectionTypeUpdate, db=Depends(get_db_session), user: CurrentUserContext = Depends(get_current_user)):
+    item = await _get_owned_or_system_type(db, type_id, _current_user_id(user))
+    if item.dimension != "engineering":
+        raise _type_error(404, "inspection_type_not_found", "类别不存在")
+    return await _update_inspection_type(db, type_id, body, _current_user_id(user))
+
+
+@router.delete("/engineering-types/{type_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_engineering_type(type_id: int, db=Depends(get_db_session), user: CurrentUserContext = Depends(get_current_user)):
+    item = await _get_owned_or_system_type(db, type_id, _current_user_id(user))
+    if item.dimension != "engineering":
+        raise _type_error(404, "inspection_type_not_found", "类别不存在")
+    await _delete_inspection_type(db, type_id, _current_user_id(user))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/contract-types", response_model=list[InspectionTypeResponse])
+async def list_contract_types(db=Depends(get_db_session), user: CurrentUserContext = Depends(get_current_user)):
+    return await _list_inspection_types(db, "contract", _current_user_id(user))
+
+
+@router.post("/contract-types", response_model=InspectionTypeResponse, status_code=status.HTTP_201_CREATED)
+async def create_contract_type(body: InspectionTypeCreate, db=Depends(get_db_session), user: CurrentUserContext = Depends(get_current_user)):
+    return await _create_inspection_type(db, "contract", body, _current_user_id(user))
+
+
+@router.patch("/contract-types/{type_id}", response_model=InspectionTypeResponse)
+async def update_contract_type(type_id: int, body: InspectionTypeUpdate, db=Depends(get_db_session), user: CurrentUserContext = Depends(get_current_user)):
+    item = await _get_owned_or_system_type(db, type_id, _current_user_id(user))
+    if item.dimension != "contract":
+        raise _type_error(404, "inspection_type_not_found", "类别不存在")
+    return await _update_inspection_type(db, type_id, body, _current_user_id(user))
+
+
+@router.delete("/contract-types/{type_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_contract_type(type_id: int, db=Depends(get_db_session), user: CurrentUserContext = Depends(get_current_user)):
+    item = await _get_owned_or_system_type(db, type_id, _current_user_id(user))
+    if item.dimension != "contract":
+        raise _type_error(404, "inspection_type_not_found", "类别不存在")
+    await _delete_inspection_type(db, type_id, _current_user_id(user))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 def _validate_inspection_filename(filename: str) -> None:
