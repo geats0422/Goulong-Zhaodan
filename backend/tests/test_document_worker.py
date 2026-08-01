@@ -13,6 +13,7 @@ from app.services.contract_classifier import ContractClassification
 from app.workers.config import WorkerSettings
 from app.workers.tasks import (
     _classification_record_values,
+    _apply_worker_classification,
     _persist_parsed_markdown,
     _serialize_inspection_result,
     document_processing_task,
@@ -68,6 +69,38 @@ def test_worker_persists_actual_classification_and_empty_sources_snapshot() -> N
         "contract_type_snapshot": "劳务分包",
         "knowledge_sources_snapshot": [],
     }
+
+
+def test_worker_does_not_overwrite_user_confirmed_classification_when_retrieval_text_is_empty() -> None:
+    record = SimpleNamespace(
+        detected_engineering_type="general-engineering",
+        final_engineering_type="municipal-road",
+        detected_contract_type="other",
+        final_contract_type="professional-subcontract",
+        classification_confidence="high",
+        classification_source="manual",
+        classification_evidence=["用户确认"],
+        engineering_type_snapshot="市政道路",
+        contract_type_snapshot="专业工程分包",
+        knowledge_sources_snapshot=[{"title": "用户规则"}],
+    )
+    classification = ContractClassification(
+        engineering_type_key="building-construction",
+        contract_type_key="labor-subcontract",
+        confidence="low",
+        evidence=["fallback text"],
+        source="fallback",
+        requires_confirmation=True,
+    )
+
+    _apply_worker_classification(record, classification, {"sources": []}, input_complete=False)
+
+    assert record.final_engineering_type == "municipal-road"
+    assert record.final_contract_type == "professional-subcontract"
+    assert record.detected_engineering_type == "general-engineering"
+    assert record.detected_contract_type == "other"
+    assert record.classification_evidence == ["用户确认"]
+    assert record.knowledge_sources_snapshot == [{"title": "用户规则"}]
 
 
 @pytest.fixture(scope="session")

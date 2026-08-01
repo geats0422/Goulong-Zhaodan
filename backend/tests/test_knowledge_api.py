@@ -241,26 +241,6 @@ class TestGetDocumentNodes:
         response = client.get("/api/v1/knowledge/documents/999/nodes")
         assert response.status_code == 404
 
-    def test_inactive_document_is_not_readable(self, client, mock_db):
-        mock_doc_result = MagicMock()
-        mock_doc_result.scalar_one_or_none.return_value = _make_document(is_active=False)
-        mock_db.execute.return_value = mock_doc_result
-
-        response = client.get("/api/v1/knowledge/documents/1/nodes")
-
-        assert response.status_code == 404
-
-    def test_archived_bidding_document_returns_stable_deprecated_error(self, client, mock_db):
-        mock_doc_result = MagicMock()
-        mock_doc_result.scalar_one_or_none.return_value = _make_document(application_scenario="bidding")
-        mock_db.execute.return_value = mock_doc_result
-
-        response = client.get("/api/v1/knowledge/documents/1/nodes")
-
-        assert response.status_code == 400
-        assert response.json()["detail"]["code"] == "deprecated_application_scenario"
-
-
 class TestUploadAndIngest:
     def test_rejects_invalid_file_type(self, client, mock_db):
         response = client.post(

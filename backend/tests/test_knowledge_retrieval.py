@@ -271,3 +271,27 @@ async def test_unmarked_system_document_does_not_claim_default_fallback():
     assert result["selection_mode"] == "empty_fallback"
     assert result["fallback_notice"] is None
     assert result["rule_package_key"] is None
+
+
+@pytest.mark.asyncio
+async def test_mixed_source_packages_are_not_collapsed_to_first_package():
+    user_id = await _create_user()
+    await _create_document_with_node(
+        title="用户规则A", content="规则A", owner_type="user", owner_user_id=user_id,
+        application_scenario="contract", engineering_type_key="municipal-road",
+        rule_package_key="user-package-a:v1",
+    )
+    await _create_document_with_node(
+        title="用户规则B", content="规则B", owner_type="user", owner_user_id=user_id,
+        application_scenario="contract", contract_type_key="professional-subcontract",
+        rule_package_key="user-package-b:v1",
+    )
+
+    async with async_session() as session:
+        result = await retrieve_regulation_base(
+            session, user_id=user_id, application_scenario="contract",
+            engineering_type_key="municipal-road", contract_type_key="professional-subcontract", limit=10,
+        )
+
+    assert result["rule_package_key"] is None
+    assert result["rule_package_keys"] == ["user-package-a:v1", "user-package-b:v1"]

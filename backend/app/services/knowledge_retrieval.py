@@ -76,22 +76,25 @@ def _to_result(rows: list[tuple[KnowledgeDocument, IndexNode]], selection_mode: 
                 "document_id": doc.id,
                 "title": doc.title,
                 "owner_type": doc.owner_type,
-                "rule_package_key": (
-                    doc.rule_package_key
-                    or (DEFAULT_RULE_PACKAGE_KEY if selection_mode == "system_fallback" else None)
-                ),
+                "rule_package_key": doc.rule_package_key,
                 "engineering_type_key": doc.engineering_type_key,
                 "contract_type_key": doc.contract_type_key,
             },
         )
+    rule_package_keys = sorted(
+        {
+            source["rule_package_key"]
+            for source in sources_by_id.values()
+            if source["rule_package_key"] is not None
+        }
+    )
     return {
         "snippets": snippets,
         "sources": list(sources_by_id.values()),
         "selection_mode": selection_mode,
         "fallback_notice": fallback_notice,
-        "rule_package_key": (
-            sources_by_id[next(iter(sources_by_id))]["rule_package_key"] if sources_by_id else None
-        ),
+        "rule_package_key": rule_package_keys[0] if len(rule_package_keys) == 1 else None,
+        "rule_package_keys": rule_package_keys,
     }
 
 

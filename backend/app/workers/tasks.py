@@ -69,6 +69,20 @@ def _classification_record_values(classification: Any, regulation_base: dict[str
     return classification_record_values(classification, regulation_base)
 
 
+def _apply_worker_classification(
+    record: InspectionRecord,
+    classification: Any,
+    regulation_base: dict[str, Any],
+    *,
+    input_complete: bool,
+) -> None:
+    """仅在未确认且输入完整时写入 worker 的新分类结果。"""
+    if not input_complete or record.final_engineering_type or record.final_contract_type:
+        return
+    for field_name, value in _classification_record_values(classification, regulation_base).items():
+        setattr(record, field_name, value)
+
+
 @dataclass(frozen=True, slots=True)
 class _DocumentJobSnapshot:
     job_id: str
@@ -545,6 +559,7 @@ class _InspectionInput:
     application_scenario: str
     taboo_words: list[str]
     regulation_base: dict[str, Any]
+    classification_confirmed: bool = False
 
 
 async def _load_owned_inspection_input(job: _DocumentJobSnapshot) -> _InspectionInput:
@@ -590,6 +605,10 @@ async def _load_owned_inspection_input(job: _DocumentJobSnapshot) -> _Inspection
             application_scenario=scenario,
             taboo_words=taboo_words,
             regulation_base=regulation_base,
+            classification_confirmed=bool(
+                record is not None
+                and (record.final_engineering_type or record.final_contract_type)
+            ),
         )
 
 
@@ -833,7 +852,9 @@ async def _run_resumable_document_inspection(
     if started is None:
         return None
     classification = None
-    if inspection_input.application_scenario == "contract":
+    if inspection_input.application_scenario == "contract" and (
+        not inspection_input.classification_confirmed and fallback_text and fallback_text.strip()
+    ):
         from app.services.inspection_runner import classify_inspection_document
         from app.services.contract_classifier import screen_contract_rules
 
@@ -929,11 +950,12 @@ async def _commit_inspection_success(
             record.quota_consumed = max(1, len(artifact.markdown) // 500)
             actual_classification = classification or getattr(report, "classification", None)
             if actual_classification is not None:
-                for field_name, value in _classification_record_values(
+                _apply_worker_classification(
+                    record,
                     actual_classification,
                     inspection_input.regulation_base,
-                ).items():
-                    setattr(record, field_name, value)
+                    input_complete=classification is not None,
+                )
     await _delete_terminal_artifact(job.index_artifact_path, artifact_kind="index")
     await _delete_terminal_artifact(job.inspection_result_path, artifact_kind="inspection_result")
     return True
