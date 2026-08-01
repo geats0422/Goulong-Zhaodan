@@ -29,10 +29,25 @@ logger = logging.getLogger(__name__)
 DEFAULT_MANIFEST_PATH = Path(__file__).resolve().parent / "default_contract_rules_manifest.json"
 DEFAULT_RULE_PACKAGE_KEY = "general-engineering-contract-rules:v1"
 
+# H3: 导入脚本独立的扩展名白名单。
+# ALLOWED_FILE_EXTENSIONS 是上传校验用的（不含 .txt）；manifest 导入的官方法规
+# 多为 .txt 纯文本，因此导入脚本必须有自己的白名单，显式允许 .txt。
+IMPORTABLE_FILE_EXTENSIONS: list[str] = [*ALLOWED_FILE_EXTENSIONS, ".txt"]
+
+_PLACEHOLDER_HASH_DIGEST = "0" * 64
+
 CONTRACT_KEYWORDS = ("合同", "民法典合同编", "合同通则")
 BIDDING_KEYWORDS = (
-    "招标", "投标", "招投标", "评标", "政府采购",
-    "质疑", "投诉", "公示", "公平竞争", "特许经营",
+    "招标",
+    "投标",
+    "招投标",
+    "评标",
+    "政府采购",
+    "质疑",
+    "投诉",
+    "公示",
+    "公平竞争",
+    "特许经营",
 )
 
 _REQUIRED_SOURCE_FIELDS = (
@@ -94,10 +109,55 @@ def _domain_in_allowlist(url: str, allowlist: list[str]) -> bool:
 def _is_sha256_hex(value: str) -> bool:
     if not value.startswith(_SHA256_PATTERN):
         return False
-    digest = value[len(_SHA256_PATTERN):]
+    digest = value[len(_SHA256_PATTERN) :]
     if len(digest) != 64:
         return False
     return all(ch in "0123456789abcdef" for ch in digest.lower())
+
+
+def _is_placeholder_hash(content_hash: object) -> bool:
+    """H1: 判断 content_hash 是否为全零占位符（管理员导入前需替换为真实 hash）。"""
+    if not isinstance(content_hash, str) or not content_hash:
+        return False
+    digest = content_hash[len(_SHA256_PATTERN) :] if content_hash.startswith(_SHA256_PATTERN) else content_hash
+    return digest.lower() == _PLACEHOLDER_HASH_DIGEST
+
+
+def _filename_is_safe(filename: object) -> bool:
+    """H2: filename 必须是纯文件名，禁止路径分隔符和目录穿越。
+
+    manifest 的 filename 不应参与文件系统路径拼接（文件由管理员放到
+    reference_dir 下），但仍需拒绝含 /、\\、.. 的值，防止任何下游环节
+    误把 filename 当作相对路径使用而触发路径遍历。
+    """
+    if not isinstance(filename, str) or not filename.strip():
+        return False
+    if "/" in filename or "\\" in filename:
+        return False
+    if ".." in filename:
+        return False
+    return True
+
+
+def _dry_run_preflight(file_path: Path, source: dict) -> list[str]:
+    """C2: dry-run 实质预检，返回警告列表（空列表表示可放心导入）。
+
+    覆盖：文件存在性、扩展名合法性（独立导入白名单）、content_hash 格式、
+    以及全零占位 hash 警告（H1）。
+    """
+    warnings: list[str] = []
+    if not file_path.exists():
+        warnings.append(f"本地文件不存在: {file_path}")
+    else:
+        ext = file_path.suffix.lower()
+        if ext not in IMPORTABLE_FILE_EXTENSIONS:
+            warnings.append(f"扩展名 {ext} 不在导入白名单 {IMPORTABLE_FILE_EXTENSIONS}，实际导入将被跳过")
+    content_hash = source.get("content_hash")
+    if isinstance(content_hash, str) and content_hash and not _is_sha256_hex(content_hash):
+        warnings.append("content_hash 格式不正确（必须为 sha256:+64位16进制）")
+    if _is_placeholder_hash(content_hash):
+        warnings.append("content_hash 为全零占位符，导入前需替换为真实文件 hash，否则实际导入将失败")
+    return warnings
 
 
 def validate_manifest(manifest: dict) -> list[str]:
@@ -137,12 +197,7 @@ def validate_manifest(manifest: dict) -> list[str]:
             if not value or not isinstance(value, str):
                 errors.append(f"{prefix} 缺少必填字段: {field}")
         url = source.get("official_url")
-        if (
-            isinstance(url, str)
-            and url
-            and allowlist_strs
-            and not _domain_in_allowlist(url, allowlist_strs)
-        ):
+        if isinstance(url, str) and url and allowlist_strs and not _domain_in_allowlist(url, allowlist_strs):
             errors.append(f"{prefix} official_url 域名不在官方域名白名单: {url}")
         content_hash = source.get("content_hash")
         if isinstance(content_hash, str) and content_hash and not _is_sha256_hex(content_hash):
@@ -235,7 +290,10 @@ async def import_single_file(db: AsyncSession, file_path: Path, application_scen
         file_size = len(content)
 
         storage_dir = build_storage_path(
-            "traditional", _safe_path_segment(sub.name), safe_stem, 1,
+            "traditional",
+            _safe_path_segment(sub.name),
+            safe_stem,
+            1,
         )
         safe_name = _safe_path_segment(file_path.name)
         original_storage_path = f"{storage_dir}/{safe_name}"
@@ -256,8 +314,16 @@ async def import_single_file(db: AsyncSession, file_path: Path, application_scen
         save_file(original_storage_path, content)
 
         node_count, error_msg = await ingest_document_content(
-            db, document, version, original_storage_path, safe_stem, original_content=content,
+            db,
+            document,
+            version,
+            original_storage_path,
+            safe_stem,
+            original_content=content,
         )
+        # H4: 显式将 document.current_version_id 指向新版本，
+        # 与 import_manifest_source 行为一致（ingest 内部也会设置，此处保证可见性）。
+        document.current_version_id = version.id
         await db.flush()
 
         result_data["status"] = "success"
@@ -278,7 +344,10 @@ async def import_single_file(db: AsyncSession, file_path: Path, application_scen
 
 
 async def _get_or_create_subcategory(
-    db: AsyncSession, *, category_key: str, name: str,
+    db: AsyncSession,
+    *,
+    category_key: str,
+    name: str,
 ) -> EngineeringSubcategory:
     result = await db.execute(
         select(EngineeringSubcategory).where(
@@ -312,6 +381,9 @@ async def import_manifest_source(
 
     幂等：相同 rule_package_key + filename 的来源只导入一次。
     新版本（rule_package_key 不同）由 deactivate_previous_rule_packages 处理。
+
+    事务语义（C1）：本函数用 SAVEPOINT (db.begin_nested) 隔离单文件写库失败，
+    不会回滚调用方共享的 session，保证批量导入的原子性按文件粒度隔离。
     """
     rule_package_key = manifest["rule_package_key"]
     scenario = manifest.get("application_scenario", "contract")
@@ -327,7 +399,14 @@ async def import_manifest_source(
         "status": "pending",
         "node_count": 0,
         "error": None,
+        "warnings": [],
     }
+
+    # H2: filename 路径分隔符校验，必须在任何 DB/文件操作前。
+    if not _filename_is_safe(filename):
+        result_data["status"] = "error"
+        result_data["error"] = f"filename 含非法路径字符（禁止 /、\\、..）: {filename}"
+        return result_data
 
     try:
         existing = await db.execute(
@@ -340,7 +419,9 @@ async def import_manifest_source(
             return result_data
 
         if dry_run:
+            # C2/H1: 实质预检 —— 文件存在性、扩展名合法性、content_hash 格式与占位符
             result_data["status"] = "dry_run"
+            result_data["warnings"] = _dry_run_preflight(file_path, source)
             return result_data
 
         content = file_path.read_bytes()
@@ -349,72 +430,87 @@ async def import_manifest_source(
             actual_hash = _sha256_of(content)
             if actual_hash != expected_hash:
                 result_data["status"] = "error"
-                result_data["error"] = (
-                    f"content_hash 不匹配（期望 {expected_hash}，实际 {actual_hash}）"
-                )
+                result_data["error"] = f"content_hash 不匹配（期望 {expected_hash}，实际 {actual_hash}）"
                 return result_data
 
-        sub = await _get_or_create_subcategory(
-            db,
-            category_key=manifest.get("subcategory_category_key", "general"),
-            name=manifest.get("subcategory_name", "默认法规"),
-        )
+        node_count = 0
+        error_msg: str | None = None
+        # C1: SAVEPOINT 隔离单文件写库失败，不回滚共享 session。
+        # 异常时 begin_nested 自动 ROLLBACK TO SAVEPOINT，外层事务与其他文件不受影响。
+        try:
+            async with db.begin_nested():
+                sub = await _get_or_create_subcategory(
+                    db,
+                    category_key=manifest.get("subcategory_category_key", "general"),
+                    name=manifest.get("subcategory_name", "默认法规"),
+                )
 
-        stem = Path(filename).stem.strip() or "untitled"
-        safe_stem = _safe_path_segment(stem)
-        ext = Path(filename).suffix.lower() or ".txt"
+                stem = Path(filename).stem.strip() or "untitled"
+                safe_stem = _safe_path_segment(stem)
+                ext = Path(filename).suffix.lower() or ".txt"
 
-        document = KnowledgeDocument(
-            title=source.get("title") or stem,
-            subcategory_id=sub.id,
-            owner_type="system",
-            owner_user_id=None,
-            application_scenario=scenario,
-            engineering_type_key=engineering_type_key,
-            contract_type_key=contract_type_key,
-            rule_package_key=rule_package_key,
-            is_active=True,
-            source_path=source_path,
-        )
-        db.add(document)
-        await db.flush()
-        await db.refresh(document)
+                document = KnowledgeDocument(
+                    title=source.get("title") or stem,
+                    subcategory_id=sub.id,
+                    owner_type="system",
+                    owner_user_id=None,
+                    application_scenario=scenario,
+                    engineering_type_key=engineering_type_key,
+                    contract_type_key=contract_type_key,
+                    rule_package_key=rule_package_key,
+                    is_active=True,
+                    source_path=source_path,
+                )
+                db.add(document)
+                await db.flush()
+                await db.refresh(document)
 
-        storage_dir = build_storage_path(
-            manifest.get("subcategory_category_key", "general"),
-            _safe_path_segment(sub.name),
-            safe_stem,
-            1,
-        )
-        safe_name = _safe_path_segment(filename)
-        original_storage_path = f"{storage_dir}/{safe_name}"
+                storage_dir = build_storage_path(
+                    manifest.get("subcategory_category_key", "general"),
+                    _safe_path_segment(sub.name),
+                    safe_stem,
+                    1,
+                )
+                safe_name = _safe_path_segment(filename)
+                original_storage_path = f"{storage_dir}/{safe_name}"
 
-        version = DocumentVersion(
-            document_id=document.id,
-            version_number=1,
-            display_name=filename,
-            original_file_path=original_storage_path,
-            status="pending",
-            file_size_bytes=len(content),
-            file_type=ext,
-        )
-        db.add(version)
-        await db.flush()
-        await db.refresh(version)
+                version = DocumentVersion(
+                    document_id=document.id,
+                    version_number=1,
+                    display_name=filename,
+                    original_file_path=original_storage_path,
+                    status="pending",
+                    file_size_bytes=len(content),
+                    file_type=ext,
+                )
+                db.add(version)
+                await db.flush()
+                await db.refresh(version)
 
-        save_file(original_storage_path, content)
+                save_file(original_storage_path, content)
 
-        node_count, error_msg = await ingest_document_content(
-            db, document, version, original_storage_path, safe_stem, original_content=content,
-        )
-        document.current_version_id = version.id
-        await db.flush()
+                node_count, error_msg = await ingest_document_content(
+                    db,
+                    document,
+                    version,
+                    original_storage_path,
+                    safe_stem,
+                    original_content=content,
+                )
+                document.current_version_id = version.id
+                await db.flush()
+        except Exception as exc:
+            # SAVEPOINT 已回滚；记录失败但保持外层 session 可继续提交其他文件
+            result_data["status"] = "error"
+            result_data["error"] = str(exc)
+            logger.exception("导入 manifest 来源失败: %s", filename)
+            return result_data
 
         result_data["status"] = "success"
         result_data["node_count"] = node_count
         result_data["error"] = error_msg
     except Exception as exc:
-        await db.rollback()
+        # 预检/读文件阶段的异常：未进入 SAVEPOINT，无需回滚
         result_data["status"] = "error"
         result_data["error"] = str(exc)
         logger.exception("导入 manifest 来源失败: %s", filename)
@@ -423,7 +519,10 @@ async def import_manifest_source(
 
 
 async def deactivate_previous_rule_packages(
-    db: AsyncSession, active_rule_package_key: str, *, dry_run: bool = False,
+    db: AsyncSession,
+    active_rule_package_key: str,
+    *,
+    dry_run: bool = False,
 ) -> int:
     """停用同包名、不同版本的系统合同规则文档，保留历史记录与索引快照。"""
     base_name = package_base_name(active_rule_package_key)
@@ -490,30 +589,52 @@ async def run_manifest_import(
 
     from app.core.database import async_session
 
-    print(
-        f"[{'dry-run' if dry_run else '导入'}] 规则包 {rule_package_key}, "
-        f"来源 {len(sources)} 个"
-    )
+    print(f"[{'dry-run' if dry_run else '导入'}] 规则包 {rule_package_key}, 来源 {len(sources)} 个")
 
     if dry_run:
+        # C2/H1: dry-run 必须做实质预检（文件存在性、扩展名、content_hash 格式/占位符），
+        # 不能只打印清单让管理员误以为通过即可成功导入。
+        # 文件/hash 预检不依赖数据库，总是执行；数据库相关预检（幂等、停用统计）
+        # 单独 try，不可用则跳过。
+        warnings_total = 0
         for src in sources:
-            print(f"  - {src['filename']}: {src.get('title', '')}")
+            filename = src["filename"]
+            file_path = reference_dir / filename
+            title = src.get("title", "")
+            if not _filename_is_safe(filename):
+                warnings_total += 1
+                print(f"  [错误] {filename}: filename 含非法路径字符（禁止 /、\\、..）")
+                continue
+            src_warnings = _dry_run_preflight(file_path, src)
+            if src_warnings:
+                warnings_total += len(src_warnings)
+                print(f"  - {filename}: {title}")
+                for w in src_warnings:
+                    print(f"      [警告] {w}")
+            else:
+                print(f"  - {filename}: {title} (预检通过)")
         try:
             async with async_session() as db:
                 summary["deactivated"] = await deactivate_previous_rule_packages(
-                    db, rule_package_key, dry_run=True,
+                    db,
+                    rule_package_key,
+                    dry_run=True,
                 )
             print(f"[dry-run] 将停用旧版本文档: {summary['deactivated']}")
         except Exception as exc:
-            # 数据库不可用或 schema 未就绪时，dry-run 仍提供 manifest 预览。
+            # 数据库不可用或 schema 未就绪时，dry-run 仍提供文件/hash 预检结果。
             logger.warning("dry-run 无法统计旧版本文档: %s", type(exc).__name__)
             print("[dry-run] 旧版本停用数量: 数据库不可用，已跳过")
+        summary["warnings"] = warnings_total
+        if warnings_total:
+            print(f"[dry-run] 共 {warnings_total} 项警告/错误，请修复后再实际导入（dry-run 通过 ≠ 实际导入成功）")
         return summary
 
     async with async_session() as db:
         try:
             summary["deactivated"] = await deactivate_previous_rule_packages(
-                db, rule_package_key,
+                db,
+                rule_package_key,
             )
             await db.flush()
 
@@ -528,10 +649,7 @@ async def run_manifest_import(
                 status = result["status"]
                 if status == "success":
                     summary["success"] += 1
-                    print(
-                        f"  [OK] {result['filename']} "
-                        f"(规则包: {rule_package_key}, 节点: {result['node_count']})"
-                    )
+                    print(f"  [OK] {result['filename']} (规则包: {rule_package_key}, 节点: {result['node_count']})")
                 elif status == "skipped":
                     summary["skipped"] += 1
                     print(f"  - {result['filename']} (已存在，跳过)")
@@ -608,8 +726,10 @@ async def run_import(
                 summary["failed"] += 1
                 print(f"  [FAIL] {result['filename']} 错误: {result['error']}")
 
-    print(f"\n导入完成: 总计 {summary['total']}, 成功 {summary['success']}, "
-          f"跳过 {summary['skipped']}, 失败 {summary['failed']}")
+    print(
+        f"\n导入完成: 总计 {summary['total']}, 成功 {summary['success']}, "
+        f"跳过 {summary['skipped']}, 失败 {summary['failed']}"
+    )
     return summary
 
 

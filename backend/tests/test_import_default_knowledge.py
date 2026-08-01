@@ -211,6 +211,71 @@ class TestImportSingleFile:
         assert doc.application_scenario == "bidding"
         assert doc.source_path is not None
 
+    @pytest.mark.asyncio
+    async def test_sets_current_version_id_on_document(self, tmp_path):
+        """H4: import_single_file 必须显式将 document.current_version_id 指向新版本。
+
+        ingest_document_content 被 mock（不会自己设置），因此只有 import_single_file
+        显式赋值才能让断言通过。
+        """
+        from scripts.import_default_knowledge import import_single_file
+
+        fake_file = tmp_path / "招标法.docx"
+        fake_file.write_bytes(b"fake content")
+
+        mock_db = AsyncMock()
+
+        mock_source_result = MagicMock()
+        mock_source_result.scalar_one_or_none.return_value = None
+
+        mock_sub_result = MagicMock()
+        mock_sub = MagicMock()
+        mock_sub.id = 42
+        mock_sub.name = "默认法规"
+        mock_sub_result.scalar_one_or_none.return_value = mock_sub
+
+        call_count = 0
+
+        async def mock_execute(stmt):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return mock_source_result
+            return mock_sub_result
+
+        mock_db.execute = mock_execute
+
+        created_objects = []
+
+        def capture_add(obj):
+            created_objects.append(obj)
+
+        mock_db.add = capture_add
+
+        async def mock_flush():
+            for obj in created_objects:
+                if not hasattr(obj, "id") or obj.id is None:
+                    obj.id = len(created_objects) + 100
+
+        mock_db.flush = mock_flush
+        mock_db.refresh = AsyncMock()
+
+        captured: dict = {}
+
+        async def fake_ingest(db, document, version, *args, **kwargs):
+            captured["doc"] = document
+            captured["version"] = version
+            return (10, None)
+
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", side_effect=fake_ingest),
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
+            result = await import_single_file(mock_db, fake_file, "bidding")
+
+        assert result["status"] == "success"
+        assert captured["doc"].current_version_id == captured["version"].id
+
 
 class TestRunImport:
     def test_nonexistent_directory_exits(self):
@@ -340,7 +405,9 @@ class TestValidateManifest:
 
     def test_official_url_domain_not_in_allowlist(self):
         source, _ = _build_source(
-            "a.txt", b"x", official_url="http://evil.example.com/law.html",
+            "a.txt",
+            b"x",
+            official_url="http://evil.example.com/law.html",
         )
         manifest = _build_manifest(sources=[source])
         errors = validate_manifest(manifest)
@@ -348,7 +415,9 @@ class TestValidateManifest:
 
     def test_subdomain_of_allowlisted_domain_accepted(self):
         source, _ = _build_source(
-            "a.txt", b"x", official_url="http://www.npc.gov.cn/law.html",
+            "a.txt",
+            b"x",
+            official_url="http://www.npc.gov.cn/law.html",
         )
         manifest = _build_manifest(sources=[source])
         assert validate_manifest(manifest) == []
@@ -381,8 +450,10 @@ class TestImportManifestSource:
         file_path = tmp_path / "民法典合同编.txt"
         file_path.write_bytes(content)
 
-        with patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest, \
-             patch("scripts.import_default_knowledge.save_file"):
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest,
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
             mock_ingest.return_value = (5, None)
             async with async_session() as db:
                 result = await import_manifest_source(db, file_path, source, manifest)
@@ -390,8 +461,7 @@ class TestImportManifestSource:
 
                 doc_id = await db.scalar(
                     select(KnowledgeDocument.id).where(
-                        KnowledgeDocument.source_path
-                        == f"contract-rules://{DEFAULT_RULE_PACKAGE_KEY}/民法典合同编.txt"
+                        KnowledgeDocument.source_path == f"contract-rules://{DEFAULT_RULE_PACKAGE_KEY}/民法典合同编.txt"
                     )
                 )
 
@@ -418,8 +488,10 @@ class TestImportManifestSource:
         file_path.write_bytes(content)
         source_path = f"contract-rules://{DEFAULT_RULE_PACKAGE_KEY}/建筑法.txt"
 
-        with patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest, \
-             patch("scripts.import_default_knowledge.save_file"):
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest,
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
             mock_ingest.return_value = (3, None)
             async with async_session() as db:
                 first = await import_manifest_source(db, file_path, source, manifest)
@@ -443,8 +515,10 @@ class TestImportManifestSource:
         file_path.write_bytes(content)
         source_path = f"contract-rules://{DEFAULT_RULE_PACKAGE_KEY}/a.txt"
 
-        with patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock), \
-             patch("scripts.import_default_knowledge.save_file"):
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock),
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
             async with async_session() as db:
                 result = await import_manifest_source(db, file_path, source, manifest)
                 await db.commit()
@@ -462,14 +536,188 @@ class TestImportManifestSource:
         file_path.write_bytes(content)
         source_path = f"contract-rules://{DEFAULT_RULE_PACKAGE_KEY}/安全生产法.txt"
 
-        with patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock), \
-             patch("scripts.import_default_knowledge.save_file"):
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock),
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
             async with async_session() as db:
                 result = await import_manifest_source(db, file_path, source, manifest, dry_run=True)
                 await db.commit()
 
         assert result["status"] == "dry_run"
         assert await _count_documents_by_source_path(source_path) == 0
+
+    @pytest.mark.asyncio
+    async def test_dry_run_warns_placeholder_hash(self, tmp_path):
+        """H1: dry-run 时全零占位 hash 必须警告，不能让管理员误以为可直接导入成功。"""
+        content = b"civil code body"
+        source, _ = _build_source(
+            "a.txt",
+            content,
+            content_hash="sha256:" + "0" * 64,
+        )
+        manifest = _build_manifest(sources=[source])
+        file_path = tmp_path / "a.txt"
+        file_path.write_bytes(content)
+
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock),
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
+            async with async_session() as db:
+                result = await import_manifest_source(db, file_path, source, manifest, dry_run=True)
+
+        assert result["status"] == "dry_run"
+        warnings = result.get("warnings", [])
+        assert any("占位" in w or "替换" in w or "全零" in w for w in warnings), warnings
+
+    @pytest.mark.asyncio
+    async def test_dry_run_warns_missing_file(self, tmp_path):
+        """C2: dry-run 必须预检本地文件存在性。"""
+        content = b"x"
+        source, _ = _build_source("missing.txt", content)
+        manifest = _build_manifest(sources=[source])
+        file_path = tmp_path / "missing.txt"  # 故意不创建文件
+
+        async with async_session() as db:
+            result = await import_manifest_source(db, file_path, source, manifest, dry_run=True)
+
+        assert result["status"] == "dry_run"
+        assert any("不存在" in w for w in result["warnings"]), result["warnings"]
+
+    @pytest.mark.asyncio
+    async def test_dry_run_warns_disallowed_extension(self, tmp_path):
+        """C2/H3: dry-run 必须用独立的导入白名单预检扩展名（含 .txt，不含 .jpg）。"""
+        content = b"x"
+        source, _ = _build_source("photo.jpg", content)
+        manifest = _build_manifest(sources=[source])
+        file_path = tmp_path / "photo.jpg"
+        file_path.write_bytes(content)
+
+        async with async_session() as db:
+            result = await import_manifest_source(db, file_path, source, manifest, dry_run=True)
+
+        assert result["status"] == "dry_run"
+        assert any("扩展名" in w for w in result["warnings"]), result["warnings"]
+
+    @pytest.mark.asyncio
+    async def test_dry_run_accepts_txt_extension(self, tmp_path):
+        """H3: .txt 必须在导入白名单内，dry-run 无扩展名警告。"""
+        content = b"plain text"
+        source, _ = _build_source("regulation.txt", content)
+        manifest = _build_manifest(sources=[source])
+        file_path = tmp_path / "regulation.txt"
+        file_path.write_bytes(content)
+
+        async with async_session() as db:
+            result = await import_manifest_source(db, file_path, source, manifest, dry_run=True)
+
+        assert result["status"] == "dry_run"
+        assert not any("扩展名" in w for w in result.get("warnings", [])), result.get("warnings", [])
+
+    @pytest.mark.asyncio
+    async def test_rejects_filename_with_parent_traversal(self, tmp_path):
+        """H2: filename 含 '..' 必须拒绝（防止路径遍历），且不得进入 ingest。"""
+        content = b"x"
+        source, _ = _build_source("../evil.txt", content)
+        manifest = _build_manifest(sources=[source])
+        file_path = tmp_path / "evil.txt"
+        file_path.write_bytes(content)
+
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest,
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
+            mock_ingest.return_value = (1, None)
+            async with async_session() as db:
+                result = await import_manifest_source(db, file_path, source, manifest)
+
+        assert result["status"] == "error"
+        assert "filename" in result["error"].lower() or "路径" in result["error"]
+        assert mock_ingest.await_count == 0
+        assert await _count_documents_by_source_path(f"contract-rules://{DEFAULT_RULE_PACKAGE_KEY}/../evil.txt") == 0
+
+    @pytest.mark.asyncio
+    async def test_rejects_filename_with_path_separator(self, tmp_path):
+        """H2: filename 含正斜杠必须拒绝，且不得进入 ingest。"""
+        content = b"x"
+        source, _ = _build_source("subdir/evil.txt", content)
+        manifest = _build_manifest(sources=[source])
+        file_path = tmp_path / "evil.txt"
+        file_path.write_bytes(content)
+
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest,
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
+            mock_ingest.return_value = (1, None)
+            async with async_session() as db:
+                result = await import_manifest_source(db, file_path, source, manifest)
+
+        assert result["status"] == "error"
+        assert "filename" in result["error"].lower() or "路径" in result["error"]
+        assert mock_ingest.await_count == 0
+
+    @pytest.mark.asyncio
+    async def test_rejects_filename_with_backslash(self, tmp_path):
+        """H2: filename 含反斜杠必须拒绝，且不得进入 ingest。"""
+        content = b"x"
+        source, _ = _build_source("subdir\\evil.txt", content)
+        manifest = _build_manifest(sources=[source])
+        file_path = tmp_path / "evil.txt"
+        file_path.write_bytes(content)
+
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest,
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
+            mock_ingest.return_value = (1, None)
+            async with async_session() as db:
+                result = await import_manifest_source(db, file_path, source, manifest)
+
+        assert result["status"] == "error"
+        assert "filename" in result["error"].lower() or "路径" in result["error"]
+        assert mock_ingest.await_count == 0
+
+    @pytest.mark.asyncio
+    async def test_savepoint_isolates_failed_file_in_batch(self, tmp_path):
+        """C1: 单文件失败只回滚该文件 SAVEPOINT，不影响同 session 已成功文件。
+
+        旧实现用 db.rollback() 会回滚整个共享 session，导致先成功的文件也被丢弃；
+        新实现用 db.begin_nested() 隔离。
+        """
+        content_a = b"file A body"
+        content_b = b"file B body"
+        source_a, _ = _build_source("ok.txt", content_a, title="A")
+        source_b, _ = _build_source("bad.txt", content_b, title="B")
+        manifest = _build_manifest(sources=[source_a, source_b])
+        path_a = tmp_path / "ok.txt"
+        path_b = tmp_path / "bad.txt"
+        path_a.write_bytes(content_a)
+        path_b.write_bytes(content_b)
+
+        call_count = 0
+
+        async def fake_ingest(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                raise RuntimeError("ingest B 失败")
+            return (3, None)
+
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", side_effect=fake_ingest),
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
+            async with async_session() as db:
+                result_a = await import_manifest_source(db, path_a, source_a, manifest)
+                result_b = await import_manifest_source(db, path_b, source_b, manifest)
+                await db.commit()
+
+        assert result_a["status"] == "success"
+        assert result_b["status"] == "error"
+        assert await _count_documents_by_source_path(f"contract-rules://{DEFAULT_RULE_PACKAGE_KEY}/ok.txt") == 1
+        assert await _count_documents_by_source_path(f"contract-rules://{DEFAULT_RULE_PACKAGE_KEY}/bad.txt") == 0
 
 
 class TestDeactivatePreviousRulePackages:
@@ -479,31 +727,31 @@ class TestDeactivatePreviousRulePackages:
             sub = EngineeringSubcategory(category_key="general", name="默认法规")
             db.add(sub)
             await db.flush()
-            db.add_all([
-                KnowledgeDocument(
-                    title="旧版 v1",
-                    subcategory_id=sub.id,
-                    owner_type="system",
-                    application_scenario="contract",
-                    rule_package_key="general-engineering-contract-rules:v1",
-                    is_active=True,
-                    source_path="contract-rules://general-engineering-contract-rules:v1/old.txt",
-                ),
-                KnowledgeDocument(
-                    title="更旧 v0",
-                    subcategory_id=sub.id,
-                    owner_type="system",
-                    application_scenario="contract",
-                    rule_package_key="general-engineering-contract-rules:v0",
-                    is_active=True,
-                    source_path="contract-rules://general-engineering-contract-rules:v0/old.txt",
-                ),
-            ])
+            db.add_all(
+                [
+                    KnowledgeDocument(
+                        title="旧版 v1",
+                        subcategory_id=sub.id,
+                        owner_type="system",
+                        application_scenario="contract",
+                        rule_package_key="general-engineering-contract-rules:v1",
+                        is_active=True,
+                        source_path="contract-rules://general-engineering-contract-rules:v1/old.txt",
+                    ),
+                    KnowledgeDocument(
+                        title="更旧 v0",
+                        subcategory_id=sub.id,
+                        owner_type="system",
+                        application_scenario="contract",
+                        rule_package_key="general-engineering-contract-rules:v0",
+                        is_active=True,
+                        source_path="contract-rules://general-engineering-contract-rules:v0/old.txt",
+                    ),
+                ]
+            )
             await db.flush()
 
-            count = await deactivate_previous_rule_packages(
-                db, "general-engineering-contract-rules:v2"
-            )
+            count = await deactivate_previous_rule_packages(db, "general-engineering-contract-rules:v2")
             await db.commit()
 
         assert count == 2
@@ -564,9 +812,7 @@ class TestDeactivatePreviousRulePackages:
             await db.flush()
             other_id, user_id, current_id = other_pkg.id, user_doc.id, current_pkg.id
 
-            count = await deactivate_previous_rule_packages(
-                db, "general-engineering-contract-rules:v1"
-            )
+            count = await deactivate_previous_rule_packages(db, "general-engineering-contract-rules:v1")
             await db.commit()
 
         assert count == 0
@@ -604,9 +850,7 @@ class TestDeactivatePreviousRulePackages:
             await db.flush()
             record_id = record.id
 
-            await deactivate_previous_rule_packages(
-                db, "general-engineering-contract-rules:v2"
-            )
+            await deactivate_previous_rule_packages(db, "general-engineering-contract-rules:v2")
             await db.commit()
 
         async with async_session() as db:
@@ -639,8 +883,10 @@ class TestRunImportManifest:
         ref_dir.mkdir()
         (ref_dir / "民法典合同编.txt").write_bytes(content)
 
-        with patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock), \
-             patch("scripts.import_default_knowledge.save_file"):
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock),
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
             summary = await run_import(
                 reference_dir=ref_dir,
                 manifest_path=manifest_path,
@@ -649,9 +895,47 @@ class TestRunImportManifest:
 
         assert summary["dry_run"] is True
         assert summary["total"] == 1
-        assert await _count_documents_by_source_path(
-            f"contract-rules://{DEFAULT_RULE_PACKAGE_KEY}/民法典合同编.txt"
-        ) == 0
+        assert (
+            await _count_documents_by_source_path(f"contract-rules://{DEFAULT_RULE_PACKAGE_KEY}/民法典合同编.txt") == 0
+        )
+
+    @pytest.mark.asyncio
+    async def test_dry_run_summary_reports_placeholder_hash_warnings(self, tmp_path):
+        """H1: dry-run summary 必须汇总全零占位 hash 警告，提醒管理员替换后再导入。"""
+        from scripts.import_default_knowledge import run_import
+
+        content = b"civil code body"
+        # 全零占位 hash：模拟 default manifest 的设计意图（管理员导入前替换）
+        source = {
+            "title": "测试法规",
+            "official_url": "http://www.npc.gov.cn/example.html",
+            "publish_date": "2020-05-28",
+            "effective_date": "2021-01-01",
+            "version": "2020版",
+            "content_hash": "sha256:" + "0" * 64,
+            "filename": "测试法规.txt",
+        }
+        manifest = _build_manifest(sources=[source])
+        manifest_path = tmp_path / "m.json"
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+        ref_dir = tmp_path / "ref"
+        ref_dir.mkdir()
+        (ref_dir / "测试法规.txt").write_bytes(content)
+
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock),
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
+            summary = await run_import(
+                reference_dir=ref_dir,
+                manifest_path=manifest_path,
+                dry_run=True,
+            )
+
+        assert summary["dry_run"] is True
+        # 全零 hash 必须被汇总到 warnings 计数，且无任何持久化
+        assert summary.get("warnings", 0) >= 1
+        assert await _count_documents_by_source_path(f"contract-rules://{DEFAULT_RULE_PACKAGE_KEY}/测试法规.txt") == 0
 
     @pytest.mark.asyncio
     async def test_version_switch_deactivates_old_snapshot(self, tmp_path):
@@ -670,8 +954,10 @@ class TestRunImportManifest:
         ref_dir.mkdir()
         (ref_dir / "民法典合同编.txt").write_bytes(content_v1)
 
-        with patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest, \
-             patch("scripts.import_default_knowledge.save_file"):
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest,
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
             mock_ingest.return_value = (2, None)
             await run_import(reference_dir=ref_dir, manifest_path=manifest_path_v1)
             v1_count = await _count_documents_by_source_path(
@@ -690,8 +976,10 @@ class TestRunImportManifest:
         manifest_path_v2.write_text(json.dumps(manifest_v2, ensure_ascii=False), encoding="utf-8")
         (ref_dir / "民法典合同编.txt").write_bytes(content_v2)
 
-        with patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest2, \
-             patch("scripts.import_default_knowledge.save_file"):
+        with (
+            patch("scripts.import_default_knowledge.ingest_document_content", new_callable=AsyncMock) as mock_ingest2,
+            patch("scripts.import_default_knowledge.save_file"),
+        ):
             mock_ingest2.return_value = (3, None)
             summary = await run_import(reference_dir=ref_dir, manifest_path=manifest_path_v2)
 
@@ -702,18 +990,10 @@ class TestRunImportManifest:
         v2_path = "contract-rules://general-engineering-contract-rules:v2/民法典合同编.txt"
         async with async_session() as db:
             v1_doc = (
-                await db.execute(
-                    select(KnowledgeDocument).where(
-                        KnowledgeDocument.source_path == v1_path
-                    )
-                )
+                await db.execute(select(KnowledgeDocument).where(KnowledgeDocument.source_path == v1_path))
             ).scalar_one_or_none()
             v2_doc = (
-                await db.execute(
-                    select(KnowledgeDocument).where(
-                        KnowledgeDocument.source_path == v2_path
-                    )
-                )
+                await db.execute(select(KnowledgeDocument).where(KnowledgeDocument.source_path == v2_path))
             ).scalar_one_or_none()
             assert v1_doc is not None and v1_doc.is_active is False
             assert v2_doc is not None and v2_doc.is_active is True
@@ -723,10 +1003,8 @@ async def _count_documents_by_source_path(source_path: str) -> int:
     """按精确 source_path 计数，避免与其他测试的全局残留互相干扰。"""
     async with async_session() as db:
         rows = (
-            await db.execute(
-                select(KnowledgeDocument.id).where(
-                    KnowledgeDocument.source_path == source_path
-                )
-            )
-        ).scalars().all()
+            (await db.execute(select(KnowledgeDocument.id).where(KnowledgeDocument.source_path == source_path)))
+            .scalars()
+            .all()
+        )
         return len(rows)
