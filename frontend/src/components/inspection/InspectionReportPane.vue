@@ -1,5 +1,16 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+import {
+  getRiskChip,
+  isArchivedLegacyRecord,
+  ARCHIVED_LEGACY_HINT,
+  confidenceLabel,
+  isLowConfidence,
+  rulePackageKeysDisplay,
+  knowledgeSourcesDisplay,
+} from '../../composables/inspectionDisplay.js'
+
+const props = defineProps({
   report: { type: Object, default: null },
   error: { type: String, default: null },
   showBack: { type: Boolean, default: true },
@@ -7,15 +18,13 @@ defineProps({
 
 const emit = defineEmits(['export', 'back', 'close'])
 
-const RISK_CHIP = {
-  high: { label: '高风险', cls: 'risk-high' },
-  medium: { label: '中风险', cls: 'risk-medium' },
-  low: { label: '低风险', cls: 'risk-low' },
-}
-
-function getRiskChip(risk) {
-  return RISK_CHIP[risk] || RISK_CHIP.low
-}
+// 任务17：风险等级消费服务端最终值，统一中文标签（含 critical），与历史列表/PDF 一致。
+const riskChip = computed(() => getRiskChip(props.report?.overall_risk))
+const archivedLegacy = computed(() => isArchivedLegacyRecord(props.report))
+const lowConfidence = computed(() => isLowConfidence(props.report))
+const confidenceText = computed(() => confidenceLabel(props.report?.classification_confidence))
+const rulePackages = computed(() => rulePackageKeysDisplay(props.report))
+const knowledgeSources = computed(() => knowledgeSourcesDisplay(props.report?.knowledge_sources_snapshot))
 </script>
 
 <template>
@@ -40,9 +49,20 @@ function getRiskChip(risk) {
         <span class="report-doc-name">
           <span class="material-symbols-outlined">description</span>{{ report.document_name }}
         </span>
-        <span class="risk-chip" :class="getRiskChip(report.overall_risk).cls">
-          {{ getRiskChip(report.overall_risk).label }}
+        <span class="risk-chip" :class="riskChip.cls">
+          {{ riskChip.label }}
         </span>
+      </div>
+
+      <div v-if="archivedLegacy" class="report-archived-hint">
+        <span class="material-symbols-outlined">archive</span>
+        <span>{{ ARCHIVED_LEGACY_HINT }}</span>
+      </div>
+
+      <div v-if="confidenceText !== '未知' || lowConfidence" class="report-classification">
+        <span class="section-label">识别置信度</span>
+        <span class="confidence-pill" :class="{ 'confidence-low': lowConfidence }">{{ confidenceText }}</span>
+        <span v-if="lowConfidence" class="confidence-notice">置信度较低，请人工复核工程/合同类别</span>
       </div>
 
       <p v-if="report.summary" class="report-summary">{{ report.summary }}</p>
@@ -70,6 +90,20 @@ function getRiskChip(risk) {
         <span class="section-label">引用法规</span>
         <div class="regulation-refs">
           <span v-for="ref in report.regulation_refs" :key="ref" class="ref-tag">{{ ref }}</span>
+        </div>
+      </div>
+
+      <div v-if="rulePackages.length" class="regulation-section">
+        <span class="section-label">规则包快照</span>
+        <div class="regulation-refs">
+          <span v-for="pkg in rulePackages" :key="pkg" class="ref-tag">{{ pkg }}</span>
+        </div>
+      </div>
+
+      <div v-if="knowledgeSources.length" class="regulation-section">
+        <span class="section-label">知识来源快照</span>
+        <div class="regulation-refs">
+          <span v-for="src in knowledgeSources" :key="src" class="ref-tag">{{ src }}</span>
         </div>
       </div>
 
@@ -203,6 +237,58 @@ function getRiskChip(risk) {
   border: 1px solid rgba(100, 200, 120, 0.3);
   background: rgba(100, 200, 120, 0.08);
   color: #7dd88a;
+}
+
+.risk-critical {
+  border: 1px solid rgba(255, 99, 99, 0.45);
+  background: rgba(123, 31, 31, 0.28);
+  color: rgba(255, 107, 107, 0.96);
+}
+
+.report-archived-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 180, 171, 0.3);
+  background: rgba(123, 31, 31, 0.15);
+  color: rgba(255, 180, 171, 0.92);
+  font-family: var(--font-mono, "Geist", monospace);
+  font-size: 12px;
+}
+
+.report-archived-hint .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.report-classification {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.confidence-pill {
+  padding: 4px 10px;
+  border: 1px solid rgba(77, 70, 53, 0.3);
+  background: rgba(53, 53, 52, 0.4);
+  color: rgba(208, 197, 175, 0.92);
+  font-family: var(--font-mono, "Geist", monospace);
+  font-size: 12px;
+}
+
+.confidence-pill.confidence-low {
+  border-color: rgba(255, 219, 60, 0.4);
+  background: rgba(255, 219, 60, 0.1);
+  color: rgba(255, 225, 109, 0.95);
+}
+
+.confidence-notice {
+  color: rgba(255, 225, 109, 0.95);
+  font-family: var(--font-mono, "Geist", monospace);
+  font-size: 11px;
 }
 
 .report-summary {
@@ -469,5 +555,22 @@ function getRiskChip(risk) {
   background: rgba(197, 150, 26, 0.06);
   border-color: rgba(111, 86, 48, 0.15);
   color: #6f5630;
+}
+
+[data-theme="light"] .report-archived-hint {
+  border-color: rgba(178, 58, 44, 0.3);
+  background: rgba(178, 58, 44, 0.08);
+  color: rgba(143, 29, 29, 0.95);
+}
+
+[data-theme="light"] .confidence-pill {
+  background: rgba(197, 150, 26, 0.06);
+  border-color: rgba(111, 86, 48, 0.2);
+  color: rgba(111, 86, 48, 0.95);
+}
+
+[data-theme="light"] .confidence-pill.confidence-low,
+[data-theme="light"] .confidence-notice {
+  color: rgba(184, 135, 0, 0.95);
 }
 </style>

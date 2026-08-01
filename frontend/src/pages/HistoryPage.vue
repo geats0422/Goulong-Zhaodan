@@ -1,11 +1,24 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import AppTopNav from '../components/app/AppTopNav.vue'
 import DocumentPreviewPane from '../components/inspection/DocumentPreviewPane.vue'
 import InspectionReportPane from '../components/inspection/InspectionReportPane.vue'
 import InspectionDetailModal from '../components/inspection/InspectionDetailModal.vue'
 import BaseSelect from '../components/ui/BaseSelect.vue'
 import { confirmDialog } from '../composables/useConfirm.js'
+import {
+  riskLabel,
+  riskTone,
+  severityLabel,
+  isArchivedLegacyRecord,
+  classificationDisplayText,
+  engineeringTypeLabel,
+  contractTypeLabel,
+  confidenceLabel,
+  isLowConfidence,
+  rulePackageKeysDisplay,
+  knowledgeSourcesDisplay,
+} from '../composables/inspectionDisplay.js'
 import {
   burnInspectionRecord,
   deleteInspectionRecord,
@@ -15,11 +28,13 @@ import {
   inspectInspectionRecord,
 } from '../services/inspectionApi.js'
 
+// 任务17：风险等级筛选与展示对齐 low/medium/high/critical 四级，统一中文标签。
 const RISK_OPTIONS = [
   { value: '', label: '全部' },
-  { value: 'low', label: '纯净通过' },
-  { value: 'medium', label: '发现疑点' },
-  { value: 'high', label: '高风险偏离' },
+  { value: 'low', label: '低风险' },
+  { value: 'medium', label: '中等风险' },
+  { value: 'high', label: '较高风险' },
+  { value: 'critical', label: '严重风险' },
 ]
 
 const records = ref([])
@@ -38,13 +53,23 @@ const reviewReport = ref(null)
 const reviewError = ref('')
 const reviewing = ref(false)
 
-function riskLabel(risk) {
-  return ({ pending: '等待审查', low: '纯净通过', medium: '发现疑点', high: '高风险偏离' })[risk] || risk || '未评级'
+// 列表项没有新分类字段，归档记录展示归档简提示，其他保留旧标签。
+function rowCategoryLabel(record) {
+  if (isArchivedLegacyRecord(record)) return '已归档'
+  return record.document_type_label || '历史记录'
 }
 
-function riskTone(risk) {
-  return ({ pending: 'warn', low: 'success', medium: 'warn', high: 'danger' })[risk] || 'muted'
-}
+// 详情面板派生展示（消费服务端最终工程/合同类别、置信度、规则包与知识来源快照）。
+const detailArchived = computed(() => isArchivedLegacyRecord(selectedRecord.value))
+const detailClassification = computed(() => classificationDisplayText(selectedRecord.value))
+const detailEngineering = computed(() => engineeringTypeLabel(selectedRecord.value))
+const detailContract = computed(() => contractTypeLabel(selectedRecord.value))
+const detailConfidence = computed(() => confidenceLabel(selectedRecord.value?.classification_confidence))
+const detailLowConfidence = computed(() => isLowConfidence(selectedRecord.value))
+const detailRulePackages = computed(() => rulePackageKeysDisplay(selectedRecord.value))
+const detailKnowledgeSources = computed(
+  () => knowledgeSourcesDisplay(selectedRecord.value?.knowledge_sources_snapshot),
+)
 
 function formatTime(value) {
   if (!value) return '-'
@@ -237,7 +262,9 @@ onMounted(() => loadRecords(1))
                 <span class="material-symbols-outlined">description</span>
                 {{ record.document_name }}
               </td>
-              <td>{{ record.document_type_label || '-' }}</td>
+              <td>
+                <span :class="{ 'category-archived': isArchivedLegacyRecord(record) }">{{ rowCategoryLabel(record) }}</span>
+              </td>
               <td>{{ formatTime(record.created_at) }}</td>
               <td>
                 <span class="issue-pill">{{ record.overall_risk === 'pending' ? '待审查' : `${record.issue_count} 处问题` }}</span>
@@ -335,14 +362,34 @@ onMounted(() => loadRecords(1))
 
         <div v-if="detailLoading" class="modal-loading">正在加载审查详情...</div>
         <template v-else-if="selectedRecord">
+          <div v-if="detailArchived" class="detail-archived-hint">
+            <span class="material-symbols-outlined">archive</span>
+            <span>招投标资料已归档，无法按旧场景重审</span>
+          </div>
+
           <div class="record-meta-grid">
             <div>
               <span>案卷名称</span>
               <strong>{{ selectedRecord.document_name }}</strong>
             </div>
             <div>
+              <span>分类</span>
+              <strong>{{ detailClassification }}</strong>
+            </div>
+            <div>
               <span>工程类别</span>
-              <strong>{{ selectedRecord.document_type_label || '-' }}</strong>
+              <strong>{{ detailEngineering }}</strong>
+            </div>
+            <div>
+              <span>合同类别</span>
+              <strong>{{ detailContract }}</strong>
+            </div>
+            <div>
+              <span>识别置信度</span>
+              <strong>
+                {{ detailConfidence }}
+                <span v-if="detailLowConfidence" class="confidence-tag">低置信度·需复核</span>
+              </strong>
             </div>
             <div>
               <span>体检时间</span>
@@ -353,6 +400,22 @@ onMounted(() => loadRecords(1))
               <strong>{{ riskLabel(selectedRecord.overall_risk) }}</strong>
             </div>
           </div>
+
+          <section v-if="detailRulePackages.length || detailKnowledgeSources.length" class="detail-section">
+            <h3>审查依据快照</h3>
+            <div v-if="detailRulePackages.length" class="snapshot-row">
+              <span class="snapshot-label">规则包</span>
+              <div class="snapshot-tags">
+                <span v-for="pkg in detailRulePackages" :key="pkg" class="snapshot-tag">{{ pkg }}</span>
+              </div>
+            </div>
+            <div v-if="detailKnowledgeSources.length" class="snapshot-row">
+              <span class="snapshot-label">知识来源</span>
+              <div class="snapshot-tags">
+                <span v-for="src in detailKnowledgeSources" :key="src" class="snapshot-tag">{{ src }}</span>
+              </div>
+            </div>
+          </section>
 
           <section class="detail-section">
             <h3>审查摘要</h3>
@@ -365,7 +428,7 @@ onMounted(() => loadRecords(1))
             <article v-for="(issue, idx) in selectedRecord.issues" v-else :key="idx" class="issue-card">
               <div class="issue-card-title">
                 <strong>{{ issue.title || `问题 ${idx + 1}` }}</strong>
-                <span>{{ issue.severity || '未评级' }}</span>
+                <span>{{ severityLabel(issue.severity) }}</span>
               </div>
               <p v-if="issue.description">{{ issue.description }}</p>
               <p v-if="issue.suggestion">建议：{{ issue.suggestion }}</p>
@@ -522,7 +585,76 @@ onMounted(() => loadRecords(1))
 .risk-pill.success { color: #16a05d; }
 .risk-pill.warn { color: #b88700; }
 .risk-pill.danger { color: #c24132; }
+.risk-pill.critical {
+  color: rgba(255, 252, 244, 0.96);
+  background: rgba(123, 31, 31, 0.92);
+  border-color: rgba(123, 31, 31, 0.92);
+}
 .risk-pill.muted { color: #7b633a; }
+
+.category-archived {
+  color: rgba(143, 29, 29, 0.92);
+  font-style: italic;
+}
+
+.detail-archived-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 24px 32px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(178, 58, 44, 0.3);
+  background: rgba(178, 58, 44, 0.08);
+  color: rgba(143, 29, 29, 0.95);
+  font-size: 13px;
+}
+
+.detail-archived-hint .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.confidence-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  border: 1px solid rgba(184, 135, 0, 0.4);
+  background: rgba(184, 135, 0, 0.12);
+  color: rgba(184, 135, 0, 0.95);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.snapshot-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.snapshot-row:last-child {
+  margin-bottom: 0;
+}
+
+.snapshot-label {
+  flex-shrink: 0;
+  min-width: 64px;
+  color: rgba(138, 106, 47, 0.95);
+  font-size: 12px;
+}
+
+.snapshot-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.snapshot-tag {
+  border: 1px solid rgba(138, 106, 47, 0.24);
+  padding: 3px 8px;
+  background: rgba(255, 252, 244, 0.7);
+  color: rgba(92, 66, 18, 0.95);
+  font-size: 12px;
+}
 
 .actions-cell button,
 .archive-pagination button {

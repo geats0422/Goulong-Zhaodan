@@ -5,6 +5,7 @@ import AppTopNav from '../components/app/AppTopNav.vue'
 import DashboardFooter from '../components/app/DashboardFooter.vue'
 import InspectionReviewModal from '../components/inspection/InspectionReviewModal.vue'
 import { useAuth } from '../composables/useAuth.js'
+import { riskStatusText } from '../composables/inspectionDisplay.js'
 import { fetchInspectionRecords } from '../services/inspectionApi.js'
 import { getSettingsOverview } from '../services/settingsApi.js'
 
@@ -19,16 +20,10 @@ const activeKnowledgeTags = ref([])
 
 const defaultKnowledgeTags = ['招投标法', '房建施工规范']
 const mountedKnowledgeTags = computed(() => activeKnowledgeTags.value.length ? activeKnowledgeTags.value : defaultKnowledgeTags)
-function riskText(risk, issueCount = 0) {
-  if (risk === 'pending') return '等待审查'
-  if (risk === 'low') return '纯净通过'
-  if (risk === 'medium') return `${issueCount} 处疑点`
-  if (risk === 'high') return `${issueCount} 处高风险`
-  return '未评级'
-}
 
+// 任务17：风险等级消费统一中文标签（含 critical），与历史列表/报告面板/PDF 一致。
 function riskTone(risk) {
-  return ({ pending: 'amber', low: 'green', medium: 'amber', high: 'red' })[risk] || 'amber'
+  return ({ pending: 'amber', low: 'green', medium: 'amber', high: 'red', critical: 'red' })[risk] || 'amber'
 }
 
 async function loadRecentRecords() {
@@ -36,7 +31,7 @@ async function loadRecentRecords() {
   recentRecords.value = (data.items || []).map((record) => ({
     icon: record.document_name.toLowerCase().endsWith('.pdf') ? 'picture_as_pdf' : 'description',
     name: record.document_name,
-    status: riskText(record.overall_risk, record.issue_count),
+    status: riskStatusText(record.overall_risk, record.issue_count),
     tone: riskTone(record.overall_risk),
   }))
 }
