@@ -44,6 +44,54 @@ class EngineeringSubcategory(Base):
     documents: Mapped[list[KnowledgeDocument]] = relationship(back_populates="subcategory")
 
 
+class InspectionType(Base):
+    __tablename__ = "inspection_types"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    dimension: Mapped[str] = mapped_column(String(20), nullable=False)
+    owner_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("goulong_auth.users.id"), nullable=True,
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    created_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow)
+    updated_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)
+
+    __table_args__ = (
+        CheckConstraint(
+            "dimension IN ('engineering', 'contract')",
+            name="ck_inspection_types_dimension",
+        ),
+        CheckConstraint(
+            "owner_type IN ('system', 'user')",
+            name="ck_inspection_types_owner_type",
+        ),
+        CheckConstraint(
+            "(owner_type = 'system' AND owner_user_id IS NULL) OR "
+            "(owner_type = 'user' AND owner_user_id IS NOT NULL)",
+            name="ck_inspection_types_owner_scope",
+        ),
+        Index(
+            "uq_inspection_types_system_key", "dimension", "key",
+            unique=True, postgresql_where=(owner_type == "system"),
+        ),
+        Index(
+            "uq_inspection_types_system_name", "dimension", "name",
+            unique=True, postgresql_where=(owner_type == "system"),
+        ),
+        Index(
+            "uq_inspection_types_user_key", "dimension", "owner_user_id", "key",
+            unique=True, postgresql_where=(owner_type == "user"),
+        ),
+        Index(
+            "uq_inspection_types_user_name", "dimension", "owner_user_id", "name",
+            unique=True, postgresql_where=(owner_type == "user"),
+        ),
+    )
+
+
 class KnowledgeDocument(Base):
     __tablename__ = "knowledge_documents"
 
@@ -58,6 +106,9 @@ class KnowledgeDocument(Base):
     owner_type: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
     owner_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("goulong_auth.users.id"), nullable=True)
     application_scenario: Mapped[str] = mapped_column(String(20), nullable=False, default="bidding")
+    engineering_type_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    contract_type_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     source_path: Mapped[str | None] = mapped_column(String(1000), unique=True, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         default=_utcnow,
@@ -183,6 +234,16 @@ class InspectionRecord(Base):
     text_preview: Mapped[str] = mapped_column(Text, nullable=False, default="")
     parsed_content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     quota_consumed: Mapped[int] = mapped_column(nullable=False, default=1)
+    detected_engineering_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    final_engineering_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    detected_contract_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    final_contract_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    classification_confidence: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    rule_package_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    classification_source: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    engineering_type_snapshot: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    contract_type_snapshot: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    knowledge_sources_snapshot: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(default=_utcnow)
 
     __table_args__ = (
