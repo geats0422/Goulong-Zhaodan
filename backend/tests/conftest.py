@@ -51,6 +51,7 @@ _CLEANUP_TABLES = [
     "goulong_auth.memberships",
     "zhaodan.api_keys",
     "zhaodan.inspection_records",
+    "zhaodan.inspection_types",
     "zhaodan.knowledge_document_settings",
     "zhaodan.taboo_words",
     "zhaodan.user_profiles",

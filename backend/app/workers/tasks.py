@@ -876,6 +876,23 @@ async def _run_resumable_document_inspection(
         inspection_input=inspection_input,
         fallback_text=fallback_text,
     )
+    if classification is None and inspection_input.application_scenario == "contract":
+        # 任务6/11 契约：合同场景报告总包含分类快照；无法计算真实分类时写入
+        # fallback 默认值（通用工程/其他类），保证历史/PDF/前端展示一致。
+        from app.services.contract_classifier import (
+            DEFAULT_CONTRACT_TYPE,
+            DEFAULT_ENGINEERING_TYPE,
+            ContractClassification,
+        )
+
+        classification = ContractClassification(
+            engineering_type_key=DEFAULT_ENGINEERING_TYPE,
+            contract_type_key=DEFAULT_CONTRACT_TYPE,
+            confidence="low",
+            evidence=[],
+            source="fallback",
+            requires_confirmation=True,
+        )
     content = _serialize_inspection_result(report, classification=classification)
     result_hash = hashlib.sha256(content).hexdigest()
     result_path = f"users/{job.user_id}/documents/{job.job_id}-{uuid.uuid4().hex}.inspection.json.enc"

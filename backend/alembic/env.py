@@ -20,7 +20,10 @@ db_url = os.environ.get("ALEMBIC_DATABASE_URL") or config.get_main_option("sqlal
 db_url = db_url.replace("+asyncpg", "")
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False 避免禁用测试框架（pytest caplog）和应用
+    # 已实例化的 logger；同进程内调用 command.upgrade 时尤其重要，否则后续测试
+    # 的 caplog 会因为 logger 被 fileConfig 静默禁用而捕获不到日志。
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

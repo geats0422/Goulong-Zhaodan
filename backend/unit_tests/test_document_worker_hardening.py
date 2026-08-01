@@ -227,6 +227,7 @@ async def test_inspection_persists_started_input_identity_before_external_call_a
             application_scenario="contract",
         regulation_base={"sources": [{"title": "招标法", "content": "法规正文"}]},
         taboo_words=["绝对保证"],
+        classification_confirmed=True,
     )
     report = InspectionResult("low", "通过", [], ["招标法"])
     started = _job(stage="inspecting", inspection_call_state="started")
@@ -310,7 +311,8 @@ async def test_completed_valid_inspection_artifact_skips_supplier_call() -> None
         inspection_result_hash="f" * 64,
     )
     inspection_input = SimpleNamespace(
-        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[]
+        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[],
+        classification_confirmed=True,
     )
     with (
         patch("app.workers.tasks._load_owned_inspection_input", new=AsyncMock(return_value=inspection_input)),
@@ -337,7 +339,8 @@ async def test_started_without_result_or_corrupt_completed_artifact_safely_rerun
     completed = _job(stage="inspecting", inspection_call_state="completed")
     report = InspectionResult("low", "重跑完成", [], [])
     inspection_input = SimpleNamespace(
-        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[]
+        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[],
+        classification_confirmed=True,
     )
     with (
         patch("app.workers.tasks._load_owned_inspection_input", new=AsyncMock(return_value=inspection_input)),
@@ -357,7 +360,8 @@ async def test_lost_lease_after_inspection_deletes_new_report_and_never_returns_
     started = _job(stage="inspecting", inspection_call_state="started", inspection_input_hash="e" * 64)
     report = InspectionResult("low", "孤儿结果", [], [])
     inspection_input = SimpleNamespace(
-        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[]
+        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[],
+        classification_confirmed=True,
     )
     with (
         patch("app.workers.tasks._load_owned_inspection_input", new=AsyncMock(return_value=inspection_input)),
@@ -377,7 +381,8 @@ async def test_cancel_between_save_and_persist_deletes_new_inspection_result() -
     started = _job(stage="inspecting", inspection_call_state="started", inspection_input_hash="e" * 64)
     report = InspectionResult("low", "孤儿结果", [], [])
     inspection_input = SimpleNamespace(
-        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[]
+        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[],
+        classification_confirmed=True,
     )
     saved_paths: list[str] = []
 
