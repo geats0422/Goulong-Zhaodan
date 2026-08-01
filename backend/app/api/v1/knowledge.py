@@ -300,6 +300,14 @@ async def list_subcategories(
     )
 
 
+def _normalize_type_key(value: str | None) -> str | None:
+    """上传表单中的类别 key 归一化：空白视为未绑定，避免脏数据写入。"""
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_and_ingest(
     file: UploadFile = File(...),
@@ -307,11 +315,16 @@ async def upload_and_ingest(
     application_scenario: str = Form("contract"),
     subcategory_id: int | None = Form(None),
     subcategory_name: str | None = Form(None),
+    engineering_type_key: str | None = Form(None),
+    contract_type_key: str | None = Form(None),
     db=Depends(get_db_session),
     user: CurrentUserContext = Depends(get_current_user),
 ):
     filename = file.filename or "unknown"
     _validate_contract_application_scenario(application_scenario)
+    # 上传固定 contract 场景，写入工程/合同类别绑定（None 表示通用回退）
+    engineering_type_binding = _normalize_type_key(engineering_type_key)
+    contract_type_binding = _normalize_type_key(contract_type_key)
     await require_quota(db, _current_user_id(user))
     try:
         ext = validate_file_type(filename)
@@ -359,6 +372,8 @@ async def upload_and_ingest(
             owner_type="user",
             owner_user_id=owner_user_id,
             application_scenario=application_scenario,
+            engineering_type_key=engineering_type_binding,
+            contract_type_key=contract_type_binding,
         )
         db.add(document)
         await db.flush()

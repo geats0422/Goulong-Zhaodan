@@ -44,6 +44,12 @@ from app.services.inspection_runner import (
     execute_inspection,
     validate_inspection_submission,
 )
+from app.services.knowledge_archive import (
+    ArchiveDeletionError,
+    ArchivedDocumentView,
+    delete_user_archived_document,
+    list_user_archived_documents,
+)
 from app.services.markdown_converter import ConversionError, convert_to_markdown
 from app.services.report_pdf import render_report_pdf
 from app.services.inspection_history import (
@@ -1109,3 +1115,74 @@ async def burn_record_content(
     record.parsed_content = ""
     await db.commit()
     return {"id": record.id, "burned": True}
+
+
+# ─── 任务9: 归档招投标资料只读列表与用户完整删除 ───
+
+
+class ArchivedKnowledgeItem(BaseModel):
+    """归档资料的只读视图项；不暴露版本或存储路径等内部字段。"""
+
+    id: int
+    title: str
+    owner_type: str
+    application_scenario: str
+    is_active: bool
+    created_at: str
+
+
+class ArchivedKnowledgeListResponse(BaseModel):
+    documents: list[ArchivedKnowledgeItem]
+
+
+def _serialize_archived_document(view: ArchivedDocumentView) -> ArchivedKnowledgeItem:
+    return ArchivedKnowledgeItem(
+        id=view.id,
+        title=view.title,
+        owner_type=view.owner_type,
+        application_scenario=view.application_scenario,
+        is_active=view.is_active,
+        created_at=view.created_at,
+    )
+
+
+@router.get("/archived-knowledge", response_model=ArchivedKnowledgeListResponse)
+async def list_archived_knowledge(
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
+) -> ArchivedKnowledgeListResponse:
+    """归档招投标资料只读列表：仅返回当前用户的归档资料。
+
+    系统归档资料由管理员能力单独处理，不在本接口返回，避免普通用户误操作。
+    归档资料 ``is_active`` 持久为 ``False``，且本接口不提供任何重新启用入口。
+    """
+    user_id = _current_user_id(user)
+    views = await list_user_archived_documents(db, user_id)
+    return ArchivedKnowledgeListResponse(
+        documents=[_serialize_archived_document(view) for view in views]
+    )
+
+
+@router.delete("/archived-knowledge/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_archived_knowledge(
+    document_id: int,
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
+) -> Response:
+    """用户完整删除归档资料：原文件、Markdown、索引节点、版本和记录。
+
+    - 仅当前用户拥有的归档资料可删除；系统归档资料按 ``owner_type`` 过滤后返回 404。
+    - 数据库提交失败 → 503 ``archive_delete_failed``，文档保持。
+    - 文件已不存在 → 视为幂等成功，不阻塞数据库清理。
+    - 再次调用 → 404。
+    """
+    user_id = _current_user_id(user)
+    try:
+        deleted = await delete_user_archived_document(
+            db, document_id=document_id, user_id=user_id
+        )
+    except ArchiveDeletionError:
+        raise _type_error(503, "archive_delete_failed", "归档资料删除失败，请稍后重试")
+    if not deleted:
+        raise HTTPException(status_code=404, detail="归档资料不存在或无权删除")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
