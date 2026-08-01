@@ -184,6 +184,8 @@ def test_real_postgres_upgrade_downgrade_and_reupgrade_preserves_legacy_rows() -
 
         command.upgrade(config, "025")
         inspector = inspect(target_engine)
+        with target_engine.connect() as connection:
+            assert connection.execute(text("SELECT COUNT(*) FROM zhaodan.inspection_types")).scalar_one() == 0
         knowledge = inspector.get_columns("knowledge_documents", schema="zhaodan")
         assert next(column for column in knowledge if column["name"] == "is_active")["default"] in {"true", "TRUE"}
         inspection_type_columns = inspector.get_columns("inspection_types", schema="zhaodan")
