@@ -13,6 +13,12 @@ from app.core.data_masking import mask_sensitive_data
 DEFAULT_PROMPT_CHAR_BUDGET = 60000
 MIN_DOCUMENT_CHARS = 2000
 
+CONTRACT_CLASSIFIER_SYSTEM_PROMPT = """你是合同初审分类器。请严格输出 JSON，工程类别和合同类别是两个独立维度。
+工程类别只能是 building-construction、municipal-road、decoration-renovation、
+mechanical-electrical-installation、steel-structure、general-engineering；
+合同类别只能是 labor-subcontract、professional-subcontract、other。
+同时输出 confidence（high/medium/low）和 evidence（字符串数组）。不要输出 bidding。"""
+
 
 def _prompt_char_budget() -> int:
     return max(MIN_DOCUMENT_CHARS, settings.inspection_prompt_char_budget or DEFAULT_PROMPT_CHAR_BUDGET)
