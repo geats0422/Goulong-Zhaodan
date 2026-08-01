@@ -571,6 +571,11 @@ class InspectionRecordListItem(BaseModel):
     issue_count: int
     document_type: str
     document_type_label: str
+    # 分类快照：历史列表需直接展示工程类别，避免只显示粗粒度「合同」
+    engineering_type_snapshot: str | None = None
+    contract_type_snapshot: str | None = None
+    classification_confidence: str | None = None
+    classification_display: str = ""
     created_at: str
 
 
@@ -936,6 +941,10 @@ async def list_records(
                 issue_count=len(r.issues or []),
                 document_type=r.document_type,
                 document_type_label=r.document_type_label,
+                engineering_type_snapshot=r.engineering_type_snapshot,
+                contract_type_snapshot=r.contract_type_snapshot,
+                classification_confidence=r.classification_confidence,
+                classification_display=classification_display(r),
                 created_at=r.created_at.isoformat(),
             )
             for r in records

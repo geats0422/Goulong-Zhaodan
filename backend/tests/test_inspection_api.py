@@ -44,7 +44,10 @@ from app.models.knowledge import (  # noqa: E402
 )
 from app.api.v1 import inspection as inspection_router  # noqa: E402
 from app.services import inspection_runner  # noqa: E402
-from app.services.inspection_history import rule_package_keys_display  # noqa: E402
+from app.services.inspection_history import (  # noqa: E402
+    classification_display,
+    rule_package_keys_display,
+)
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
 
 
@@ -1303,3 +1306,73 @@ async def test_execute_inspection_manual_selection_writes_manual_source_and_keep
     assert restored.detected_contract_type == "other"
     assert restored.classification_evidence == ["初筛关键词"]
     assert restored.rule_package_keys_snapshot == ["pkg-x:v1"]
+
+
+@pytest.mark.asyncio
+async def test_records_list_returns_classification_snapshot_fields(client: AsyncClient):
+    """GET /inspection/records 列表项必须返回分类快照字段，供历史列表展示工程类别。
+
+    前端历史列表只能拿到列表接口数据（详情需额外请求），因此列表项需要携带
+    engineering_type_snapshot / contract_type_snapshot / classification_confidence
+    及组合展示字段 classification_display，避免只显示粗粒度「合同」。
+    """
+    headers, user_id = await register_and_auth(client, "list_snapshot_user")
+    async with async_session() as session:
+        record = InspectionRecord(
+            user_id=uuid.UUID(user_id),
+            document_name="合同.txt",
+            document_type="contract",
+            document_type_label="合同",
+            status="completed",
+            overall_risk="low",
+            summary="ok",
+            engineering_type_snapshot="市政道路",
+            contract_type_snapshot="劳务分包",
+            classification_confidence="medium",
+            classification_source="model",
+        )
+        session.add(record)
+        await session.commit()
+        await session.refresh(record)
+        record_id = record.id
+
+    response = await client.get("/inspection/records", headers=headers)
+    assert response.status_code == 200
+    item = next(it for it in response.json()["items"] if it["id"] == record_id)
+    assert item["engineering_type_snapshot"] == "市政道路"
+    assert item["contract_type_snapshot"] == "劳务分包"
+    assert item["classification_confidence"] == "medium"
+    # 组合展示字段复用 inspection_history.classification_display 逻辑
+    assert item["classification_display"] == classification_display(record)
+    assert item["classification_display"] == "市政道路 / 劳务分包"
+
+
+@pytest.mark.asyncio
+async def test_records_list_classification_display_falls_back_for_legacy_records(
+    client: AsyncClient,
+):
+    """无快照的 legacy 记录在列表中应退化到通用工程合同文案，且快照字段为 None。"""
+    headers, user_id = await register_and_auth(client, "list_legacy_user")
+    async with async_session() as session:
+        record = InspectionRecord(
+            user_id=uuid.UUID(user_id),
+            document_name="旧合同.txt",
+            document_type="contract",
+            document_type_label="合同",
+            status="completed",
+            overall_risk="low",
+            summary="ok",
+            classification_source="legacy",
+        )
+        session.add(record)
+        await session.commit()
+        await session.refresh(record)
+        record_id = record.id
+
+    response = await client.get("/inspection/records", headers=headers)
+    assert response.status_code == 200
+    item = next(it for it in response.json()["items"] if it["id"] == record_id)
+    assert item["engineering_type_snapshot"] is None
+    assert item["contract_type_snapshot"] is None
+    assert item["classification_confidence"] is None
+    assert item["classification_display"] == "历史记录 / 通用工程合同"
