@@ -8,7 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, text, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import InspectionRecord, InspectionType, KnowledgeDocument
@@ -32,24 +33,16 @@ DEFAULT_RULE_PACKAGE_KEY = "general-engineering-contract-rules:v1"
 
 
 async def seed_system_types(db: AsyncSession) -> int:
-    """插入系统预设；只按稳定 key 判断，绝不覆盖已有记录。"""
+    """使用 PostgreSQL 原子 upsert 插入预设，不覆盖已有系统记录。"""
     inserted = 0
     for dimension, presets in (
         ("engineering", ENGINEERING_TYPE_PRESETS),
         ("contract", CONTRACT_TYPE_PRESETS),
     ):
         for key, name in presets:
-            exists = await db.scalar(
-                select(InspectionType.id).where(
-                    InspectionType.dimension == dimension,
-                    InspectionType.key == key,
-                    InspectionType.owner_type == "system",
-                )
-            )
-            if exists is not None:
-                continue
-            db.add(
-                InspectionType(
+            statement = (
+                pg_insert(InspectionType)
+                .values(
                     key=key,
                     name=name,
                     dimension=dimension,
@@ -57,10 +50,59 @@ async def seed_system_types(db: AsyncSession) -> int:
                     owner_user_id=None,
                     enabled=True,
                 )
+                .on_conflict_do_nothing(
+                    index_elements=[InspectionType.dimension, InspectionType.key],
+                    index_where=text("owner_type = 'system'"),
+                )
             )
-            inserted += 1
-    await db.flush()
+            result = await db.execute(statement)
+            inserted += result.rowcount or 0
     return inserted
+
+
+async def inspect_backfill(db: AsyncSession) -> dict[str, int]:
+    """只读计算回填计划，不执行写入、flush 或更新。"""
+    with db.no_autoflush:
+        existing_keys = {
+            (dimension, key)
+            for dimension, key in (
+                await db.execute(
+                    select(InspectionType.dimension, InspectionType.key).where(
+                        InspectionType.owner_type == "system"
+                    )
+                )
+            ).all()
+        }
+        expected_keys = {
+            (dimension, key)
+            for dimension, presets in (
+                ("engineering", ENGINEERING_TYPE_PRESETS),
+                ("contract", CONTRACT_TYPE_PRESETS),
+            )
+            for key, _name in presets
+        }
+        archived_documents = await db.scalar(
+            select(func.count(KnowledgeDocument.id)).where(
+                KnowledgeDocument.application_scenario == "bidding",
+                KnowledgeDocument.is_active.is_(True),
+            )
+        )
+        legacy_records = await db.execute(
+            select(InspectionRecord.document_type, func.count(InspectionRecord.id))
+            .where(
+                InspectionRecord.document_type.in_(('contract', 'bidding')),
+                InspectionRecord.classification_source.is_(None),
+            )
+            .group_by(InspectionRecord.document_type)
+        )
+    record_counts: dict[str, int] = {row[0]: row[1] for row in legacy_records.all()}
+    return {
+        "system_types_existing": len(existing_keys & expected_keys),
+        "system_types_to_insert": len(expected_keys - existing_keys),
+        "archived_documents": archived_documents or 0,
+        "contract_records": record_counts.get("contract", 0),
+        "bidding_records": record_counts.get("bidding", 0),
+    }
 
 
 async def backfill_legacy_data(db: AsyncSession) -> dict[str, int]:
@@ -69,7 +111,10 @@ async def backfill_legacy_data(db: AsyncSession) -> dict[str, int]:
 
     archived_documents = await db.execute(
         update(KnowledgeDocument)
-        .where(KnowledgeDocument.application_scenario == "bidding")
+        .where(
+            KnowledgeDocument.application_scenario == "bidding",
+            KnowledgeDocument.is_active.is_(True),
+        )
         .values(is_active=False)
     )
 
@@ -106,16 +151,15 @@ async def backfill_legacy_data(db: AsyncSession) -> dict[str, int]:
     }
 
 
-async def run_backfill(*, commit: bool = True) -> dict[str, int]:
+async def run_backfill(*, dry_run: bool = False) -> dict[str, int]:
     from app.core.database import async_session
 
     async with async_session() as db:
         try:
+            if dry_run:
+                return await inspect_backfill(db)
             result = await backfill_legacy_data(db)
-            if commit:
-                await db.commit()
-            else:
-                await db.rollback()
+            await db.commit()
             return result
         except Exception:
             await db.rollback()
@@ -125,11 +169,11 @@ async def run_backfill(*, commit: bool = True) -> dict[str, int]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="幂等回填合同初审类型和历史资料")
-    parser.add_argument("--dry-run", action="store_true", help="只验证数据库连接，不提交变更")
+    parser.add_argument("--dry-run", action="store_true", help="只读统计待插入、归档和回填数量，不执行任何写入")
     args = parser.parse_args()
 
     if args.dry_run:
-        print(asyncio.run(run_backfill(commit=False)))
+        print(asyncio.run(run_backfill(dry_run=True)))
         return
     print(asyncio.run(run_backfill()))
 
