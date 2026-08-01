@@ -441,6 +441,8 @@ async def test_agent_parse_creates_pending_record(client: AsyncClient):
     assert data["record_id"] > 0
     assert data["document_name"] == "招标文件.txt"
     assert data["document_type"] == "contract"
+    assert "classification" in data
+    assert "evidence" in data["classification"]
     assert "公开招标" in data["text_preview"]
 
 
@@ -468,6 +470,8 @@ async def test_agent_inspect_by_record_id(client: AsyncClient):
     assert data["id"] == record_id
     assert data["document_name"] == "待审查招标文件.txt"
     assert data["document_type"] == "contract"
+    assert "classification" in data
+    assert isinstance(data["classification"]["evidence"], list)
 
 
 @pytest.mark.asyncio

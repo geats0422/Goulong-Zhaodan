@@ -11,17 +11,34 @@ from app.core.data_encryption import decrypt_text
 from app.core.database import get_db_session
 from app.core.quota import require_quota
 from app.models import InspectionRecord
-from app.services.inspection_runner import InspectionReportResponse, create_pending_inspection_record, execute_inspection
+from app.services.inspection_runner import (
+    InspectionReportResponse,
+    classify_inspection_document,
+    create_pending_inspection_record,
+    execute_inspection,
+)
+from app.services.contract_classifier import screen_contract_rules
 from app.services.inspection_history import classification_display
 from app.services.agent_job_service import create_job, get_job
 from app.services.knowledge_retrieval import retrieve_regulation_base
-from app.api.v1.inspection import _read_inspection_upload_text
+from app.api.v1.inspection import ContractClassificationResponse, _read_inspection_upload_text
 
 router = APIRouter(prefix="/api/v1/agent", tags=["Agent API"])
 
 
 class CreateJobRequest(BaseModel):
     input_payload: dict | None = None
+
+
+def _validate_agent_job_scenario(body: CreateJobRequest | None) -> None:
+    scenario = (body.input_payload or {}).get("application_scenario") if body else None
+    if scenario == "bidding":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "deprecated_application_scenario", "message": "新 Agent 任务仅支持合同场景"},
+        )
+    if scenario is not None and scenario != "contract":
+        raise HTTPException(status_code=400, detail="非法应用场景")
 
 
 def _job_response(job) -> dict:
@@ -55,6 +72,7 @@ async def create_inspect_job(
     user: dict = Depends(require_api_scope("inspection:run")),
     db: AsyncSession = Depends(get_db_session),
 ):
+    _validate_agent_job_scenario(body)
     job = await create_job(
         db,
         user_id=user["user_id"],
@@ -71,6 +89,7 @@ async def create_parse_job(
     user: dict = Depends(require_api_scope("inspection:run")),
     db: AsyncSession = Depends(get_db_session),
 ):
+    _validate_agent_job_scenario(body)
     job = await create_job(
         db,
         user_id=user["user_id"],
@@ -191,6 +210,7 @@ class AgentParseResponse(BaseModel):
     document_type: str
     document_type_label: str
     text_preview: str
+    classification: ContractClassificationResponse
 
 
 @router.post("/parse", response_model=AgentParseResponse)
@@ -202,6 +222,11 @@ async def agent_parse(
 ) -> AgentParseResponse:
     """同步解析：MCP / Agent 客户端上传文件，返回可二次体检的 record_id。"""
     filename, _, text = await _read_inspection_upload_text(file)
+    classification = await classify_inspection_document(
+        document_name=filename,
+        text=text,
+        rule_screening=screen_contract_rules(filename=filename, text=text),
+    )
     record = await create_pending_inspection_record(
         db=db,
         user_id=user["user_id"],
@@ -210,6 +235,7 @@ async def agent_parse(
         document_type_label="合同",
         text=text,
         project_id=project_id,
+        classification=classification,
     )
     return AgentParseResponse(
         record_id=record.id,
@@ -217,6 +243,7 @@ async def agent_parse(
         document_type="contract",
         document_type_label="合同",
         text_preview=text[:500],
+        classification=ContractClassificationResponse(**classification.__dict__),
     )
 
 

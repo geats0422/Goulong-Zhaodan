@@ -25,4 +25,5 @@ class ComputeUsageRecord(Base):
     quota_consumed: Mapped[int] = mapped_column(Integer, nullable=False)
     duration_seconds: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     completed_at: Mapped[datetime.datetime] = mapped_column(nullable=False, index=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
     created_at: Mapped[datetime.datetime] = mapped_column(nullable=False, server_default=func.now())

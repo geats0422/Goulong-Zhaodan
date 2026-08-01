@@ -597,6 +597,8 @@ async def _load_owned_inspection_input(job: _DocumentJobSnapshot) -> _Inspection
             )
             if record is None:
                 raise _DocumentWorkerBusinessError("inspection_failed")
+            if record.document_type == "bidding" or record.classification_source == "archived_legacy":
+                raise _DocumentWorkerBusinessError("deprecated_application_scenario")
         scenario = record.document_type if record is not None and record.document_type == "contract" else "contract"
         taboo_words = await load_user_taboo_words(db, job.user_id)
         regulation_base = await retrieve_regulation_base(
@@ -651,6 +653,7 @@ async def _run_owned_document_inspection(
             regulation_base=inspection_input.regulation_base,
             taboo_words=inspection_input.taboo_words or None,
             db=db,
+            usage_idempotency_prefix=f"{job.job_id}:{getattr(job, 'inspection_input_hash', '')}",
         )
         result = await run_inspection(structured_text, deps)
         await db.commit()

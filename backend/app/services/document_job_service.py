@@ -34,6 +34,7 @@ _SAFE_ERROR_MESSAGES = {
     "file_read": "无法读取已上传的文档",
     "indexing_failed": "文档索引失败，请稍后重试",
     "inspection_failed": "文档审查失败，请稍后重试",
+    "deprecated_application_scenario": "历史招投标记录已归档，无法按旧场景重审",
     "invalid_utf8": "文本文件必须使用 UTF-8 编码",
     "low_quality": "文档文本质量不足",
     "mineru_failed": "MinerU 文档解析失败，请稍后重试",

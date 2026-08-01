@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 PRODUCT = "zhaodan"
 
 
+def usage_idempotency_key(job_id: str, input_hash: str, business_type: str) -> str:
+    return f"{job_id}:{input_hash}:{business_type}"
+
+
 async def record_usage(
     db: AsyncSession,
     user_id: str | uuid.UUID,
@@ -25,6 +29,7 @@ async def record_usage(
     tokens_used: int,
     model_name: str,
     duration_seconds: float = 0.0,
+    idempotency_key: str | None = None,
 ) -> int:
     """记录一次 LLM 调用的 token 消耗并扣减额度。
 
@@ -47,6 +52,17 @@ async def record_usage(
     quota_consumed = tokens_used * multiplier
 
     try:
+        if idempotency_key:
+            existing = (
+                await db.execute(
+                    select(ComputeUsageRecord).where(
+                        ComputeUsageRecord.user_id == user_id,
+                        ComputeUsageRecord.idempotency_key == idempotency_key,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing is not None:
+                return existing.quota_consumed
         record = ComputeUsageRecord(
             user_id=user_id,
             document_name=document_name or "未命名文档",
@@ -57,6 +73,7 @@ async def record_usage(
             quota_consumed=quota_consumed,
             duration_seconds=duration_seconds,
             completed_at=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+            idempotency_key=idempotency_key,
         )
         db.add(record)
 

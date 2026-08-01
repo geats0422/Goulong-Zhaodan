@@ -6,6 +6,7 @@ inspection.py 与 agent.py 共同引用；workers/tasks.py 的异步 runner 也�
 from __future__ import annotations
 
 import logging
+import hashlib
 import uuid
 from typing import Any
 
@@ -21,6 +22,7 @@ from app.models.knowledge import InspectionRecord, TabooWord
 from goulong_auth.models import Membership
 from app.services.knowledge_retrieval import retrieve_regulation_base
 from app.services.contract_classifier import ContractClassification, classify_contract
+from app.services.contract_classifier import screen_contract_rules
 
 _logger = logging.getLogger(__name__)
 
@@ -49,6 +51,7 @@ class InspectionReportResponse(BaseModel):
     document_name: str
     document_type: str = ""
     document_type_label: str = ""
+    classification: dict[str, Any] | None = None
 
 
 def merge_unique_words(*groups: list[str]) -> list[str]:
@@ -72,6 +75,7 @@ async def add_pending_inspection_record(
     document_type_label: str,
     text: str,
     project_id: str = "default",
+    classification: ContractClassification | None = None,
 ) -> InspectionRecord:
     """在调用方事务中追加一条 pending 记录（仅 ``flush``，不 commit/refresh）。
 
@@ -94,6 +98,11 @@ async def add_pending_inspection_record(
         text_preview=text[:500],
         parsed_content=encrypt_text(text),
         quota_consumed=0,
+        detected_engineering_type=classification.engineering_type_key if classification else None,
+        detected_contract_type=classification.contract_type_key if classification else None,
+        classification_confidence=classification.confidence if classification else None,
+        classification_source=classification.source if classification else None,
+        classification_evidence=classification.evidence if classification else None,
     )
     db.add(record)
     await db.flush()
@@ -109,6 +118,7 @@ async def create_pending_inspection_record(
     document_type_label: str,
     text: str,
     project_id: str = "default",
+    classification: ContractClassification | None = None,
 ) -> InspectionRecord:
     """落库一条 pending 记录（已解析、待审查）。"""
     record = await add_pending_inspection_record(
@@ -119,6 +129,7 @@ async def create_pending_inspection_record(
         document_type_label=document_type_label,
         text=text,
         project_id=project_id,
+        classification=classification,
     )
     await db.commit()
     await db.refresh(record)
@@ -162,6 +173,29 @@ async def execute_inspection(
 ) -> InspectionReportResponse:
     """公共审查执行：加载违禁词 → 召回知识库 → 运行 Agent → 保存记录 → 返回报告。"""
 
+    if application_scenario == "bidding":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "deprecated_application_scenario", "message": "新体检仅支持合同场景"},
+        )
+    if application_scenario != "contract":
+        raise HTTPException(status_code=400, detail="非法应用场景")
+    if record_id is not None:
+        existing_record = await db.scalar(
+            select(InspectionRecord).where(
+                InspectionRecord.id == record_id,
+                InspectionRecord.user_id == user_id,
+            )
+        )
+        if existing_record is not None and (
+            existing_record.document_type == "bidding"
+            or existing_record.classification_source == "archived_legacy"
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "deprecated_application_scenario", "message": "历史招投标记录不可按旧场景重审"},
+            )
+
     result_mem = await db.execute(
         select(Membership).where(
             Membership.user_id == user_id,
@@ -180,6 +214,11 @@ async def execute_inspection(
         application_scenario=application_scenario,
         limit=8,
     )
+    classification = await classify_inspection_document(
+        document_name=document_name,
+        text=text,
+        rule_screening=screen_contract_rules(filename=document_name, text=text),
+    )
 
     deps = InspectionDeps(
         project_id=project_id,
@@ -189,6 +228,9 @@ async def execute_inspection(
         regulation_base=regulation_base,
         taboo_words=taboo_list or None,
         db=db,
+        usage_idempotency_prefix="inspection:" + hashlib.sha256(
+            f"{document_name}\n{text}\n{project_id}\n{application_scenario}".encode("utf-8")
+        ).hexdigest(),
     )
 
     try:
@@ -220,6 +262,11 @@ async def execute_inspection(
     record.text_preview = text[:500]
     record.parsed_content = encrypt_text(text)
     record.quota_consumed = getattr(result, "total_quota_consumed", 0) or max(1, len(text) // 500)
+    record.detected_engineering_type = classification.engineering_type_key
+    record.detected_contract_type = classification.contract_type_key
+    record.classification_confidence = classification.confidence
+    record.classification_source = classification.source
+    record.classification_evidence = classification.evidence
 
     # ── 扣减用户配额 ──
     if membership is not None:
@@ -237,4 +284,12 @@ async def execute_inspection(
         document_name=document_name,
         document_type=application_scenario,
         document_type_label=DOCUMENT_TYPE_LABELS.get(application_scenario, application_scenario),
+        classification={
+            "engineering_type_key": classification.engineering_type_key,
+            "contract_type_key": classification.contract_type_key,
+            "confidence": classification.confidence,
+            "evidence": classification.evidence,
+            "source": classification.source,
+            "requires_confirmation": classification.requires_confirmation,
+        },
     )

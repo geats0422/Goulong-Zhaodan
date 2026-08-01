@@ -22,6 +22,7 @@ class InspectionDeps:
     regulation_base: dict[str, Any] | None = None
     taboo_words: list[str] | None = None
     db: Any | None = None
+    usage_idempotency_prefix: str | None = None
 
 
 def get_client_ip(request: Request) -> str:

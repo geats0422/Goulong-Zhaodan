@@ -208,21 +208,13 @@ async def test_run_inspect_executes_inspection_with_payload():
     mock_db_result.scalar_one_or_none = MagicMock(return_value=mock_job)
     mock_session.execute = AsyncMock(return_value=mock_db_result)
 
-    fake_report = SimpleNamespace(id=42, overall_risk="low", document_name="测试招标.pdf")
-
     with (
         patch("app.workers.tasks.async_session", return_value=mock_ctx),
-        patch("app.services.inspection_runner.execute_inspection", new_callable=AsyncMock, return_value=fake_report) as mock_exec,
+        patch("app.services.inspection_runner.execute_inspection", new_callable=AsyncMock) as mock_exec,
+        pytest.raises(ValueError, match="deprecated_application_scenario"),
     ):
-        result = await _run_inspect({}, "job_inspect_1")
-
-    assert result == {"record_id": 42, "overall_risk": "low", "document_name": "测试招标.pdf"}
-    mock_exec.assert_awaited_once()
-    call_kwargs = mock_exec.call_args.kwargs
-    assert call_kwargs["document_name"] == "测试招标.pdf"
-    assert call_kwargs["text"] == "本项目为公开招标采购，投标人须具备相应资质。"
-    assert call_kwargs["application_scenario"] == "bidding"
-    assert str(call_kwargs["user_id"]) == "12345678-1234-1234-1234-123456789012"
+        await _run_inspect({}, "job_inspect_1")
+    mock_exec.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -272,7 +264,7 @@ async def test_run_parse_creates_pending_record_with_text_payload():
 
     assert result["record_id"] == 99
     assert result["document_name"] == "异步招标.txt"
-    assert result["document_type"] == "bidding"
+    assert result["document_type"] == "contract"
     assert "公开招标" in result["text_preview"]
     mock_create.assert_awaited_once()
     call_kwargs = mock_create.call_args.kwargs
@@ -325,19 +317,10 @@ async def test_run_knowledge_upload_uses_existing_ingestion_handler():
     with (
         patch("app.workers.tasks.async_session", return_value=mock_ctx),
         patch("app.api.v1.knowledge.upload_and_ingest", new_callable=AsyncMock, return_value=fake_response) as mock_upload,
+        pytest.raises(ValueError, match="deprecated_application_scenario"),
     ):
-        result = await _run_knowledge_upload({}, "job_knowledge_1")
-
-    assert result == {"document_id": 7, "version_id": 8, "status": "completed"}
-    mock_upload.assert_awaited_once()
-    call_kwargs = mock_upload.call_args.kwargs
-    assert call_kwargs["file"].filename == "法规.pdf"
-    assert call_kwargs["category"] == "general"
-    assert call_kwargs["subcategory_name"] == "测试法规"
-    from app.core.auth import CurrentUserContext
-    assert call_kwargs["user"] == CurrentUserContext(
-        user_id=uuid.UUID("12345678-1234-1234-1234-123456789012")
-    )
+        await _run_knowledge_upload({}, "job_knowledge_1")
+    mock_upload.assert_not_awaited()
 
 
 @pytest.mark.asyncio

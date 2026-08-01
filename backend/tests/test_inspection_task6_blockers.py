@@ -3,9 +3,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from app.models.knowledge import InspectionRecord
+from app.models.compute import ComputeUsageRecord
 from app.services.contract_classifier import ContractClassification
+from app.services.compute_recorder import usage_idempotency_key
+from app.services.compute_recorder import record_usage
+from app.workers.tasks import _require_contract_scenario
 from app.workers.tasks import _classification_record_values, _serialize_inspection_result
 
 
@@ -49,3 +56,40 @@ def test_classification_evidence_has_a_forward_migration_and_reversible_downgrad
     assert 'down_revision: str | None = "025"' in source
     assert '"classification_evidence"' in source
     assert "def downgrade()" in source
+
+
+def test_usage_has_retry_idempotency_key_and_contract_scenario_guard() -> None:
+    assert hasattr(ComputeUsageRecord, "idempotency_key")
+    assert usage_idempotency_key("job-1", "input-hash", "inspection_summary") == (
+        "job-1:input-hash:inspection_summary"
+    )
+
+    try:
+        _require_contract_scenario({"application_scenario": "bidding"})
+    except ValueError as exc:
+        assert str(exc) == "deprecated_application_scenario"
+    else:
+        raise AssertionError("bidding must be rejected before worker execution")
+
+
+@pytest.mark.asyncio
+async def test_completed_usage_is_reused_without_second_charge() -> None:
+    db = MagicMock()
+    db.execute = AsyncMock(
+        return_value=SimpleNamespace(
+            scalar_one_or_none=lambda: SimpleNamespace(quota_consumed=37)
+        )
+    )
+
+    result = await record_usage(
+        db,
+        "12345678-1234-1234-1234-123456789012",
+        business_type="inspection_summary",
+        document_name="合同.txt",
+        tokens_used=100,
+        model_name="deepseek-chat",
+        idempotency_key="job-1:input-hash:inspection_summary",
+    )
+
+    assert result == 37
+    db.add.assert_not_called()
