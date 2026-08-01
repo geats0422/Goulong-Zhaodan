@@ -5,13 +5,12 @@ import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import select, func, or_
+from sqlalchemy import and_, select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.auth import CurrentUserContext, get_current_user
 from app.core.constants import (
-    validate_application_scenario,
     validate_category,
     validate_file_type,
     ENGINEERING_CATEGORIES,
@@ -41,14 +40,31 @@ def _current_user_id(user: CurrentUserContext) -> uuid.UUID:
 
 
 def _is_document_visible(doc: KnowledgeDocument, user_id: uuid.UUID) -> bool:
-    return doc.owner_type == "system" or doc.owner_user_id == user_id
+    return (
+        doc.is_active
+        and doc.application_scenario == "contract"
+        and (doc.owner_type == "system" or doc.owner_user_id == user_id)
+    )
 
 
 def _visible_document_filter(user_id: uuid.UUID):
     return or_(
-        KnowledgeDocument.owner_type == "system",
-        KnowledgeDocument.owner_user_id == user_id,
+        and_(KnowledgeDocument.owner_type == "system"),
+        and_(KnowledgeDocument.owner_type == "user", KnowledgeDocument.owner_user_id == user_id),
     )
+
+
+def _validate_contract_application_scenario(application_scenario: str) -> None:
+    if application_scenario == "bidding":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "deprecated_application_scenario", "message": "新知识库仅支持合同场景"},
+        )
+    if application_scenario != "contract":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "invalid_application_scenario", "message": "非法应用场景"},
+        )
 
 
 def _safe_path_segment(value: str, fallback: str = "untitled") -> str:
@@ -286,22 +302,12 @@ async def upload_and_ingest(
     user: CurrentUserContext = Depends(get_current_user),
 ):
     filename = file.filename or "unknown"
+    _validate_contract_application_scenario(application_scenario)
     await require_quota(db, _current_user_id(user))
     try:
         ext = validate_file_type(filename)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if application_scenario == "bidding":
-        raise HTTPException(
-            status_code=400,
-            detail={"code": "deprecated_application_scenario", "message": "新知识库仅支持合同场景"},
-        )
-
-    try:
-        validate_application_scenario(application_scenario)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
     safe_name = safe_path_segment(filename, fallback=filename)
 
     try:
@@ -414,14 +420,18 @@ async def upload_and_ingest(
 @router.get("/documents", response_model=DocumentListResponse)
 async def list_documents(
     subcategory_id: int,
+    application_scenario: str = "contract",
     db=Depends(get_db_session),
     user: CurrentUserContext = Depends(get_current_user),
 ):
     user_id = _current_user_id(user)
+    _validate_contract_application_scenario(application_scenario)
     result = await db.execute(
         select(KnowledgeDocument)
         .where(
             KnowledgeDocument.subcategory_id == subcategory_id,
+            KnowledgeDocument.application_scenario == application_scenario,
+            KnowledgeDocument.is_active.is_(True),
             _visible_document_filter(user_id),
         )
         .options(
@@ -433,6 +443,8 @@ async def list_documents(
 
     items: list[DocumentItem] = []
     for doc in docs:
+        if not _is_document_visible(doc, user_id):
+            continue
         ver_info = None
         if doc.current_version is not None:
             ver_info = VersionInfo(

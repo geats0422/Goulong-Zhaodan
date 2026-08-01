@@ -103,6 +103,19 @@ class SettingsOverviewResponse(BaseModel):
     taboo_words: list[TabooWordResponse]
 
 
+def _validate_contract_application_scenario(application_scenario: str) -> None:
+    if application_scenario == "bidding":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "deprecated_application_scenario", "message": "新设置知识库仅支持合同场景"},
+        )
+    if application_scenario != "contract":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "invalid_application_scenario", "message": "非法应用场景"},
+        )
+
+
 class ProfileUpdateRequest(BaseModel):
     nickname: str | None = None
     avatar_url: str | None = None
@@ -329,19 +342,35 @@ def _taboo_response(item: TabooWord) -> TabooWordResponse:
     )
 
 
-async def _build_knowledge(db: AsyncSession, user_id: uuid.UUID) -> list[SettingsKnowledgeGroup]:
+async def _build_knowledge(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    application_scenario: str = "contract",
+) -> list[SettingsKnowledgeGroup]:
+    _validate_contract_application_scenario(application_scenario)
     setting_result = await db.execute(
         select(KnowledgeDocumentSetting).where(KnowledgeDocumentSetting.user_id == user_id)
     )
     settings_by_doc = {item.document_id: item.enabled for item in setting_result.scalars().all()}
 
     result = await db.execute(
-        select(KnowledgeDocument).order_by(KnowledgeDocument.owner_type, KnowledgeDocument.title)
+        select(KnowledgeDocument)
+        .where(
+            KnowledgeDocument.application_scenario == application_scenario,
+            KnowledgeDocument.is_active.is_(True),
+            (KnowledgeDocument.owner_type == "system")
+            | ((KnowledgeDocument.owner_type == "user") & (KnowledgeDocument.owner_user_id == user_id)),
+        )
+        .order_by(KnowledgeDocument.owner_type, KnowledgeDocument.title)
     )
     all_docs = result.scalars().all()
 
     groups: dict[str, list[SettingsDocument]] = {}
     for doc in all_docs:
+        if not doc.is_active or doc.application_scenario != application_scenario:
+            continue
+        if doc.owner_type == "user" and doc.owner_user_id != user_id:
+            continue
         groups.setdefault(doc.owner_type, []).append(
             SettingsDocument(
                 id=doc.id,
@@ -357,6 +386,7 @@ async def _build_knowledge(db: AsyncSession, user_id: uuid.UUID) -> list[Setting
 
 @router.get("/overview", response_model=SettingsOverviewResponse)
 async def get_settings_overview(
+    application_scenario: str = "contract",
     db=Depends(get_db_session),
     user: CurrentUserContext = Depends(get_current_user),
 ) -> SettingsOverviewResponse:
@@ -370,7 +400,7 @@ async def get_settings_overview(
 
     return SettingsOverviewResponse(
         profile=_profile_response(db_user, profile, membership),
-        knowledge=await _build_knowledge(db, user_id),
+        knowledge=await _build_knowledge(db, user_id, application_scenario),
         taboo_words=taboo_words,
     )
 
@@ -490,6 +520,22 @@ async def update_knowledge_document_setting(
     document = doc_result.scalar_one_or_none()
     if document is None:
         raise HTTPException(status_code=404, detail="文档不存在")
+
+    if document.application_scenario == "bidding":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "deprecated_application_scenario", "message": "招投标知识库已归档"},
+        )
+    if document.application_scenario != "contract":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "invalid_application_scenario", "message": "非法应用场景"},
+        )
+    if not document.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "inactive_knowledge_document", "message": "文档已停用"},
+        )
 
     if document.owner_type == "user" and document.owner_user_id != user_id:
         raise HTTPException(status_code=403, detail="无权操作此文档")

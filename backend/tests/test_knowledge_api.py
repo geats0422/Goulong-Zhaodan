@@ -85,7 +85,7 @@ def _make_document(id=1, title="招标文件", subcategory_id=1, current_version
     return MagicMock(
         spec=["id", "title", "subcategory_id", "current_version_id",
                "current_version", "subcategory", "created_at", "updated_at",
-               "owner_type", "owner_user_id", "application_scenario", "source_path"],
+               "owner_type", "owner_user_id", "application_scenario", "is_active", "source_path"],
         id=id,
         title=title,
         subcategory_id=subcategory_id,
@@ -94,7 +94,8 @@ def _make_document(id=1, title="招标文件", subcategory_id=1, current_version
         subcategory=None,
         owner_type="user",
         owner_user_id=uuid.UUID("00000000-0000-0000-0000-000000000042"),
-        application_scenario="bidding",
+        application_scenario="contract",
+        is_active=True,
         source_path=None,
         created_at=datetime(2025, 1, 1),
         updated_at=datetime(2025, 1, 1),
@@ -433,7 +434,7 @@ class TestGetOverview:
         doc_item = trad["subcategories"][0]["documents"][0]
         assert doc_item["title"] == "招标文件"
         assert doc_item["owner_type"] == "user"
-        assert doc_item["application_scenario"] == "bidding"
+        assert doc_item["application_scenario"] == "contract"
 
     def test_overview_system_document_metadata(self, client, mock_db):
         sub = _make_subcategory(id=1, category_key="traditional", name="房建")

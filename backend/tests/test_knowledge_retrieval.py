@@ -46,6 +46,10 @@ async def _create_document_with_node(
     owner_user_id: uuid.UUID | None = None,
     status: str = "completed",
     position: int = 1,
+    engineering_type_key: str | None = None,
+    contract_type_key: str | None = None,
+    is_active: bool = True,
+    rule_package_key: str | None = None,
 ) -> int:
     async with async_session() as session:
         sub = EngineeringSubcategory(category_key="traditional", name=f"{title}-分类")
@@ -57,6 +61,10 @@ async def _create_document_with_node(
             owner_type=owner_type,
             owner_user_id=owner_user_id,
             application_scenario=application_scenario,
+            engineering_type_key=engineering_type_key,
+            contract_type_key=contract_type_key,
+            is_active=is_active,
+            rule_package_key=rule_package_key,
         )
         session.add(doc)
         await session.flush()
@@ -89,9 +97,19 @@ async def _create_document_with_node(
 async def test_retrieve_regulation_base_returns_empty_structure():
     user_id = await _create_user()
     async with async_session() as session:
-        result = await retrieve_regulation_base(session, user_id=user_id, application_scenario="bidding", limit=5)
+        result = await retrieve_regulation_base(
+            session,
+            user_id=user_id,
+            application_scenario="contract",
+            engineering_type_key="municipal-road",
+            contract_type_key="professional-subcontract",
+            limit=5,
+        )
 
-    assert result == {"snippets": [], "sources": []}
+    assert result["snippets"] == []
+    assert result["sources"] == []
+    assert result["selection_mode"] == "system_fallback"
+    assert result["fallback_notice"]
 
 
 @pytest.mark.asyncio
@@ -108,20 +126,29 @@ async def test_retrieve_regulation_base_returns_only_matching_system_completed_n
         content="合同系统法规片段",
         owner_type="system",
         application_scenario="contract",
+        rule_package_key="general-engineering-contract-rules:v1",
     )
     await _create_document_with_node(
         title="未完成法规",
         content="不应返回的片段",
         owner_type="system",
-        application_scenario="bidding",
+        application_scenario="contract",
+        rule_package_key="other-package:v1",
         status="pending",
     )
 
     async with async_session() as session:
-        result = await retrieve_regulation_base(session, user_id=user_id, application_scenario="bidding", limit=10)
+        result = await retrieve_regulation_base(
+            session,
+            user_id=user_id,
+            application_scenario="contract",
+            engineering_type_key="general-engineering",
+            contract_type_key="other",
+            limit=10,
+        )
 
-    assert [item["content"] for item in result["snippets"]] == ["招投标系统法规片段"]
-    assert result["sources"] == [{"document_id": result["snippets"][0]["document_id"], "title": "招投标法规", "owner_type": "system"}]
+    assert [item["content"] for item in result["snippets"]] == ["合同系统法规片段"]
+    assert result["sources"][0]["rule_package_key"] == "general-engineering-contract-rules:v1"
 
 
 @pytest.mark.asyncio
@@ -159,3 +186,66 @@ async def test_retrieve_regulation_base_excludes_disabled_user_document_and_defa
 
     assert [item["content"] for item in result["snippets"]] == ["默认启用片段"]
     assert result["sources"][0]["title"] == "用户默认启用文档"
+
+
+@pytest.mark.asyncio
+async def test_user_exact_and_generic_matches_win_without_system_mixing():
+    user_id = await _create_user()
+    await _create_document_with_node(
+        title="系统默认规则", content="系统片段", owner_type="system", application_scenario="contract",
+        rule_package_key="general-engineering-contract-rules:v1",
+    )
+    await _create_document_with_node(
+        title="用户通用规则", content="用户通用片段", owner_type="user", owner_user_id=user_id,
+        application_scenario="contract", engineering_type_key="municipal-road",
+    )
+    await _create_document_with_node(
+        title="用户精确规则", content="用户精确片段", owner_type="user", owner_user_id=user_id,
+        application_scenario="contract", engineering_type_key="municipal-road",
+        contract_type_key="professional-subcontract",
+    )
+
+    async with async_session() as session:
+        result = await retrieve_regulation_base(
+            session, user_id=user_id, application_scenario="contract",
+            engineering_type_key="municipal-road", contract_type_key="professional-subcontract", limit=10,
+        )
+
+    assert {item["content"] for item in result["snippets"]} == {"用户通用片段", "用户精确片段"}
+    assert result["selection_mode"] == "user"
+    assert result["fallback_notice"] is None
+    assert all(source["owner_type"] == "user" for source in result["sources"])
+    assert result["sources"][0]["contract_type_key"] == "professional-subcontract"
+
+
+@pytest.mark.asyncio
+async def test_no_active_matching_user_document_falls_back_to_active_default_package():
+    user_id = await _create_user()
+    other_user_id = await _create_user("other_fallback_user")
+    await _create_document_with_node(
+        title="用户停用规则", content="不应返回", owner_type="user", owner_user_id=user_id,
+        application_scenario="contract", engineering_type_key="municipal-road", is_active=False,
+    )
+    await _create_document_with_node(
+        title="其他用户规则", content="不应返回", owner_type="user", owner_user_id=other_user_id,
+        application_scenario="contract", engineering_type_key="municipal-road",
+    )
+    await _create_document_with_node(
+        title="默认通用规则", content="应回退", owner_type="system", application_scenario="contract",
+        rule_package_key="general-engineering-contract-rules:v1",
+    )
+    await _create_document_with_node(
+        title="停用默认规则", content="不应返回", owner_type="system", application_scenario="contract",
+        rule_package_key="general-engineering-contract-rules:v1", is_active=False,
+    )
+
+    async with async_session() as session:
+        result = await retrieve_regulation_base(
+            session, user_id=user_id, application_scenario="contract",
+            engineering_type_key="municipal-road", contract_type_key="other", limit=10,
+        )
+
+    assert [item["content"] for item in result["snippets"]] == ["应回退"]
+    assert result["selection_mode"] == "system_fallback"
+    assert result["sources"][0]["rule_package_key"] == "general-engineering-contract-rules:v1"
+    assert "回退" in result["fallback_notice"]

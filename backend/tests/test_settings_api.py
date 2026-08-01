@@ -100,7 +100,24 @@ async def test_settings_overview_defaults(client: AsyncClient):
     assert data["profile"]["burn_after_read"] is True
     assert data["taboo_words"] == []
     docs = [doc for cat in data["knowledge"] for sub in cat["subcategories"] for doc in sub["documents"]]
-    assert {"id": doc_id, "title": "施工规范", "enabled": True, "owner_type": "system", "application_scenario": "bidding"} in docs
+    assert {"id": doc_id, "title": "施工规范", "enabled": True, "owner_type": "system", "application_scenario": "contract"} in docs
+
+
+@pytest.mark.asyncio
+async def test_settings_rejects_deprecated_and_invalid_application_scenario(client: AsyncClient):
+    headers = await register_and_auth(client, "settings_scenario_user")
+
+    bidding = await client.get(
+        "/settings/overview", headers=headers, params={"application_scenario": "bidding"}
+    )
+    invalid = await client.get(
+        "/settings/overview", headers=headers, params={"application_scenario": "invalid"}
+    )
+
+    assert bidding.status_code == 400
+    assert bidding.json()["detail"]["code"] == "deprecated_application_scenario"
+    assert invalid.status_code == 400
+    assert invalid.json()["detail"]["code"] == "invalid_application_scenario"
 
 
 @pytest.mark.asyncio
@@ -266,8 +283,8 @@ async def test_toggle_knowledge_document_is_user_scoped(client: AsyncClient):
 
     overview_a = await client.get("/settings/overview", headers=user_a)
     overview_b = await client.get("/settings/overview", headers=user_b)
-    docs_a = [doc for cat in overview_a.json()["knowledge"] for sub in cat["subcategories"] for doc in sub["documents"]]
-    docs_b = [doc for cat in overview_b.json()["knowledge"] for sub in cat["subcategories"] for doc in sub["documents"]]
+    docs_a = [doc for group in overview_a.json()["knowledge"] for doc in group["documents"]]
+    docs_b = [doc for group in overview_b.json()["knowledge"] for doc in group["documents"]]
     assert next(doc for doc in docs_a if doc["id"] == doc_id)["enabled"] is False
     assert next(doc for doc in docs_b if doc["id"] == doc_id)["enabled"] is True
 

@@ -115,6 +115,7 @@ class KnowledgeDocument(Base):
     application_scenario: Mapped[str] = mapped_column(String(20), nullable=False, default="contract")
     engineering_type_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
     contract_type_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    rule_package_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     source_path: Mapped[str | None] = mapped_column(String(1000), unique=True, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
@@ -127,6 +128,19 @@ class KnowledgeDocument(Base):
     subcategory: Mapped[EngineeringSubcategory] = relationship(back_populates="documents")
     versions: Mapped[list[DocumentVersion]] = relationship(back_populates="document", foreign_keys="DocumentVersion.document_id")
     current_version: Mapped[DocumentVersion | None] = relationship(foreign_keys=[current_version_id])
+
+    __table_args__ = (
+        Index(
+            "ix_knowledge_documents_retrieval",
+            "application_scenario",
+            "is_active",
+            "owner_type",
+            "owner_user_id",
+            "engineering_type_key",
+            "contract_type_key",
+            "rule_package_key",
+        ),
+    )
 
 
 class DocumentVersion(Base):
