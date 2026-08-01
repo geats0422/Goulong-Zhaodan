@@ -255,7 +255,7 @@ onMounted(() => loadRecords(1))
               <td colspan="6" class="empty-cell">正在加载审查档案...</td>
             </tr>
             <tr v-else-if="records.length === 0">
-              <td colspan="6" class="empty-cell">暂无审查档案，请先在首页上传合同或招投标文件完成审查。</td>
+              <td colspan="6" class="empty-cell">暂无审查档案，请先在首页上传合同完成审查。</td>
             </tr>
             <tr v-for="record in records" v-else :key="record.id">
               <td class="record-name">

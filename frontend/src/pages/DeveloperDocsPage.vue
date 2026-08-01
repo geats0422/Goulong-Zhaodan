@@ -16,12 +16,12 @@ const mcpTools = [
 
 const cliCommands = [
   { cmd: 'zhaodan me', desc: '检查身份与 scopes' },
-  { cmd: 'zhaodan knowledge:search --query <关键词>', desc: '检索知识库', extra: '[--application-scenario bidding|contract] [--limit 10]' },
+  { cmd: 'zhaodan knowledge:search --query <关键词>', desc: '检索知识库', extra: '[--application-scenario contract] [--limit 10]' },
   { cmd: 'zhaodan records:list', desc: '列出体检记录' },
   { cmd: 'zhaodan records:get --record-id <id>', desc: '获取记录详情' },
-  { cmd: 'zhaodan inspect:text --document-name <name> --text <正文>', desc: '文本体检', extra: '[--application-scenario bidding|contract] [--taboo-words <词>]' },
+  { cmd: 'zhaodan inspect:text --document-name <name> --text <正文>', desc: '文本体检', extra: '[--application-scenario contract] [--taboo-words <词>]' },
   { cmd: 'zhaodan parse:file --file-path <path>', desc: '上传文件解析' },
-  { cmd: 'zhaodan inspect:record --record-id <id>', desc: '基于 record_id 体检', extra: '[--application-scenario bidding|contract] [--taboo-words <词>]' },
+  { cmd: 'zhaodan inspect:record --record-id <id>', desc: '基于 record_id 体检', extra: '[--application-scenario contract] [--taboo-words <词>]' },
   { cmd: 'zhaodan jobs:inspect --document-name <name> --text <正文>', desc: '创建异步体检任务' },
   { cmd: 'zhaodan jobs:parse --file-path <path>', desc: '创建异步解析任务' },
   { cmd: 'zhaodan jobs:status --job-id <id>', desc: '查询异步任务状态' },
@@ -211,7 +211,7 @@ Authorization: Bearer glk_xxx
               <div class="docs-feature">
                 <span class="material-symbols-outlined">fact_check</span>
                 <h4>文档体检</h4>
-                <p>上传招标文件/合同，AI 自动识别风险点并引用法规依据。</p>
+                <p>上传合同文件，AI 自动识别工程类别与合同类别，输出风险点并引用法规依据。</p>
               </div>
               <div class="docs-feature">
                 <span class="material-symbols-outlined">menu_book</span>
@@ -263,7 +263,7 @@ export ZHAODAN_API_BASE_URL="http://localhost:8000"  # 可选，默认即此值<
               <pre><code>curl -X POST http://localhost:8000/api/v1/agent/knowledge/search \
   -H "Authorization: Bearer $ZHAODAN_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"query": "招投标资格条件", "application_scenario": "bidding", "limit": 5}'</code></pre>
+  -d '{"query": "建设工程施工合同违约责任", "application_scenario": "contract", "limit": 5}'</code></pre>
             </div>
           </article>
 
@@ -417,12 +417,20 @@ npm link</code></pre>
                 <span class="docs-code-tag">JSON</span>
               </div>
               <pre><code>{
-  "document_name": "招标文件.txt",
-  "text": "第一章 投标须知...",
-  "application_scenario": "bidding",
+  "document_name": "建设工程施工合同.txt",
+  "text": "第一条 工程概况...",
+  "application_scenario": "contract",
   "taboo_words": "",
   "project_id": "default"
 }</code></pre>
+            </div>
+
+            <div class="docs-callout">
+              <span class="material-symbols-outlined">history</span>
+              <div>
+                <h3>历史兼容字段</h3>
+                <p><code>application_scenario</code> 为历史兼容字段，新业务固定为 <code>contract</code>（合同初审）。旧请求中的 <code>bidding</code> 场景已弃用，服务端会返回 <code>deprecated_application_scenario</code> 错误；历史招投标报告仍可查看，但不可按旧场景重审。</p>
+              </div>
             </div>
           </article>
 

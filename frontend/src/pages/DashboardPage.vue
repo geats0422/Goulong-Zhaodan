@@ -18,7 +18,7 @@ const modalOpen = ref(false)
 const recentRecords = ref([])
 const activeKnowledgeTags = ref([])
 
-const defaultKnowledgeTags = ['招投标法', '房建施工规范']
+const defaultKnowledgeTags = ['民法典合同编', '房建施工规范']
 const mountedKnowledgeTags = computed(() => activeKnowledgeTags.value.length ? activeKnowledgeTags.value : defaultKnowledgeTags)
 
 // 任务17：风险等级消费统一中文标签（含 critical），与历史列表/报告面板/PDF 一致。
