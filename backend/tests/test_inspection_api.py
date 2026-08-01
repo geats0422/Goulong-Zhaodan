@@ -854,6 +854,132 @@ async def test_pending_record_can_be_inspected_from_history(client: AsyncClient,
 
 
 @pytest.mark.asyncio
+async def test_record_reinspect_keeps_original_types_when_only_documents_provided(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch,
+):
+    """重审仅传知识库文档时，必须沿用原记录类别（final 优先于 detected）。
+
+    回归任务8 HIGH：inspect_record 此前把未传类别交给 validate 默认成
+    general-engineering/other，覆盖原记录类别，导致检索用错误类别。
+    """
+    from sqlalchemy import select  # 局部导入，避免改文件顶部导入区
+
+    headers, user_id = await register_and_auth(client, "reinspect_types_user")
+    parsed_text = "甲方与乙方签署合同，约定服务范围与违约责任。"
+
+    from app.core.data_encryption import encrypt_text
+
+    # validate 会校验类别存在；inspection_types 不在 conftest 清理清单内，幂等补齐系统类型，
+    # 并记录本次新建的 id，测试结束在 finally 删除，避免污染其他测试（如 manual_resubmit 直接 add 同名类型）。
+    # 含默认值 general-engineering/other：确保 bug 表现为"检索用错误类别"而非提前 422。
+    created_type_ids: list[int] = []
+    async with async_session() as session:
+        for key, name, dimension in [
+            ("municipal-road", "市政道路", "engineering"),
+            ("professional-subcontract", "专业工程分包", "contract"),
+            ("general-engineering", "通用工程", "engineering"),
+            ("other", "其他类", "contract"),
+        ]:
+            exists = await session.scalar(
+                select(InspectionType).where(
+                    InspectionType.key == key,
+                    InspectionType.dimension == dimension,
+                )
+            )
+            if exists is None:
+                type_obj = InspectionType(
+                    key=key, name=name, dimension=dimension,
+                    owner_type="system", enabled=True,
+                )
+                session.add(type_obj)
+                await session.flush()
+                created_type_ids.append(type_obj.id)
+        await session.commit()
+
+    try:
+        async with async_session() as session:
+            subcategory = EngineeringSubcategory(category_key="contract", name="重审知识库分类")
+            session.add(subcategory)
+            await session.flush()
+            document = KnowledgeDocument(
+                title="重审可用规则", subcategory_id=subcategory.id, owner_type="system",
+                application_scenario="contract", is_active=True,
+            )
+            session.add(document)
+            await session.flush()
+            version = DocumentVersion(
+                document_id=document.id, version_number=1, display_name="规则.md",
+                original_file_path="/tmp/rules.md", status="completed", file_size_bytes=1,
+                file_type=".md",
+            )
+            session.add(version)
+            await session.flush()
+            document.current_version_id = version.id
+            await session.commit()
+            await session.refresh(document)
+            document_id = document.id
+
+        async with async_session() as session:
+            record = InspectionRecord(
+                user_id=uuid.UUID(user_id),
+                document_name="待重审合同.docx",
+                document_type="contract",
+                document_type_label="合同",
+                project_id="default",
+                overall_risk="pending",
+                summary="文件已解析，等待审查",
+                issues=[],
+                regulation_refs=[],
+                text_preview=parsed_text[:500],
+                parsed_content=encrypt_text(parsed_text),
+                quota_consumed=0,
+                detected_engineering_type="general-engineering",
+                final_engineering_type="municipal-road",
+                detected_contract_type="other",
+                final_contract_type="professional-subcontract",
+            )
+            session.add(record)
+            await session.commit()
+            await session.refresh(record)
+            record_id = record.id
+
+        captured: dict[str, object] = {}
+
+        async def fake_retrieve_regulation_base(db, *args, **kwargs):
+            captured["engineering_type_key"] = kwargs.get("engineering_type_key")
+            captured["contract_type_key"] = kwargs.get("contract_type_key")
+            return {"snippets": [], "sources": []}
+
+        async def fake_run_inspection(document_text: str, deps):
+            return SimpleNamespace(
+                overall_risk="low", summary="ok", issues=[], regulation_refs=[],
+            )
+
+        monkeypatch.setattr("app.services.inspection_runner.retrieve_regulation_base", fake_retrieve_regulation_base)
+        monkeypatch.setattr("app.services.inspection_runner.run_inspection", fake_run_inspection)
+
+        inspect_response = await client.post(
+            f"/inspection/records/{record_id}/inspect",
+            headers=headers,
+            json={"knowledge_document_ids": [document_id]},
+        )
+
+        assert inspect_response.status_code == 200, inspect_response.text
+        # 关键断言：检索必须用原记录类别，而非默认 general-engineering/other
+        assert captured["engineering_type_key"] == "municipal-road"
+        assert captured["contract_type_key"] == "professional-subcontract"
+    finally:
+        if created_type_ids:
+            async with async_session() as session:
+                await session.execute(
+                    InspectionType.__table__.delete().where(
+                        InspectionType.id.in_(created_type_ids)
+                    )
+                )
+                await session.commit()
+
+
+@pytest.mark.asyncio
 async def test_record_report_pdf_uses_contract_name_filename(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
     headers, session_id = await register_and_create_parse_session(
         client,

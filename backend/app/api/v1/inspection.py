@@ -1028,13 +1028,20 @@ async def inspect_record(
         "record_id": record.id,
     }
     if body.engineering_type_key is not None or body.contract_type_key is not None or body.knowledge_document_ids is not None:
-        selection = await validate_inspection_submission(
-            db, user_id=user_id, engineering_type_key=body.engineering_type_key,
-            contract_type_key=body.contract_type_key, knowledge_document_ids=body.knowledge_document_ids,
-        )
+        # 重审若未显式覆盖类别，必须沿用原记录类别（final 优先于 detected）：否则校验层会把
+        # None 默认成 general-engineering/other，覆盖原类别导致检索用错误类别（任务8 HIGH）。
+        # 校验统一委托 execute_inspection，避免 API 层与执行层双重校验（任务8 MEDIUM）。
         execute_kwargs.update(
-            engineering_type_key=selection["engineering_type_key"],
-            contract_type_key=selection["contract_type_key"],
+            engineering_type_key=(
+                body.engineering_type_key
+                or record.final_engineering_type
+                or record.detected_engineering_type
+            ),
+            contract_type_key=(
+                body.contract_type_key
+                or record.final_contract_type
+                or record.detected_contract_type
+            ),
             knowledge_document_ids=body.knowledge_document_ids,
         )
     return await execute_inspection(**execute_kwargs)
