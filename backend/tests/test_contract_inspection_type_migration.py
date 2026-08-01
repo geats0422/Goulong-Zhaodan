@@ -8,6 +8,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import URL, make_url
+from sqlalchemy.exc import IntegrityError
 
 from app.models import Base, InspectionRecord, KnowledgeDocument
 
@@ -126,19 +127,61 @@ def test_real_postgres_upgrade_downgrade_and_reupgrade_preserves_legacy_rows() -
             connection.execute(text(f'CREATE DATABASE "{database_name}"'))
         target_url = source_url.set(database=database_name)
         target_engine = create_engine(target_url)
+        with target_engine.begin() as connection:
+            connection.execute(text("CREATE SCHEMA zhaodan"))
+        config = _migration_config(target_url)
+        command.upgrade(config, "017")
+        with target_engine.begin() as connection:
+            for table_name in (
+                "engineering_subcategories",
+                "knowledge_documents",
+                "document_versions",
+                "index_nodes",
+                "user_profiles",
+                "taboo_words",
+                "knowledge_document_settings",
+                "inspection_records",
+                "api_keys",
+                "agent_jobs",
+            ):
+                connection.execute(text(f"ALTER TABLE public.{table_name} SET SCHEMA zhaodan"))
+        command.upgrade(config, "024")
+
         user_id = uuid.uuid4()
         with target_engine.begin() as connection:
-            connection.execute(text("CREATE SCHEMA goulong_auth"))
-            connection.execute(text("CREATE SCHEMA zhaodan"))
-            connection.execute(text("CREATE TABLE goulong_auth.users (id UUID PRIMARY KEY)"))
-            connection.execute(text("CREATE TABLE zhaodan.knowledge_documents (id SERIAL PRIMARY KEY, application_scenario VARCHAR(20) NOT NULL)"))
-            connection.execute(text("CREATE TABLE zhaodan.inspection_records (id SERIAL PRIMARY KEY)"))
-            connection.execute(text("INSERT INTO goulong_auth.users (id) VALUES (:id)"), {"id": user_id})
-            connection.execute(text("INSERT INTO zhaodan.knowledge_documents (application_scenario) VALUES ('bidding')"))
-            connection.execute(text("INSERT INTO zhaodan.inspection_records DEFAULT VALUES"))
+            connection.execute(
+                text(
+                    "INSERT INTO goulong_auth.users (id, nickname, email, hashed_password) "
+                    "VALUES (:id, :nickname, :email, 'test')"
+                ),
+                {"id": user_id, "nickname": f"migration-{user_id.hex}", "email": f"{user_id.hex}@test.local"},
+            )
+            connection.execute(
+                text("INSERT INTO zhaodan.engineering_subcategories (category_key, name) VALUES ('legacy', 'legacy')")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO zhaodan.knowledge_documents "
+                    "(title, subcategory_id, owner_type, owner_user_id, application_scenario, source_path) "
+                    "VALUES ('legacy', (SELECT id FROM zhaodan.engineering_subcategories WHERE category_key = 'legacy'), "
+                    "'user', :user_id, 'bidding', :source_path)"
+                ),
+                {"user_id": user_id, "source_path": f"legacy-{user_id.hex}.txt"},
+            )
+            for _ in range(2):
+                connection.execute(
+                    text(
+                        "INSERT INTO zhaodan.inspection_records "
+                        "(user_id, document_name, document_type, document_type_label, overall_risk, summary, issues, regulation_refs, parsed_content, status) "
+                        "VALUES (:user_id, 'legacy.docx', 'contract', '合同', 'low', 'legacy', '[]', '[]', '', 'completed')"
+                    ),
+                    {"user_id": user_id},
+                )
 
-        config = _migration_config(target_url)
-        command.stamp(config, "024")
+        legacy_record_ids = set()
+        with target_engine.connect() as connection:
+            legacy_record_ids = set(connection.execute(text("SELECT id FROM zhaodan.inspection_records")).scalars())
+
         command.upgrade(config, "025")
         inspector = inspect(target_engine)
         knowledge = inspector.get_columns("knowledge_documents", schema="zhaodan")
@@ -172,18 +215,97 @@ def test_real_postgres_upgrade_downgrade_and_reupgrade_preserves_legacy_rows() -
         with target_engine.connect() as connection:
             assert connection.execute(text("SELECT application_scenario FROM zhaodan.knowledge_documents")).scalar_one() == "bidding"
             assert connection.execute(text("SELECT is_active FROM zhaodan.knowledge_documents")).scalar_one() is True
-        assert {index["name"] for index in inspector.get_indexes("inspection_types", schema="zhaodan")} >= {
-            "uq_inspection_types_system_key",
-            "uq_inspection_types_user_key",
-        }
+
+        def assert_rejected(statement: str, parameters: dict[str, object] | None = None) -> None:
+            with target_engine.begin() as connection:
+                try:
+                    connection.execute(text(statement), parameters or {})
+                except IntegrityError:
+                    return
+            raise AssertionError("数据库约束未拒绝非法写入")
+
+        assert_rejected(
+            "INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type) "
+            "VALUES ('bad', 'bad', 'invalid', 'system')"
+        )
+        assert_rejected(
+            "INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type) "
+            "VALUES ('bad', 'bad', 'engineering', 'invalid')"
+        )
+        assert_rejected(
+            "INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type, owner_user_id) "
+            "VALUES ('bad', 'bad', 'engineering', 'system', :user_id)",
+            {"user_id": user_id},
+        )
+        assert_rejected(
+            "INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type) "
+            "VALUES ('bad', 'bad', 'engineering', 'user')"
+        )
+        assert_rejected(
+            "INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type, owner_user_id) "
+            "VALUES ('bad-fk', 'bad-fk', 'engineering', 'user', :user_id)",
+            {"user_id": uuid.uuid4()},
+        )
+        assert_rejected(
+            "INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type, enabled) "
+            "VALUES ('bad', 'bad', 'engineering', 'system', NULL)"
+        )
+        with target_engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type) VALUES ('system-key', '系统', 'engineering', 'system')")
+            )
+            connection.execute(
+                text("INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type, owner_user_id) VALUES ('user-key', '用户', 'engineering', 'user', :user_id)"),
+                {"user_id": user_id},
+            )
+        assert_rejected(
+            "INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type) VALUES ('system-key', '另一个', 'engineering', 'system')"
+        )
+        assert_rejected(
+            "INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type) VALUES ('another-key', '系统', 'engineering', 'system')"
+        )
+        assert_rejected(
+            "INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type, owner_user_id) VALUES ('user-key', '另一个', 'engineering', 'user', :user_id)",
+            {"user_id": user_id},
+        )
+        assert_rejected(
+            "INSERT INTO zhaodan.inspection_types (key, name, dimension, owner_type, owner_user_id) VALUES ('another-user-key', '用户', 'engineering', 'user', :user_id)",
+            {"user_id": user_id},
+        )
+        assert_rejected(
+            "UPDATE zhaodan.inspection_records SET classification_confidence = 'certain' WHERE id = :id",
+            {"id": next(iter(legacy_record_ids))},
+        )
+        assert_rejected(
+            "UPDATE zhaodan.inspection_records SET classification_source = 'unknown' WHERE id = :id",
+            {"id": next(iter(legacy_record_ids))},
+        )
 
         command.downgrade(config, "024")
         inspector.clear_cache()
         assert not inspector.has_table("inspection_types", schema="zhaodan")
-        assert "is_active" not in {column["name"] for column in inspector.get_columns("knowledge_documents", schema="zhaodan")}
+        for table_name, added_columns in {
+            "knowledge_documents": {"engineering_type_key", "contract_type_key", "is_active"},
+            "inspection_records": {
+                "detected_engineering_type", "final_engineering_type", "detected_contract_type", "final_contract_type",
+                "classification_confidence", "rule_package_key", "classification_source", "engineering_type_snapshot",
+                "contract_type_snapshot", "knowledge_sources_snapshot",
+            },
+        }.items():
+            assert not added_columns & {column["name"] for column in inspector.get_columns(table_name, schema="zhaodan")}
+        assert not {
+            "ck_inspection_records_classification_confidence", "ck_inspection_records_classification_source",
+        } & {
+            constraint["name"]
+            for constraint in inspector.get_check_constraints("inspection_records", schema="zhaodan")
+        }
+        with target_engine.connect() as connection:
+            assert set(connection.execute(text("SELECT id FROM zhaodan.inspection_records")).scalars()) == legacy_record_ids
         command.upgrade(config, "025")
         inspector.clear_cache()
         assert inspector.has_table("inspection_types", schema="zhaodan")
+        with target_engine.connect() as connection:
+            assert set(connection.execute(text("SELECT id FROM zhaodan.inspection_records")).scalars()) == legacy_record_ids
     finally:
         if target_engine is not None:
             target_engine.dispose()
