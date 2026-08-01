@@ -152,6 +152,29 @@ class Settings(BaseSettings):
         extra="ignore",          # 忽略未知环境变量
     )
 
+    @field_validator("environment")
+    @classmethod
+    def _validate_environment(cls, value: str) -> str:
+        """限制 ENVIRONMENT 为 local/development/production。
+
+        - local/development：只记录使用量不拦截额度。
+        - production：执行真实额度检查和消耗。
+        - development：兼容旧配置，按 local 处理并输出迁移提示。
+        - 未知值：校验失败，禁止静默按本地模式运行。
+        """
+        allowed = {"local", "development", "production"}
+        if value not in allowed:
+            raise ValueError(
+                "ENVIRONMENT 必须是 local/development/production 之一，"
+                f"收到未知值 {value!r}；禁止静默按本地模式运行"
+            )
+        if value == "development":
+            _logger.warning(
+                "ENVIRONMENT=development 兼容旧配置，将按 local 处理额度策略；"
+                "建议尽快迁移为 local 或 production"
+            )
+        return value
+
     @field_validator("mineru_trusted_hosts")
     @classmethod
     def validate_mineru_trusted_hosts(cls, value: str) -> str:

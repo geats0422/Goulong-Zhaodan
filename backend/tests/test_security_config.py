@@ -1,8 +1,44 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
+from pydantic import ValidationError
 
 from app.core.config import Settings, assert_production_security
+
+
+def test_environment_rejects_unknown_value():
+    """未知 ENVIRONMENT 必须启动失败，禁止静默按本地模式运行。"""
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(_env_file=None, environment="staging")
+    message = str(exc_info.value)
+    assert "ENVIRONMENT" in message
+    assert "local" in message and "production" in message
+
+
+def test_environment_accepts_local():
+    """local 是推荐的本地调试值，必须被接受。"""
+    s = Settings(_env_file=None, environment="local")
+    assert s.environment == "local"
+
+
+def test_environment_accepts_production():
+    """production 必须被接受。"""
+    s = Settings(_env_file=None, environment="production")
+    assert s.environment == "production"
+
+
+def test_environment_development_emits_migration_warning(caplog):
+    """development 兼容旧配置，必须按 local 处理并输出迁移提示警告。"""
+    with caplog.at_level(logging.WARNING, logger="app.core.config"):
+        s = Settings(_env_file=None, environment="development")
+    assert s.environment == "development"
+    assert any(
+        "local" in rec.message and "迁移" in rec.message
+        for rec in caplog.records
+        if rec.name == "app.core.config"
+    ), "development 必须输出迁移到 local 的提示警告"
 
 
 def test_development_env_skips_check():

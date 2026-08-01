@@ -390,6 +390,9 @@ async def execute_inspection(
     record.regulation_refs = result.regulation_refs
     record.text_preview = text[:500]
     record.parsed_content = encrypt_text(text)
+    # 任务12：调用量记录与环境无关，local/development/production 均写入 quota_consumed，
+    # 便于本地调试观察调用量；额度拦截仅在 API 层 require_quota（production）生效，
+    # 此处不重复门控，保证“记录不被本地环境阻断”。
     record.quota_consumed = getattr(result, "total_quota_consumed", 0) or max(1, len(text) // 500)
     record_values = classification_record_values(classification, regulation_base)
     record_values.update(

@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from goulong_auth.models import Membership
 
+from app.core.config import settings
+
 FREE_MONTHLY_TOKEN_QUOTA = 200_000
 
 INSUFFICIENT_QUOTA_DETAIL = {
@@ -30,7 +32,19 @@ def remaining_tokens(membership) -> int:
     return max(0, effective_token_quota(membership) - used)
 
 
+def is_quota_enforced() -> bool:
+    """额度拦截仅在 production 生效；local/development 只记录使用量不拦截。
+
+    调用量记录（``compute_recorder.record_usage``）与环境无关，任何环境都会写入，
+    因此本地调试可观察调用量而不被额度门阻断。
+    """
+    return settings.environment == "production"
+
+
 async def require_quota(db: AsyncSession, user_id):
+    if not is_quota_enforced():
+        # local/development：只记录使用量，不查询 DB、不拦截请求。
+        return None
     membership = (
         await db.execute(
             select(Membership).where(
