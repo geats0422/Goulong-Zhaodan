@@ -10,9 +10,24 @@ from app.core.config import settings
 
 FREE_MONTHLY_TOKEN_QUOTA = 200_000
 
+# 统一额度不足错误契约：所有解析/审查入口（/parse、/upload、
+# /sessions/{id}/inspect、agent /inspect、知识库上传）共享同一 ``require_quota``
+# 门，因此该结构是后端唯一的额度不足响应。
+#
+# 设计要求：
+# - 保留稳定错误码 ``insufficient_quota``，前端据此识别额度不足弹窗；
+# - 文案与设计稿“当前账户额度不足 / 本次审查需要更多算力额度。”一致；
+# - ``action`` 提供前端可识别的账单跳转结构，统一指向 ``/settings?tab=billing``，
+#   不再指向 ``/pricing``；
+# - 不暴露内部实现细节（模型名、内部路径、token 数量等）。
 INSUFFICIENT_QUOTA_DETAIL = {
     "code": "insufficient_quota",
-    "message": "算力额度不足，请购买额度包后继续使用",
+    "message": "当前账户额度不足，本次审查需要更多算力额度。",
+    "action": {
+        "type": "billing",
+        "path": "/settings?tab=billing",
+        "label": "前往账单与订阅",
+    },
 }
 
 

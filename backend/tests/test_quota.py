@@ -127,7 +127,55 @@ async def test_require_quota_blocks_when_exhausted(monkeypatch):
     with pytest.raises(HTTPException) as exc_info:
         await require_quota(db=db, user_id="test-uid")
     assert exc_info.value.status_code == 402
-    assert exc_info.value.detail["code"] == "insufficient_quota"
+    detail = exc_info.value.detail
+    assert detail["code"] == "insufficient_quota"
+
+
+def test_insufficient_quota_detail_contract_is_stable_and_frontend_ready():
+    """统一额度不足错误契约：稳定错误码 + 统一文案 + 前端可识别的账单跳转结构。
+
+    所有解析/审查入口（/parse、/upload、/sessions/{id}/inspect、agent /inspect、
+    知识库上传）共享同一 ``require_quota`` 门，因此该结构是后端唯一额度不足响应。
+    """
+    from app.core.quota import INSUFFICIENT_QUOTA_DETAIL
+
+    # 稳定错误码：前端据此识别额度不足并打开账单弹窗。
+    assert INSUFFICIENT_QUOTA_DETAIL["code"] == "insufficient_quota"
+    # 统一文案：与设计稿“当前账户额度不足 / 本次审查需要更多算力额度。”一致。
+    message = INSUFFICIENT_QUOTA_DETAIL["message"]
+    assert "当前账户额度不足" in message
+    assert "算力额度" in message
+    # 前端可识别的账单跳转结构：按钮统一跳转 /settings?tab=billing，不再指向 /pricing。
+    action = INSUFFICIENT_QUOTA_DETAIL["action"]
+    assert action["type"] == "billing"
+    assert action["path"] == "/settings?tab=billing"
+    assert action["label"]  # 按钮文案非空
+    # 不暴露内部实现细节：响应中不得出现模型名、内部路径或 token 数量等敏感信息。
+    serialized = repr(INSUFFICIENT_QUOTA_DETAIL)
+    for forbidden in ("model", "deepseek", "token_used", "token_quota", "/app/", "traceback"):
+        assert forbidden not in serialized.lower(), (
+            f"额度不足响应不应暴露内部实现细节：{forbidden}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_require_quota_blocks_returns_unified_402_payload(monkeypatch):
+    """require_quota 抛出的 402 必须携带统一契约结构（含 action 账单跳转）。"""
+    from app.core.quota import INSUFFICIENT_QUOTA_DETAIL, require_quota
+
+    _set_environment(monkeypatch, "production")
+    m = _MockMembership(token_quota=0, token_used=200_000, plan="free")
+    db = MagicMock()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = m
+    db.execute = AsyncMock(return_value=result)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await require_quota(db=db, user_id="test-uid")
+
+    assert exc_info.value.status_code == 402
+    # 抛出的 detail 必须与契约常量完全一致，保证所有入口同构。
+    assert exc_info.value.detail == INSUFFICIENT_QUOTA_DETAIL
 
 
 @pytest.mark.asyncio

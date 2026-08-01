@@ -268,3 +268,61 @@ async def test_parse_persists_record_and_job_in_single_transaction(
     assert response.status_code == 202
     # record 与 job 必须共享同一事务边界，避免悬空 pending 记录或孤儿任务。
     assert captured["record_kwargs"]["db"] is captured["job_db"]
+
+
+def _install_insufficient_quota_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    """让 /parse 入口的 require_quota 在 production 下抛出统一 402 额度不足错误。
+
+    覆盖统一契约：所有解析/审查入口共享同一错误码、文案与账单跳转结构，
+    额度不足时不落盘、不建 job、不进入 worker。
+    """
+    from app.api.v1 import inspection as inspection_api_module
+    from app.core import config
+    from app.core import quota as quota_module
+
+    monkeypatch.setattr(config.settings, "environment", "production")
+
+    async def fake_require_quota(db, user_id):
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=quota_module.INSUFFICIENT_QUOTA_DETAIL,
+        )
+
+    monkeypatch.setattr(inspection_api_module, "require_quota", fake_require_quota)
+
+
+@pytest.mark.asyncio
+async def test_parse_returns_unified_402_when_quota_insufficient(
+    parse_app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """额度不足时 /parse 返回统一 402 契约，且不落盘、不建解析任务。"""
+    from app.core import quota as quota_module
+
+    captured, convert_mock, extract_mock, read_text_mock = _install_async_parse_mocks(monkeypatch)
+    _install_insufficient_quota_guard(monkeypatch)
+    content = "额度耗尽场景下的合同正文。".encode("utf-8")
+
+    async with _client(parse_app) as client:
+        response = await client.post(
+            "/inspection/parse",
+            files={"file": ("合同.txt", content, "text/plain")},
+        )
+
+    assert response.status_code == 402
+    detail = response.json()["detail"]
+    # 统一错误码：前端据此识别额度不足弹窗。
+    assert detail["code"] == "insufficient_quota"
+    # 统一文案。
+    assert "当前账户额度不足" in detail["message"]
+    # 前端可识别的账单跳转结构，统一指向 /settings?tab=billing，不再指向 /pricing。
+    assert detail["action"]["type"] == "billing"
+    assert detail["action"]["path"] == "/settings?tab=billing"
+    # 响应必须与契约常量完全一致，保证所有入口同构。
+    assert detail == quota_module.INSUFFICIENT_QUOTA_DETAIL
+    # 额度门在落盘与建 job 之前拦截，避免无谓 I/O 与悬空任务。
+    assert "save_path" not in captured
+    assert "job_kwargs" not in captured
+    convert_mock.assert_not_called()
+    extract_mock.assert_not_called()
+    read_text_mock.assert_not_called()
