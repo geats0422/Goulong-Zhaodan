@@ -1,0 +1,99 @@
+{
+  "rule_package_key": "general-engineering-contract-rules:v1",
+  "application_scenario": "contract",
+  "engineering_type_key": "general-engineering",
+  "contract_type_key": "other",
+  "subcategory_category_key": "general",
+  "subcategory_name": "默认法规",
+  "official_domain_allowlist": [
+    "npc.gov.cn",
+    "gov.cn",
+    "mohurd.gov.cn",
+    "mem.gov.cn",
+    "mohrss.gov.cn",
+    "court.gov.cn",
+    "chinacourt.org"
+  ],
+  "sources": [
+    {
+      "title": "中华人民共和国民法典（第三编 合同）",
+      "official_url": "http://www.npc.gov.cn/npc/c30834/202006/t20200602_306457.html",
+      "publish_date": "2020-05-28",
+      "effective_date": "2021-01-01",
+      "version": "2020-05-28 修正",
+      "fetched_date": "2026-08-01",
+      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "filename": "民法典合同编.txt"
+    },
+    {
+      "title": "中华人民共和国建筑法",
+      "official_url": "http://www.npc.gov.cn/npc/c2/c30834/201905/t20190524_335631.html",
+      "publish_date": "2019-04-23",
+      "effective_date": "2019-04-23",
+      "version": "2019-04-23 修正",
+      "fetched_date": "2026-08-01",
+      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "filename": "建筑法.txt"
+    },
+    {
+      "title": "建设工程质量管理条例",
+      "official_url": "https://www.mohurd.gov.cn/gongkai/zhengce/zhengcefilelib/200804/t20080403_200804.html",
+      "publish_date": "2019-04-23",
+      "effective_date": "2019-04-23",
+      "version": "2019-04-23 修订",
+      "fetched_date": "2026-08-01",
+      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "filename": "建设工程质量管理条例.txt"
+    },
+    {
+      "title": "建设工程安全生产管理条例",
+      "official_url": "https://www.mohurd.gov.cn/gongkai/zhengce/zhengcefilelib/200804/t20080403_200831.html",
+      "publish_date": "2003-11-24",
+      "effective_date": "2004-02-01",
+      "version": "2003-11-24 公布",
+      "fetched_date": "2026-08-01",
+      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "filename": "建设工程安全生产管理条例.txt"
+    },
+    {
+      "title": "中华人民共和国安全生产法",
+      "official_url": "http://www.npc.gov.cn/npc/c2/c30834/202109/t20210917_313593.html",
+      "publish_date": "2021-06-10",
+      "effective_date": "2021-09-01",
+      "version": "2021-06-10 修正",
+      "fetched_date": "2026-08-01",
+      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "filename": "安全生产法.txt"
+    },
+    {
+      "title": "保障农民工工资支付条例",
+      "official_url": "http://www.gov.cn/zhengce/content/2019-12/30/content_5464900.htm",
+      "publish_date": "2019-12-30",
+      "effective_date": "2020-05-01",
+      "version": "2019-12-30 公布",
+      "fetched_date": "2026-08-01",
+      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "filename": "保障农民工工资支付条例.txt"
+    },
+    {
+      "title": "最高人民法院关于审理建设工程施工合同纠纷案件适用法律问题的解释（一）",
+      "official_url": "https://www.court.gov.cn/fabu-xiangqing-281671.html",
+      "publish_date": "2020-12-29",
+      "effective_date": "2021-01-01",
+      "version": "法释〔2020〕25号",
+      "fetched_date": "2026-08-01",
+      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "filename": "建设工程施工合同纠纷司法解释.txt"
+    },
+    {
+      "title": "建设工程施工合同（示范文本）条款部分",
+      "official_url": "https://www.mohurd.gov.cn/gongkai/zhengce/zhengcefilelib/201803/t20180309_230018.html",
+      "publish_date": "2017-09-22",
+      "effective_date": "2017-10-01",
+      "version": "建市〔2017〕47号 GF-2017-0201",
+      "fetched_date": "2026-08-01",
+      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "filename": "建设工程施工合同示范文本.txt"
+    }
+  ]
+}
