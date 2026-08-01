@@ -280,8 +280,8 @@ async def test_model_timeout_uses_deadline_and_confirmation_fallback() -> None:
 
     _assert_model_call(model, filename=filename, text=text, rule_screening=rules)
     assert cancelled.is_set()
-    assert result.engineering_type_key == "general-engineering"
-    assert result.contract_type_key == "other"
+    assert result.engineering_type_key == "municipal-road"
+    assert result.contract_type_key == "labor-subcontract"
     assert result.requires_confirmation is True
 
 
