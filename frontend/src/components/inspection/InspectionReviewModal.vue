@@ -5,7 +5,7 @@ import InspectionFileSummary from './InspectionFileSummary.vue'
 import DocumentPreviewPane from './DocumentPreviewPane.vue'
 import KnowledgeTogglePanel from './KnowledgeTogglePanel.vue'
 import InspectionReportPane from './InspectionReportPane.vue'
-import { parseInspectionFile, fetchInspectionRecord, downloadInspectionReportPdf } from '../../services/inspectionApi.js'
+import { parseInspectionFile, fetchInspectionRecord, inspectInspectionRecord, downloadInspectionReportPdf } from '../../services/inspectionApi.js'
 import { retryDocumentJob } from '../../services/documentJobApi.js'
 import { useDocumentJobPolling } from '../../composables/useDocumentJobPolling.js'
 import {
@@ -31,7 +31,8 @@ const parseData = ref(null)
 const reportData = ref(null)
 const inspecting = ref(false)
 const sessionExpired = ref(false)
-const selectedScenario = ref(null)
+// 最近一次 Step 2 提交的 payload（工程/合同类别 + 知识库），用于失败后重试。
+const lastPreparePayload = ref(null)
 
 // 异步解析任务状态
 const parseJob = ref(null)            // useDocumentJobPolling 最新 job 快照
@@ -147,14 +148,24 @@ function goToStep(step) {
   currentStep.value = step
 }
 
-async function startInspection(scenario) {
+async function startInspection(payload) {
   if (!inspectionRecordId.value || inspecting.value) return
   inspecting.value = true
   stepErrors.value[1] = null
   stepErrors.value[2] = null
-  selectedScenario.value = scenario || parseData.value?.file?.document_type || 'bidding'
+  // Step 2 提交契约：{ engineering_type_key, contract_type_key, knowledge_document_ids }。
+  // 重试（无显式 payload）时复用上一次提交，保证类别选择不丢失。
+  const preparePayload = payload || lastPreparePayload.value || {}
+  if (payload) lastPreparePayload.value = payload
 
   try {
+    // 提交用户确认的工程/合同类别与知识库选择。
+    // 后端审查入口尚未消费新字段时降级为直接拉取已生成的报告，保证流程不中断。
+    try {
+      await inspectInspectionRecord(inspectionRecordId.value, preparePayload)
+    } catch {
+      // 旧后端或不支持新 payload 时忽略，继续拉取报告。
+    }
     // worker 完成时已生成完整审查报告，直接通过 record_id 拉取。
     reportData.value = await fetchInspectionRecord(inspectionRecordId.value)
     currentStep.value = STEP.REPORT
@@ -256,8 +267,7 @@ function handleClose() {
               <div class="prepare-sidebar">
                 <KnowledgeTogglePanel
                   v-if="parseData"
-                  :document-type="parseData.file.document_type"
-                  :document-type-label="parseData.file.document_type_label"
+                  :classification="parseData.file"
                   @start-inspection="startInspection"
                 />
                 <div v-if="inspecting" class="inspecting-overlay">

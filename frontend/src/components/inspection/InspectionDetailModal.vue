@@ -35,6 +35,8 @@ const fileSummary = computed(() => {
 })
 const reportData = computed(() => {
   if (!record.value) return null
+  // 任务17：透传服务端最终工程/合同类别、置信度、规则包与知识来源快照，
+  // 报告面板据此展示统一风险标签、归档提示、低置信度标识与审查依据快照。
   return {
     id: record.value.id,
     document_name: record.value.document_name,
@@ -42,6 +44,17 @@ const reportData = computed(() => {
     summary: record.value.summary,
     issues: record.value.issues || [],
     regulation_refs: record.value.regulation_refs || [],
+    document_type: record.value.document_type,
+    application_scenario: record.value.application_scenario,
+    classification_source: record.value.classification_source,
+    final_engineering_type: record.value.final_engineering_type,
+    final_contract_type: record.value.final_contract_type,
+    engineering_type_snapshot: record.value.engineering_type_snapshot,
+    contract_type_snapshot: record.value.contract_type_snapshot,
+    classification_confidence: record.value.classification_confidence,
+    rule_package_key: record.value.rule_package_key,
+    rule_package_keys: record.value.rule_package_keys,
+    knowledge_sources_snapshot: record.value.knowledge_sources_snapshot || [],
   }
 })
 
@@ -126,8 +139,7 @@ async function handleExport() {
               <div class="prepare-sidebar">
                 <KnowledgeTogglePanel
                   readonly
-                  :document-type="record.document_type || 'unknown'"
-                  :document-type-label="record.document_type_label || '未知类型'"
+                  :classification="record"
                 />
                 <div class="step-actions">
                   <button class="action-btn secondary" type="button" @click="goToStep(STEP.PARSE)">上一步</button>

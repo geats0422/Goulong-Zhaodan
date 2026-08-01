@@ -49,6 +49,17 @@ export async function inspectInspectionRecord(recordId, payload = {}) {
   }))
 }
 
+// 合同初审准备（Step 2）所需的类别预设查询。
+// 设计依据：docs/designs/2026-08-01-contract-inspection-type-and-quota-design.md
+// 接口由后端任务 4 提供；前端在后端未就绪时回退到 inspectionPrepare 内置预设。
+export async function fetchEngineeringTypes() {
+  return parseResponse(await fetchWithAuth('/inspection/engineering-types'))
+}
+
+export async function fetchContractTypes() {
+  return parseResponse(await fetchWithAuth('/inspection/contract-types'))
+}
+
 export async function fetchInspectionRecords(params = {}) {
   const query = new URLSearchParams(params).toString()
   const url = query ? `/inspection/records?${query}` : '/inspection/records'

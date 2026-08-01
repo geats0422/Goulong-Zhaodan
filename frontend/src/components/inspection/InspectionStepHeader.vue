@@ -5,7 +5,7 @@ defineProps({
     type: Array,
     default: () => [
       { label: '解析文件', icon: 'upload_file' },
-      { label: '审查准备', icon: 'checklist' },
+      { label: '合同初审准备', icon: 'checklist' },
       { label: '审查报告', icon: 'assessment' },
     ],
   },
