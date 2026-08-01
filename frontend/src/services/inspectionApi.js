@@ -16,10 +16,21 @@ async function parseResponse(response) {
     if (response.status === 404 && data.detail === '解析会话不存在') {
       throw new Error('解析会话已失效，请关闭弹窗后重新上传文件')
     }
-    const detail = typeof data.detail === 'object' && data.detail !== null
-      ? data.detail.message || JSON.stringify(data.detail)
-      : data.detail
-    throw new Error(detail || `请求失败（HTTP ${response.status}）`)
+    // 任务 16：透传完整 detail 结构到 Error 属性，避免压扁丢失 code/action/label。
+    // 兼容性：Error.message 行为保持不变（既有的 21 个调用点继续工作）；
+    // 增量：对象型 detail 时把 detail.code / detail.action 挂到 Error 上，
+    // 供额度不足弹窗（isInsufficientQuotaError）等场景使用。
+    if (typeof data.detail === 'object' && data.detail !== null) {
+      const err = new Error(data.detail.message || JSON.stringify(data.detail))
+      if (typeof data.detail.code === 'string') {
+        err.code = data.detail.code
+      }
+      if (data.detail.action && typeof data.detail.action === 'object') {
+        err.action = data.detail.action
+      }
+      throw err
+    }
+    throw new Error(data.detail || `请求失败（HTTP ${response.status}）`)
   }
   return data
 }

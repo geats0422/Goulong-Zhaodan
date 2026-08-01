@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import AppTopNav from '../components/app/AppTopNav.vue'
 import DashboardFooter from '../components/app/DashboardFooter.vue'
 import PaymentModal from '../components/PaymentModal.vue'
@@ -33,7 +34,17 @@ import {
 import { listOrders } from '../services/paymentApi.js'
 import { canDeleteArchived, applyArchiveDeletion } from '../composables/knowledgeArchive.js'
 
-const activeTab = ref('system')
+// 任务 16：读取 query 参数 tab 自动激活对应设置 Tab。
+// 额度不足弹窗跳转目标为 /settings?tab=billing，进入页面后自动打开「账单与订阅管理」。
+const route = useRoute()
+const VALID_TABS = ['system', 'billing', 'model', 'knowledge', 'taboo']
+
+function resolveInitialTab() {
+  const queryTab = typeof route.query.tab === 'string' ? route.query.tab : ''
+  return VALID_TABS.includes(queryTab) ? queryTab : 'system'
+}
+
+const activeTab = ref(resolveInitialTab())
 const tabs = [
   { key: 'system', label: '系统设置' },
   { key: 'billing', label: '账单与订阅管理' },
@@ -666,6 +677,17 @@ onMounted(() => {
   loadApiKeys()
   loadArchivedKnowledge()
 })
+
+// 任务 16：监听路由 query.tab 变化（用户在设置页内再次点击额度跳转链接时，
+// URL 变化但组件已挂载，需要主动同步 activeTab）。
+watch(
+  () => route.query.tab,
+  (nextTab) => {
+    if (typeof nextTab === 'string' && VALID_TABS.includes(nextTab)) {
+      activeTab.value = nextTab
+    }
+  },
+)
 </script>
 
 <template>

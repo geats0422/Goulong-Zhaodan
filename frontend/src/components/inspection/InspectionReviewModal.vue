@@ -5,6 +5,7 @@ import InspectionFileSummary from './InspectionFileSummary.vue'
 import DocumentPreviewPane from './DocumentPreviewPane.vue'
 import KnowledgeTogglePanel from './KnowledgeTogglePanel.vue'
 import InspectionReportPane from './InspectionReportPane.vue'
+import QuotaErrorModal from '../QuotaErrorModal.vue'
 import { parseInspectionFile, fetchInspectionRecord, inspectInspectionRecord, downloadInspectionReportPdf } from '../../services/inspectionApi.js'
 import { retryDocumentJob } from '../../services/documentJobApi.js'
 import { useDocumentJobPolling } from '../../composables/useDocumentJobPolling.js'
@@ -13,6 +14,10 @@ import {
   describeInspectionJobError,
   isConvertToPdfRequired,
 } from '../../composables/inspectionJobStages.js'
+import {
+  isInsufficientQuotaError,
+  extractApiError,
+} from '../../composables/quotaError.js'
 
 const props = defineProps({
   file: { type: File, default: null },
@@ -33,6 +38,10 @@ const inspecting = ref(false)
 const sessionExpired = ref(false)
 // 最近一次 Step 2 提交的 payload（工程/合同类别 + 知识库），用于失败后重试。
 const lastPreparePayload = ref(null)
+
+// 任务 16：额度不足统一弹窗状态。
+// 仅在后端返回稳定错误码 insufficient_quota 时打开；其他错误走既有内嵌展示。
+const quotaError = ref(null)
 
 // 异步解析任务状态
 const parseJob = ref(null)            // useDocumentJobPolling 最新 job 快照
@@ -75,6 +84,7 @@ watch(() => props.open, async (isOpen) => {
   parseRetrying.value = false
   parseHydrating.value = false
   inspectionRecordId.value = null
+  quotaError.value = null
   cancelPolling()
 
   await startParse(props.file)
@@ -123,6 +133,10 @@ async function startParse(file) {
     parseData.value = data
     startJobPolling(data.job_id)
   } catch (e) {
+    // 任务 16：识别额度不足错误，弹出统一弹窗（不再靠文案匹配）。
+    if (isInsufficientQuotaError(e)) {
+      quotaError.value = extractApiError(e)
+    }
     parseError.value = e.message
   }
 }
@@ -163,13 +177,22 @@ async function startInspection(payload) {
     // 后端审查入口尚未消费新字段时降级为直接拉取已生成的报告，保证流程不中断。
     try {
       await inspectInspectionRecord(inspectionRecordId.value, preparePayload)
-    } catch {
+    } catch (inspectErr) {
+      // 任务 16：额度不足统一弹窗优先于降级逻辑（避免弹窗被吞掉）。
+      if (isInsufficientQuotaError(inspectErr)) {
+        quotaError.value = extractApiError(inspectErr)
+        throw inspectErr
+      }
       // 旧后端或不支持新 payload 时忽略，继续拉取报告。
     }
     // worker 完成时已生成完整审查报告，直接通过 record_id 拉取。
     reportData.value = await fetchInspectionRecord(inspectionRecordId.value)
     currentStep.value = STEP.REPORT
   } catch (e) {
+    // 任务 16：拉取报告阶段也可能遇到额度不足，同样识别为统一弹窗。
+    if (isInsufficientQuotaError(e) && !quotaError.value) {
+      quotaError.value = extractApiError(e)
+    }
     stepErrors.value[2] = e.message
     if (e.message.includes('记录不存在')) {
       sessionExpired.value = true
@@ -186,6 +209,18 @@ async function handleExport() {
   } catch (e) {
     stepErrors.value[2] = e.message
   }
+}
+
+// 任务 16：额度弹窗交互处理。
+// 关闭按钮：仅清理弹窗状态，不改变路由（用户可继续选择重试或关闭主弹窗）。
+function handleQuotaClose() {
+  quotaError.value = null
+}
+
+// 主按钮（前往账单与订阅）：交由 QuotaErrorModal 内的 <a> 触发浏览器跳转，
+// 这里仅清理弹窗状态，跳转目标由 getQuotaAction 决定（默认 /settings?tab=billing）。
+function handleQuotaNavigate() {
+  quotaError.value = null
 }
 
 function handleClose() {
@@ -210,7 +245,6 @@ function handleClose() {
             <div v-if="parseFailedMessage" class="step-error">
               <span class="material-symbols-outlined">error</span>
               <p>{{ parseFailedMessage }}</p>
-              <a v-if="parseFailedMessage.includes('额度')" href="/pricing" class="step-error-cta">前往补充额度 →</a>
               <p v-if="parseNeedsPdf" class="step-error-hint">请将文档转为 PDF 后重新上传。</p>
               <div class="step-error-actions">
                 <button class="action-btn secondary" type="button" @click="handleClose">关闭</button>
@@ -312,6 +346,15 @@ function handleClose() {
         </div>
       </div>
     </div>
+
+    <!-- 任务 16：统一额度不足弹窗。仅在后端返回 insufficient_quota 时打开。
+         按钮跳转目标由后端 action.path 决定，默认 /settings?tab=billing；关闭按钮不改变路由。 -->
+    <QuotaErrorModal
+      :open="!!quotaError"
+      :error="quotaError"
+      @close="handleQuotaClose"
+      @navigate="handleQuotaNavigate"
+    />
   </Teleport>
 </template>
 
