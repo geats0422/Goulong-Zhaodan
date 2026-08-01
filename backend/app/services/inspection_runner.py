@@ -20,8 +20,14 @@ from app.core.deps import InspectionDeps
 from app.models.knowledge import InspectionRecord, TabooWord
 from goulong_auth.models import Membership
 from app.services.knowledge_retrieval import retrieve_regulation_base
+from app.services.contract_classifier import ContractClassification, classify_contract
 
 _logger = logging.getLogger(__name__)
+
+
+async def classify_inspection_document(*, document_name: str, text: str) -> ContractClassification:
+    """解析/审查流水线共享的分类入口，避免 API 绕过业务服务。"""
+    return await classify_contract(filename=document_name, text=text)
 
 DOCUMENT_TYPE_LABELS: dict[str, str] = {
     "contract": "合同",

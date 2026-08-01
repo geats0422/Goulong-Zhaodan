@@ -43,3 +43,53 @@ async def test_cancelled_model_call_propagates_cancellation() -> None:
             text="甲乙双方签订工程施工合同。",
             model=cancelled_model,
         )
+
+
+@pytest.mark.asyncio
+async def test_model_response_requires_non_empty_evidence_and_keeps_rules() -> None:
+    async def invalid_model(**_: object) -> dict[str, object]:
+        return {
+            "engineering_type_key": "municipal-road",
+            "contract_type_key": "professional-subcontract",
+            "confidence": "high",
+            "evidence": [],
+        }
+
+    result = await classify_contract(
+        filename="市政道路劳务分包合同.docx",
+        text="市政道路施工，劳务分包。",
+        model=invalid_model,
+    )
+
+    assert result.engineering_type_key == "municipal-road"
+    assert result.contract_type_key == "labor-subcontract"
+    assert result.source == "rule"
+    assert result.confidence == "low"
+    assert result.requires_confirmation is True
+
+
+@pytest.mark.asyncio
+async def test_model_input_is_bounded_and_masked() -> None:
+    captured: dict[str, object] = {}
+
+    async def model(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {
+            "engineering_type_key": "general-engineering",
+            "contract_type_key": "other",
+            "confidence": "high",
+            "evidence": ["通用"],
+        }
+
+    result = await classify_contract(
+        filename="甲方13800138000" + "x" * 1000,
+        text="联系人 13800138000\n" + "市政道路" + "x" * 30000,
+        model=model,
+        max_filename_chars=64,
+        max_text_chars=100,
+    )
+
+    assert result.source == "model"
+    assert len(str(captured["filename"])) <= 64
+    assert len(str(captured["text"])) <= 100 + len("\n...[内容已截断]")
+    assert "13800138000" not in str(captured["text"])

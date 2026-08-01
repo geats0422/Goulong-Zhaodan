@@ -40,6 +40,7 @@ from app.services.inspection_runner import (
     DOCUMENT_TYPE_LABELS,
     InspectionReportResponse,
     add_pending_inspection_record,
+    classify_inspection_document,
     execute_inspection,
 )
 from app.services.markdown_converter import ConversionError, convert_to_markdown
@@ -498,6 +499,15 @@ class InspectionSessionInspectRequest(BaseModel):
     application_scenario: str | None = None
 
 
+class ContractClassificationResponse(BaseModel):
+    engineering_type_key: str
+    contract_type_key: str
+    confidence: str
+    evidence: list[str]
+    source: str
+    requires_confirmation: bool
+
+
 class InspectionParseFileResponse(BaseModel):
     """解析会话中的文件元信息响应"""
 
@@ -509,6 +519,7 @@ class InspectionParseFileResponse(BaseModel):
     document_type_label: str
     text_preview: str
     parsed_content: str
+    classification: ContractClassificationResponse
 
 
 class InspectionParseResponse(BaseModel):
@@ -773,6 +784,8 @@ async def parse_inspection_file(
         record_id=record.id,
     )
 
+    classification = await classify_inspection_document(document_name=filename, text="")
+
     return InspectionParseResponse(
         session_id=session["id"],
         job_id=job.job_id,
@@ -785,6 +798,7 @@ async def parse_inspection_file(
             document_type_label=DOCUMENT_TYPE_LABELS["unknown"],
             text_preview="",
             parsed_content="",
+            classification=ContractClassificationResponse(**classification.__dict__),
         ),
     )
 
