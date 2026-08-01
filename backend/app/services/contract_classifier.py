@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Literal, Mapping
 
@@ -26,6 +27,17 @@ MAX_FILENAME_CHARS = 512
 MAX_TEXT_CHARS = 12000
 MAX_KEYWORDS = 20
 MAX_KEYWORD_CHARS = 100
+MAX_RULE_SCREENING_CHARS = 2000
+RULE_SCREENING_KEYS = frozenset(
+    {
+        "engineering_type_key",
+        "contract_type_key",
+        "confidence",
+        "evidence",
+        "source",
+        "requires_confirmation",
+    }
+)
 
 _ENGINEERING_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("building-construction", ("房建", "房屋建筑", "建筑工程")),
@@ -147,13 +159,18 @@ def _truncate(value: str, limit: int) -> str:
 def _model_inputs(filename: str, text: str, rules: Mapping[str, Any], *, max_filename_chars: int, max_text_chars: int) -> tuple[str, str, dict[str, Any]]:
     safe_filename = _truncate(mask_sensitive_data(filename or "").text, max_filename_chars)
     safe_text = _truncate(mask_sensitive_data(text or "").text, max_text_chars)
-    safe_rules = dict(rules)
+    safe_rules = {key: rules[key] for key in RULE_SCREENING_KEYS if key in rules}
     if "evidence" in rules:
         safe_rules["evidence"] = [
             _truncate(item, MAX_KEYWORD_CHARS)
             for item in rules.get("evidence", [])[:MAX_KEYWORDS]
             if isinstance(item, str)
         ]
+    while len(json.dumps(safe_rules, ensure_ascii=False, separators=(",", ":"))) > MAX_RULE_SCREENING_CHARS:
+        evidence = safe_rules.get("evidence")
+        if not isinstance(evidence, list) or not evidence:
+            break
+        safe_rules["evidence"] = evidence[:-1]
     return safe_filename, safe_text, safe_rules
 
 

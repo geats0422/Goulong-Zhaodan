@@ -93,3 +93,34 @@ async def test_model_input_is_bounded_and_masked() -> None:
     assert len(str(captured["filename"])) <= 64
     assert len(str(captured["text"])) <= 100 + len("\n...[内容已截断]")
     assert "13800138000" not in str(captured["text"])
+
+
+@pytest.mark.asyncio
+async def test_rule_screening_sent_to_model_is_whitelisted_and_bounded() -> None:
+    captured: dict[str, object] = {}
+
+    async def model(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {
+            "engineering_type_key": "general-engineering",
+            "contract_type_key": "other",
+            "confidence": "medium",
+            "evidence": ["规则"],
+        }
+
+    await classify_contract(
+        filename="合同.txt",
+        text="正文",
+        rule_screening={
+            "engineering_type_key": "municipal-road",
+            "contract_type_key": "labor-subcontract",
+            "evidence": ["证据" * 1000] * 100,
+            "secret": "不应外发",
+        },
+        model=model,
+    )
+
+    sent_rules = captured["rule_screening"]
+    assert isinstance(sent_rules, dict)
+    assert "secret" not in sent_rules
+    assert len(str(sent_rules)) <= 2500

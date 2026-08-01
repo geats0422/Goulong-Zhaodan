@@ -9,12 +9,30 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.services.document_parser import DocumentParseError
+from app.services.contract_classifier import ContractClassification
 from app.workers.config import WorkerSettings
-from app.workers.tasks import _persist_parsed_markdown, document_processing_task
+from app.workers.tasks import _persist_parsed_markdown, _serialize_inspection_result, document_processing_task
 from app.workers import tasks
 
 
 USER_ID = uuid.UUID("12345678-1234-1234-1234-123456789012")
+
+
+def test_inspection_job_result_carries_classification_after_parsing() -> None:
+    report = SimpleNamespace(issues=[], overall_risk="low", regulation_refs=[], summary="ok")
+    classification = ContractClassification(
+        engineering_type_key="municipal-road",
+        contract_type_key="labor-subcontract",
+        confidence="high",
+        evidence=["市政道路", "劳务分包"],
+        source="model",
+        requires_confirmation=False,
+    )
+
+    payload = _serialize_inspection_result(report, classification=classification)
+
+    assert payload.decode("utf-8").find('"classification"') >= 0
+    assert '"engineering_type_key":"municipal-road"' in payload.decode("utf-8")
 
 
 @pytest.fixture(scope="session")

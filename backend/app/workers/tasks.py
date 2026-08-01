@@ -662,14 +662,24 @@ async def _persist_inspection_call_state(
             return _snapshot(updated) if updated is not None else None
 
 
-def _serialize_inspection_result(report: Any) -> bytes:
+def _serialize_inspection_result(report: Any, *, classification: Any | None = None) -> bytes:
+    payload: dict[str, Any] = {
+        "issues": report.issues,
+        "overall_risk": report.overall_risk,
+        "regulation_refs": report.regulation_refs,
+        "summary": report.summary,
+    }
+    if classification is not None:
+        payload["classification"] = {
+            "engineering_type_key": classification.engineering_type_key,
+            "contract_type_key": classification.contract_type_key,
+            "confidence": classification.confidence,
+            "evidence": classification.evidence,
+            "source": classification.source,
+            "requires_confirmation": classification.requires_confirmation,
+        }
     return json.dumps(
-        {
-            "issues": report.issues,
-            "overall_risk": report.overall_risk,
-            "regulation_refs": report.regulation_refs,
-            "summary": report.summary,
-        },
+        payload,
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -727,6 +737,7 @@ async def _load_inspection_result_artifact(job: _DocumentJobSnapshot) -> Any | N
 class _ResumableInspection:
     job: _DocumentJobSnapshot
     report: Any
+    classification: Any | None = None
 
 
 async def _run_resumable_document_inspection(
@@ -747,13 +758,24 @@ async def _run_resumable_document_inspection(
     started = await _persist_inspection_call_state(job, state="started", input_hash=input_hash)
     if started is None:
         return None
+    from app.services.inspection_runner import classify_inspection_document
+    from app.services.contract_classifier import screen_contract_rules
+
+    classification = await classify_inspection_document(
+        document_name=inspection_input.document_name,
+        text=fallback_text or "",
+        rule_screening=screen_contract_rules(
+            filename=inspection_input.document_name,
+            text=fallback_text or "",
+        ),
+    )
     report = await _run_owned_document_inspection(
         started,
         nodes,
         inspection_input=inspection_input,
         fallback_text=fallback_text,
     )
-    content = _serialize_inspection_result(report)
+    content = _serialize_inspection_result(report, classification=classification)
     result_hash = hashlib.sha256(content).hexdigest()
     result_path = f"users/{job.user_id}/documents/{job.job_id}-{uuid.uuid4().hex}.inspection.json.enc"
     await asyncio.to_thread(save_file, result_path, encrypt_sensitive_artifact(content))
@@ -771,7 +793,7 @@ async def _run_resumable_document_inspection(
     if completed is None:
         await asyncio.to_thread(delete_file, result_path)
         return None
-    return _ResumableInspection(completed, report)
+    return _ResumableInspection(completed, report, classification)
 
 
 async def _commit_inspection_success(
@@ -1084,7 +1106,7 @@ async def document_processing_task(ctx: dict[str, Any], job_id: str) -> None:
         if current.job_type == "inspection":
             inspection = await _run_with_lease_heartbeat(
                 current,
-                _run_resumable_document_inspection(current, index_artifact.nodes),
+                _run_resumable_document_inspection(current, index_artifact.nodes, fallback_text=artifact.markdown),
             )
             if inspection is None:
                 return
