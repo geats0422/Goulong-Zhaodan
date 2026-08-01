@@ -482,11 +482,16 @@ async def test_upload_passes_application_scenario_regulation_base_and_merged_tab
 
     captured = {}
 
-    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
+    async def fake_retrieve_regulation_base(
+        db, user_id: int, application_scenario: str, limit: int,
+        engineering_type_key: str, contract_type_key: str,
+    ):
         captured["retrieval"] = {
             "user_id": user_id,
             "application_scenario": application_scenario,
             "limit": limit,
+            "engineering_type_key": engineering_type_key,
+            "contract_type_key": contract_type_key,
         }
         return {"snippets": [{"content": "法规依据"}], "sources": [{"title": "系统法规"}]}
 
@@ -507,6 +512,8 @@ async def test_upload_passes_application_scenario_regulation_base_and_merged_tab
     assert response.status_code == 200
     assert str(captured["retrieval"]["user_id"]) == user_id
     assert captured["retrieval"]["application_scenario"] == "contract"
+    assert captured["retrieval"]["engineering_type_key"] == "general-engineering"
+    assert captured["retrieval"]["contract_type_key"] == "other"
     assert captured["retrieval"]["limit"] == 8
     deps = captured["deps"]
     assert deps.application_scenario == "contract"
@@ -541,7 +548,7 @@ async def test_session_inspect_uses_document_type_from_parse_session(client: Asy
 
     captured = {}
 
-    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
+    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int, engineering_type_key: str = "general-engineering", contract_type_key: str = "other"):
         captured["retrieval"] = {
             "user_id": user_id,
             "application_scenario": application_scenario,
@@ -588,7 +595,7 @@ async def test_session_inspect_unknown_type_falls_back_to_contract(client: Async
 
     captured = {}
 
-    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
+    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int, engineering_type_key: str = "general-engineering", contract_type_key: str = "other"):
         captured["application_scenario"] = application_scenario
         return {"snippets": [{"content": "法规依据"}], "sources": [{"title": "系统法规"}]}
 
@@ -629,7 +636,7 @@ async def test_contract_inspect_only_references_contract_sources(client: AsyncCl
         {"title": "最高人民法院关于适用《中华人民共和国民法典》合同通则若干问题的解释"},
     ]
 
-    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
+    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int, engineering_type_key: str = "general-engineering", contract_type_key: str = "other"):
         assert application_scenario == "contract"
         return {"snippets": [{"content": "合同法规"}], "sources": contract_sources}
 
@@ -669,7 +676,7 @@ async def test_session_inspect_rejects_deprecated_bidding_scenario(client: Async
 
     captured = {}
 
-    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
+    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int, engineering_type_key: str = "general-engineering", contract_type_key: str = "other"):
         captured["application_scenario"] = application_scenario
         return {"snippets": [{"content": "法规依据"}], "sources": [{"title": "系统法规"}]}
 
@@ -706,7 +713,7 @@ async def test_session_inspect_persists_record_for_paginated_desk_list(client: A
         document_type_label="合同",
     )
 
-    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
+    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int, engineering_type_key: str = "general-engineering", contract_type_key: str = "other"):
         return {"snippets": [{"content": "合同审查依据"}], "sources": [{"title": "民法典合同编"}]}
 
     async def fake_run_inspection(document_text: str, deps):
@@ -782,6 +789,10 @@ async def test_pending_record_can_be_inspected_from_history(client: AsyncClient,
             text_preview=parsed_text[:500],
             parsed_content=encrypt_text(parsed_text),
             quota_consumed=0,
+            detected_engineering_type="general-engineering",
+            final_engineering_type="municipal-road",
+            detected_contract_type="other",
+            final_contract_type="professional-subcontract",
         )
         session.add(record)
         await session.commit()
@@ -792,7 +803,9 @@ async def test_pending_record_can_be_inspected_from_history(client: AsyncClient,
     assert detail_response.status_code == 200
     assert detail_response.json()["parsed_content"] == parsed_text
 
-    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
+    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int, engineering_type_key: str = "general-engineering", contract_type_key: str = "other"):
+        assert engineering_type_key == "municipal-road"
+        assert contract_type_key == "professional-subcontract"
         return {"snippets": [{"content": "合同审查依据"}], "sources": [{"title": "民法典合同编"}]}
 
     async def fake_run_inspection(document_text: str, deps):
@@ -832,7 +845,7 @@ async def test_record_report_pdf_uses_contract_name_filename(client: AsyncClient
         document_type_label="合同",
     )
 
-    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int):
+    async def fake_retrieve_regulation_base(db, user_id: int, application_scenario: str, limit: int, engineering_type_key: str = "general-engineering", contract_type_key: str = "other"):
         return {"snippets": [{"content": "合同审查依据"}], "sources": [{"title": "民法典合同编"}]}
 
     async def fake_run_inspection(document_text: str, deps):

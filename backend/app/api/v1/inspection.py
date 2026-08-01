@@ -503,6 +503,8 @@ class InspectionSessionInspectRequest(BaseModel):
     project_id: str = "default"
     taboo_words: str = ""
     application_scenario: str | None = None
+    engineering_type_key: str | None = None
+    contract_type_key: str | None = None
 
 
 class ContractClassificationResponse(BaseModel):
@@ -859,6 +861,8 @@ async def inspect_session(
         application_scenario=effective_scenario,
         taboo_words_input=body.taboo_words,
         record_id=session.get("record_id"),
+        engineering_type_key=body.engineering_type_key,
+        contract_type_key=body.contract_type_key,
     )
 
 
@@ -999,6 +1003,8 @@ async def inspect_record(
         application_scenario=record.document_type,
         taboo_words_input=body.taboo_words,
         record_id=record.id,
+        engineering_type_key=record.final_engineering_type or record.detected_engineering_type,
+        contract_type_key=record.final_contract_type or record.detected_contract_type,
     )
 
 

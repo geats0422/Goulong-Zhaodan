@@ -47,7 +47,7 @@ def classification_record_values(
         "classification_confidence": classification.confidence,
         "classification_source": classification.source,
         "classification_evidence": list(classification.evidence),
-        "rule_package_key": base.get("rule_package_key") or DEFAULT_RULE_PACKAGE_KEY,
+        "rule_package_key": base.get("rule_package_key"),
         "engineering_type_snapshot": ENGINEERING_TYPE_NAMES.get(classification.engineering_type_key),
         "contract_type_snapshot": CONTRACT_TYPE_NAMES.get(classification.contract_type_key),
         "knowledge_sources_snapshot": [
@@ -197,6 +197,8 @@ async def execute_inspection(
     application_scenario: str,
     taboo_words_input: str = "",
     record_id: int | None = None,
+    engineering_type_key: str | None = None,
+    contract_type_key: str | None = None,
 ) -> InspectionReportResponse:
     """公共审查执行：加载违禁词 → 召回知识库 → 运行 Agent → 保存记录 → 返回报告。"""
 
@@ -207,6 +209,7 @@ async def execute_inspection(
         )
     if application_scenario != "contract":
         raise HTTPException(status_code=400, detail="非法应用场景")
+    existing_record = None
     if record_id is not None:
         existing_record = await db.scalar(
             select(InspectionRecord).where(
@@ -223,6 +226,23 @@ async def execute_inspection(
                 detail={"code": "deprecated_application_scenario", "message": "历史招投标记录不可按旧场景重审"},
             )
 
+    classification = await classify_inspection_document(
+        document_name=document_name,
+        text=text,
+        rule_screening=screen_contract_rules(filename=document_name, text=text),
+    )
+    engineering_type_key = (
+        engineering_type_key
+        or (existing_record.final_engineering_type if existing_record is not None else None)
+        or (existing_record.detected_engineering_type if existing_record is not None else None)
+        or classification.engineering_type_key
+    )
+    contract_type_key = (
+        contract_type_key
+        or (existing_record.final_contract_type if existing_record is not None else None)
+        or (existing_record.detected_contract_type if existing_record is not None else None)
+        or classification.contract_type_key
+    )
     saved_taboo_words = await load_user_taboo_words(db, user_id)
     temporary_taboo_words = [w.strip() for w in taboo_words_input.split(",") if w.strip()]
     taboo_list = merge_unique_words(saved_taboo_words, temporary_taboo_words)
@@ -231,11 +251,8 @@ async def execute_inspection(
         user_id=user_id,
         application_scenario=application_scenario,
         limit=8,
-    )
-    classification = await classify_inspection_document(
-        document_name=document_name,
-        text=text,
-        rule_screening=screen_contract_rules(filename=document_name, text=text),
+        engineering_type_key=engineering_type_key,
+        contract_type_key=contract_type_key,
     )
 
     deps = InspectionDeps(
@@ -281,7 +298,24 @@ async def execute_inspection(
     record.text_preview = text[:500]
     record.parsed_content = encrypt_text(text)
     record.quota_consumed = getattr(result, "total_quota_consumed", 0) or max(1, len(text) // 500)
-    for field_name, value in classification_record_values(classification, regulation_base).items():
+    record_values = classification_record_values(classification, regulation_base)
+    record_values.update(
+        {
+            "final_engineering_type": engineering_type_key,
+            "final_contract_type": contract_type_key,
+            "engineering_type_snapshot": (
+                ENGINEERING_TYPE_NAMES.get(engineering_type_key)
+                or (existing_record.engineering_type_snapshot if existing_record is not None else None)
+                or engineering_type_key
+            ),
+            "contract_type_snapshot": (
+                CONTRACT_TYPE_NAMES.get(contract_type_key)
+                or (existing_record.contract_type_snapshot if existing_record is not None else None)
+                or contract_type_key
+            ),
+        }
+    )
+    for field_name, value in record_values.items():
         setattr(record, field_name, value)
 
     await db.commit()

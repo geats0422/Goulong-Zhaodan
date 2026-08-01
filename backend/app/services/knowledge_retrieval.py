@@ -89,6 +89,9 @@ def _to_result(rows: list[tuple[KnowledgeDocument, IndexNode]], selection_mode: 
         "sources": list(sources_by_id.values()),
         "selection_mode": selection_mode,
         "fallback_notice": fallback_notice,
+        "rule_package_key": (
+            sources_by_id[next(iter(sources_by_id))]["rule_package_key"] if sources_by_id else None
+        ),
     }
 
 
@@ -117,7 +120,13 @@ async def retrieve_regulation_base(
             KnowledgeDocument.owner_user_id == user_id,
             or_(KnowledgeDocumentSetting.id.is_(None), KnowledgeDocumentSetting.enabled.is_(True)),
         )
-        .order_by(_match_rank(engineering_type_key, contract_type_key).desc(), KnowledgeDocument.created_at, IndexNode.position)
+        .order_by(
+            _match_rank(engineering_type_key, contract_type_key).desc(),
+            KnowledgeDocument.created_at,
+            KnowledgeDocument.id,
+            IndexNode.position,
+            IndexNode.id,
+        )
         .limit(limit)
     )
     user_rows = list((await db.execute(user_stmt)).all())
@@ -132,13 +141,18 @@ async def retrieve_regulation_base(
         )
         .where(
             KnowledgeDocument.owner_type == "system",
-            or_(
-                KnowledgeDocument.rule_package_key == DEFAULT_RULE_PACKAGE_KEY,
-                KnowledgeDocument.rule_package_key.is_(None),
-            ),
+            KnowledgeDocument.rule_package_key == DEFAULT_RULE_PACKAGE_KEY,
         )
-        .order_by(_match_rank(engineering_type_key, contract_type_key).desc(), KnowledgeDocument.created_at, IndexNode.position)
+        .order_by(
+            _match_rank(engineering_type_key, contract_type_key).desc(),
+            KnowledgeDocument.created_at,
+            KnowledgeDocument.id,
+            IndexNode.position,
+            IndexNode.id,
+        )
         .limit(limit)
     )
     system_rows = list((await db.execute(system_stmt)).all())
+    if not system_rows:
+        return _to_result([], "empty_fallback", None)
     return _to_result(system_rows, "system_fallback", FALLBACK_NOTICE)

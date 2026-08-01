@@ -81,7 +81,8 @@ def _make_subcategory(id=1, category_key="traditional", name="房建"):
     return sub
 
 
-def _make_document(id=1, title="招标文件", subcategory_id=1, current_version_id=1):
+def _make_document(id=1, title="招标文件", subcategory_id=1, current_version_id=1,
+                   application_scenario="contract", is_active=True):
     return MagicMock(
         spec=["id", "title", "subcategory_id", "current_version_id",
                "current_version", "subcategory", "created_at", "updated_at",
@@ -94,8 +95,8 @@ def _make_document(id=1, title="招标文件", subcategory_id=1, current_version
         subcategory=None,
         owner_type="user",
         owner_user_id=uuid.UUID("00000000-0000-0000-0000-000000000042"),
-        application_scenario="contract",
-        is_active=True,
+        application_scenario=application_scenario,
+        is_active=is_active,
         source_path=None,
         created_at=datetime(2025, 1, 1),
         updated_at=datetime(2025, 1, 1),
@@ -239,6 +240,25 @@ class TestGetDocumentNodes:
 
         response = client.get("/api/v1/knowledge/documents/999/nodes")
         assert response.status_code == 404
+
+    def test_inactive_document_is_not_readable(self, client, mock_db):
+        mock_doc_result = MagicMock()
+        mock_doc_result.scalar_one_or_none.return_value = _make_document(is_active=False)
+        mock_db.execute.return_value = mock_doc_result
+
+        response = client.get("/api/v1/knowledge/documents/1/nodes")
+
+        assert response.status_code == 404
+
+    def test_archived_bidding_document_returns_stable_deprecated_error(self, client, mock_db):
+        mock_doc_result = MagicMock()
+        mock_doc_result.scalar_one_or_none.return_value = _make_document(application_scenario="bidding")
+        mock_db.execute.return_value = mock_doc_result
+
+        response = client.get("/api/v1/knowledge/documents/1/nodes")
+
+        assert response.status_code == 400
+        assert response.json()["detail"]["code"] == "deprecated_application_scenario"
 
 
 class TestUploadAndIngest:

@@ -567,12 +567,22 @@ async def _load_owned_inspection_input(job: _DocumentJobSnapshot) -> _Inspection
             except ValueError as exc:
                 raise _DocumentWorkerBusinessError(str(exc)) from exc
         scenario = record.document_type if record is not None and record.document_type == "contract" else "contract"
+        engineering_type_key = (
+            (record.final_engineering_type or record.detected_engineering_type)
+            if record is not None else "general-engineering"
+        )
+        contract_type_key = (
+            (record.final_contract_type or record.detected_contract_type)
+            if record is not None else "other"
+        )
         taboo_words = await load_user_taboo_words(db, job.user_id)
         regulation_base = await retrieve_regulation_base(
             db,
             user_id=job.user_id,
             application_scenario=scenario,
             limit=8,
+            engineering_type_key=engineering_type_key,
+            contract_type_key=contract_type_key,
         )
         return _InspectionInput(
             document_name=(record.document_name if record is not None else Path(job.source_path).name),
@@ -1275,6 +1285,8 @@ async def _run_inspect(ctx, job_id: str) -> dict:
             project_id=payload.get("project_id", "default"),
             application_scenario=_require_contract_scenario(payload),
             taboo_words_input=payload.get("taboo_words", ""),
+            engineering_type_key=payload.get("engineering_type_key"),
+            contract_type_key=payload.get("contract_type_key"),
         )
         return {
             "record_id": report.id,

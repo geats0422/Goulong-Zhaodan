@@ -178,6 +178,8 @@ class KnowledgeSearchRequest(BaseModel):
     query: str
     application_scenario: str = "contract"
     limit: int = 10
+    engineering_type_key: str | None = None
+    contract_type_key: str | None = None
 
     @field_validator("limit")
     @classmethod
@@ -205,6 +207,8 @@ async def search_knowledge(
         user_id=user["user_id"],
         application_scenario=body.application_scenario,
         limit=body.limit,
+        engineering_type_key=body.engineering_type_key,
+        contract_type_key=body.contract_type_key,
     )
 
 
@@ -258,6 +262,8 @@ class AgentInspectRequest(BaseModel):
     application_scenario: str = "contract"
     taboo_words: str = ""
     project_id: str = "default"
+    engineering_type_key: str | None = None
+    contract_type_key: str | None = None
 
     @field_validator("document_name")
     @classmethod
@@ -328,4 +334,6 @@ async def agent_inspect(
         application_scenario=application_scenario,
         taboo_words_input=body.taboo_words,
         record_id=body.record_id,
+        engineering_type_key=body.engineering_type_key,
+        contract_type_key=body.contract_type_key,
     )

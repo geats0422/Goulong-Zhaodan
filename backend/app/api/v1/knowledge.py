@@ -49,8 +49,17 @@ def _is_document_visible(doc: KnowledgeDocument, user_id: uuid.UUID) -> bool:
 
 def _visible_document_filter(user_id: uuid.UUID):
     return or_(
-        and_(KnowledgeDocument.owner_type == "system"),
-        and_(KnowledgeDocument.owner_type == "user", KnowledgeDocument.owner_user_id == user_id),
+        and_(
+            KnowledgeDocument.is_active.is_(True),
+            KnowledgeDocument.application_scenario == "contract",
+            KnowledgeDocument.owner_type == "system",
+        ),
+        and_(
+            KnowledgeDocument.is_active.is_(True),
+            KnowledgeDocument.application_scenario == "contract",
+            KnowledgeDocument.owner_type == "user",
+            KnowledgeDocument.owner_user_id == user_id,
+        ),
     )
 
 
@@ -469,18 +478,28 @@ async def list_documents(
 async def get_document_nodes(
     document_id: int,
     version_number: int | None = None,
+    application_scenario: str = "contract",
     db=Depends(get_db_session),
     user: CurrentUserContext = Depends(get_current_user),
 ):
     user_id = _current_user_id(user)
+    _validate_contract_application_scenario(application_scenario)
     result = await db.execute(
         select(KnowledgeDocument).where(
             KnowledgeDocument.id == document_id,
+            KnowledgeDocument.application_scenario == application_scenario,
             _visible_document_filter(user_id),
         )
     )
     document = result.scalar_one_or_none()
     if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not _is_document_visible(document, user_id):
+        if document.application_scenario == "bidding":
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "deprecated_application_scenario", "message": "招投标知识库已归档"},
+            )
         raise HTTPException(status_code=404, detail="Document not found")
 
     if version_number is not None:

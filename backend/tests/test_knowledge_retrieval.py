@@ -108,8 +108,9 @@ async def test_retrieve_regulation_base_returns_empty_structure():
 
     assert result["snippets"] == []
     assert result["sources"] == []
-    assert result["selection_mode"] == "system_fallback"
-    assert result["fallback_notice"]
+    assert result["selection_mode"] == "empty_fallback"
+    assert result["fallback_notice"] is None
+    assert result["rule_package_key"] is None
 
 
 @pytest.mark.asyncio
@@ -249,3 +250,24 @@ async def test_no_active_matching_user_document_falls_back_to_active_default_pac
     assert result["selection_mode"] == "system_fallback"
     assert result["sources"][0]["rule_package_key"] == "general-engineering-contract-rules:v1"
     assert "回退" in result["fallback_notice"]
+
+
+@pytest.mark.asyncio
+async def test_unmarked_system_document_does_not_claim_default_fallback():
+    user_id = await _create_user()
+    await _create_document_with_node(
+        title="未标记系统规则", content="不应伪装成默认包", owner_type="system",
+        application_scenario="contract",
+    )
+
+    async with async_session() as session:
+        result = await retrieve_regulation_base(
+            session, user_id=user_id, application_scenario="contract",
+            engineering_type_key="municipal-road", contract_type_key="other", limit=10,
+        )
+
+    assert result["snippets"] == []
+    assert result["sources"] == []
+    assert result["selection_mode"] == "empty_fallback"
+    assert result["fallback_notice"] is None
+    assert result["rule_package_key"] is None
