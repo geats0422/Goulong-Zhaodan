@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import hashlib
 import os
 import tempfile
 
@@ -110,6 +111,10 @@ async def ingest_document_content(
                 document_name=safe_stem,
                 tokens_used=len(markdown_text) // 4,
                 model_name=settings.model_name,
+                idempotency_key=(
+                    f"version:{version.id}:{hashlib.sha256(markdown_text.encode('utf-8')).hexdigest()}"
+                    ":knowledge_indexing"
+                ),
             )
     except (ConversionError, IndexingError) as exc:
         if isinstance(exc, ConversionError):

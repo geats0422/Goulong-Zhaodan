@@ -620,7 +620,8 @@ async def _run_owned_document_inspection(
             regulation_base=inspection_input.regulation_base,
             taboo_words=inspection_input.taboo_words or None,
             db=db,
-            usage_idempotency_prefix=f"job:{job.job_id}",
+            usage_attempt_id=f"job:{job.job_id}",
+            usage_input_hash=hashlib.sha256(structured_text.encode("utf-8")).hexdigest(),
         )
         result = await run_inspection(structured_text, deps)
         await db.commit()

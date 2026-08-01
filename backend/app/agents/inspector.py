@@ -14,7 +14,7 @@ from app.prompts.inspection_prompts import (
 )
 from app.core.config import settings
 from app.core.deps import InspectionDeps
-from app.services.compute_recorder import record_usage
+from app.services.compute_recorder import record_usage, usage_idempotency_key
 
 
 def _allowed_refs(deps: InspectionDeps) -> list[str]:
@@ -64,8 +64,10 @@ async def run_inspection(
         tokens_used=regulation_result.usage.total_tokens,
         model_name=settings.model_name,
         duration_seconds=time.monotonic() - t0,
-        idempotency_key=(f"{deps.usage_idempotency_prefix}:regulation_analysis"
-                         if deps.usage_idempotency_prefix else None),
+        idempotency_key=(
+            usage_idempotency_key(deps.usage_attempt_id, deps.usage_input_hash, "regulation_analysis")
+            if deps.usage_attempt_id and deps.usage_input_hash else None
+        ),
     )
 
     # 阶段 2: 合规检查（包含违禁词、低级错误等）
@@ -88,8 +90,10 @@ async def run_inspection(
         tokens_used=inspection_result.usage.total_tokens,
         model_name=settings.model_name,
         duration_seconds=time.monotonic() - t0,
-        idempotency_key=(f"{deps.usage_idempotency_prefix}:compliance_inspection"
-                         if deps.usage_idempotency_prefix else None),
+        idempotency_key=(
+            usage_idempotency_key(deps.usage_attempt_id, deps.usage_input_hash, "compliance_inspection")
+            if deps.usage_attempt_id and deps.usage_input_hash else None
+        ),
     )
 
     # 阶段 3: 汇总报告
@@ -111,8 +115,10 @@ async def run_inspection(
         tokens_used=final_result.usage.total_tokens,
         model_name=settings.model_name,
         duration_seconds=time.monotonic() - t0,
-        idempotency_key=(f"{deps.usage_idempotency_prefix}:inspection_summary"
-                         if deps.usage_idempotency_prefix else None),
+        idempotency_key=(
+            usage_idempotency_key(deps.usage_attempt_id, deps.usage_input_hash, "inspection_summary")
+            if deps.usage_attempt_id and deps.usage_input_hash else None
+        ),
     )
 
     # 尝试解析 JSON

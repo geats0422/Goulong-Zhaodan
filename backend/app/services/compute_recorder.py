@@ -15,8 +15,9 @@ from goulong_auth.models import Membership
 PRODUCT = "zhaodan"
 
 
-def usage_idempotency_key(job_id: str, input_hash: str, business_type: str) -> str:
-    return f"{job_id}:{input_hash}:{business_type}"
+def usage_idempotency_key(attempt_id: str, input_hash: str, business_type: str) -> str:
+    """为一次稳定 attempt 的同一输入和业务阶段生成计费幂等键。"""
+    return f"{attempt_id}:{input_hash}:{business_type}"
 
 
 async def record_usage(

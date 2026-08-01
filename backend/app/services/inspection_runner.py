@@ -6,6 +6,7 @@ inspection.py 与 agent.py 共同引用；workers/tasks.py 的异步 runner 也�
 from __future__ import annotations
 
 import logging
+import hashlib
 import uuid
 from typing import Any
 
@@ -245,9 +246,10 @@ async def execute_inspection(
         regulation_base=regulation_base,
         taboo_words=taboo_list or None,
         db=db,
-        usage_idempotency_prefix=(
+        usage_attempt_id=(
             f"record:{record_id}" if record_id is not None else f"inspection:{uuid.uuid4().hex}"
         ),
+        usage_input_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
     )
 
     try:

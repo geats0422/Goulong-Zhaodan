@@ -58,13 +58,19 @@ def test_classification_evidence_has_a_forward_migration_and_reversible_downgrad
     assert "def downgrade()" in source
 
 
-def test_usage_has_retry_idempotency_key_and_contract_scenario_guard() -> None:
+def test_usage_key_is_scoped_to_attempt_input_and_business_type() -> None:
     assert hasattr(ComputeUsageRecord, "idempotency_key")
     assert any(
         constraint.name == "uq_compute_usage_user_idempotency"
         for constraint in ComputeUsageRecord.__table__.constraints
     )
     assert usage_idempotency_key("job-1", "input-hash", "inspection_summary") == (
+        "job-1:input-hash:inspection_summary"
+    )
+    assert usage_idempotency_key("job-1", "other-input", "inspection_summary") != (
+        "job-1:input-hash:inspection_summary"
+    )
+    assert usage_idempotency_key("job-2", "input-hash", "inspection_summary") != (
         "job-1:input-hash:inspection_summary"
     )
 
@@ -100,7 +106,7 @@ async def test_completed_usage_is_reused_without_second_charge() -> None:
     db.add.assert_not_called()
 
 
-def test_usage_migration_uses_user_scoped_unique_key() -> None:
+def test_usage_migration_uses_original_027_then_user_scoped_028() -> None:
     from pathlib import Path
 
     source = (
@@ -111,14 +117,6 @@ def test_usage_migration_uses_user_scoped_unique_key() -> None:
     ).read_text(encoding="utf-8")
     assert '"idempotency_key"],\n        unique=True' in source
     assert '"ix_compute_usage_records_idempotency_key"' in source
-    old_source = (
-        Path(__file__).parents[1]
-        / "alembic"
-        / "versions"
-        / "027_compute_usage_idempotency.py"
-    ).read_text(encoding="utf-8")
-    assert source == old_source
-
     migration_028 = (
         Path(__file__).parents[1]
         / "alembic"
@@ -127,6 +125,51 @@ def test_usage_migration_uses_user_scoped_unique_key() -> None:
     ).read_text(encoding="utf-8")
     assert 'down_revision: str | None = "027"' in migration_028
     assert '"user_id", "idempotency_key"' in migration_028
+    assert "get_unique_constraints" in migration_028
+    assert "get_indexes" in migration_028
+
+
+@pytest.mark.asyncio
+async def test_usage_retries_are_atomic_and_charge_membership_once() -> None:
+    from app.core.database import async_session
+    from goulong_auth.models import Membership, User
+    from sqlalchemy import delete, select
+
+    async with async_session() as db:
+        async with db.begin():
+            user = User(
+                email=f"usage-{__import__('uuid').uuid4().hex}@example.com",
+                nickname="计费测试",
+                hashed_password="$2b$12$dummyplaceholdernotrealbutvalidlengthhash",
+            )
+            db.add(user)
+            await db.flush()
+            db.add(Membership(
+                user_id=user.id,
+                product="zhaodan",
+                plan="free",
+                status="active",
+                token_quota=10000,
+                token_used=0,
+            ))
+            await db.flush()
+            key = usage_idempotency_key("attempt-1", "input-1", "summary")
+            first = await record_usage(
+                db, user.id, business_type="summary", document_name="a.txt",
+                tokens_used=10, model_name="deepseek-chat", idempotency_key=key,
+            )
+            retry = await record_usage(
+                db, user.id, business_type="summary", document_name="a.txt",
+                tokens_used=10, model_name="deepseek-chat", idempotency_key=key,
+            )
+            membership = await db.scalar(select(Membership).where(Membership.user_id == user.id))
+
+            assert first == retry == 30
+            assert membership is not None
+            assert membership.token_used == 30
+            await db.execute(delete(ComputeUsageRecord).where(ComputeUsageRecord.user_id == user.id))
+            await db.execute(delete(Membership).where(Membership.user_id == user.id))
+            await db.delete(user)
 
 
 def test_parse_response_is_processing_and_contract_placeholder() -> None:
