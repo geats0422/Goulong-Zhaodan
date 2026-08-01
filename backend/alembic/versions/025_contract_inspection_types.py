@@ -17,6 +17,18 @@ depends_on: Sequence[str] | None = None
 
 SCHEMA = "zhaodan"
 
+SYSTEM_TYPE_PRESETS = (
+    ("engineering", "building-construction", "房建施工"),
+    ("engineering", "municipal-road", "市政道路"),
+    ("engineering", "decoration", "装饰装修"),
+    ("engineering", "mechanical-electrical", "机电安装"),
+    ("engineering", "steel-structure", "钢结构"),
+    ("engineering", "general-engineering", "通用工程"),
+    ("contract", "labor-subcontract", "劳务分包"),
+    ("contract", "professional-subcontract", "专业工程分包"),
+    ("contract", "other", "其他类"),
+)
+
 
 def upgrade() -> None:
     op.create_table(
@@ -96,6 +108,18 @@ def upgrade() -> None:
         "classification_confidence IS NULL OR classification_confidence IN ('high', 'medium', 'low')",
         schema=SCHEMA,
     )
+    bind = op.get_bind()
+    for dimension, key, name in SYSTEM_TYPE_PRESETS:
+        bind.execute(
+            sa.text(
+                f"INSERT INTO {SCHEMA}.inspection_types "
+                "(key, name, dimension, owner_type, owner_user_id, enabled) "
+                "SELECT :key, :name, :dimension, 'system', NULL, TRUE "
+                "WHERE NOT EXISTS (SELECT 1 FROM zhaodan.inspection_types "
+                "WHERE key = :key AND dimension = :dimension AND owner_type = 'system')"
+            ),
+            {"key": key, "name": name, "dimension": dimension},
+        )
     op.create_check_constraint(
         "ck_inspection_records_classification_source",
         "inspection_records",
