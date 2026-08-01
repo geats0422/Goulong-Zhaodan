@@ -29,6 +29,7 @@ from app.models.knowledge import InspectionType, KnowledgeDocument
 from app.schemas.inspection_types import (
     InspectionTypeCreate,
     InspectionTypeResponse,
+    InspectionStep2Submission,
     InspectionTypeUpdate,
 )
 from app.services.document_job_service import (
@@ -41,6 +42,7 @@ from app.services.inspection_runner import (
     InspectionReportResponse,
     add_pending_inspection_record,
     execute_inspection,
+    validate_inspection_submission,
 )
 from app.services.markdown_converter import ConversionError, convert_to_markdown
 from app.services.report_pdf import render_report_pdf
@@ -497,14 +499,12 @@ class InspectionCreateRequest(BaseModel):
     taboo_words: list[str] | None = None
 
 
-class InspectionSessionInspectRequest(BaseModel):
+class InspectionSessionInspectRequest(InspectionStep2Submission):
     """会话审查请求"""
 
     project_id: str = "default"
     taboo_words: str = ""
     application_scenario: str | None = None
-    engineering_type_key: str | None = None
-    contract_type_key: str | None = None
 
 
 class ContractClassificationResponse(BaseModel):
@@ -845,6 +845,16 @@ async def inspect_session(
     user_id = _current_user_id(user)
     session = _get_session_for_user(session_id, user_id)
 
+    selection = None
+    if body.engineering_type_key is not None or body.contract_type_key is not None or body.knowledge_document_ids is not None:
+        selection = await validate_inspection_submission(
+            db,
+            user_id=user_id,
+            engineering_type_key=body.engineering_type_key,
+            contract_type_key=body.contract_type_key,
+            knowledge_document_ids=body.knowledge_document_ids,
+        )
+
     detected_type = session["document_type"]
     effective_scenario = body.application_scenario or detected_type
     if effective_scenario == "unknown":
@@ -852,18 +862,23 @@ async def inspect_session(
     if effective_scenario != "contract":
         raise _type_error(400, "deprecated_application_scenario", "新体检仅支持合同场景")
 
-    return await execute_inspection(
-        db=db,
-        user_id=_current_user_id(user),
-        document_name=session["filename"],
-        text=session["text"],
-        project_id=body.project_id,
-        application_scenario=effective_scenario,
-        taboo_words_input=body.taboo_words,
-        record_id=session.get("record_id"),
-        engineering_type_key=body.engineering_type_key,
-        contract_type_key=body.contract_type_key,
-    )
+    execute_kwargs = {
+        "db": db,
+        "user_id": user_id,
+        "document_name": session["filename"],
+        "text": session["text"],
+        "project_id": body.project_id,
+        "application_scenario": effective_scenario,
+        "taboo_words_input": body.taboo_words,
+        "record_id": session.get("record_id"),
+    }
+    if selection is not None:
+        execute_kwargs.update(
+            engineering_type_key=selection["engineering_type_key"],
+            contract_type_key=selection["contract_type_key"],
+            knowledge_document_ids=body.knowledge_document_ids,
+        )
+    return await execute_inspection(**execute_kwargs)
 
 
 @router.get("/records", response_model=InspectionRecordListResponse)
@@ -942,7 +957,11 @@ async def get_record(
             "document_type_label": record.document_type_label,
             "classification": classification.model_dump() if classification else None,
             "classification_display": classification_display(record),
+            "final_engineering_type": record.final_engineering_type,
+            "final_contract_type": record.final_contract_type,
+            "classification_confidence": record.classification_confidence,
             "rule_package_key": record.rule_package_key,
+            "rule_package_keys": [record.rule_package_key] if record.rule_package_key else [],
             "engineering_type_snapshot": record.engineering_type_snapshot,
             "contract_type_snapshot": record.contract_type_snapshot,
             "knowledge_sources_snapshot": record.knowledge_sources_snapshot or [],
@@ -994,18 +1013,27 @@ async def inspect_record(
 
     decrypted_text = decrypt_text(record.parsed_content)
 
-    return await execute_inspection(
-        db=db,
-        user_id=_current_user_id(user),
-        document_name=record.document_name,
-        text=decrypted_text,
-        project_id=body.project_id,
-        application_scenario=record.document_type,
-        taboo_words_input=body.taboo_words,
-        record_id=record.id,
-        engineering_type_key=record.final_engineering_type or record.detected_engineering_type,
-        contract_type_key=record.final_contract_type or record.detected_contract_type,
-    )
+    execute_kwargs = {
+        "db": db,
+        "user_id": user_id,
+        "document_name": record.document_name,
+        "text": decrypted_text,
+        "project_id": body.project_id,
+        "application_scenario": record.document_type,
+        "taboo_words_input": body.taboo_words,
+        "record_id": record.id,
+    }
+    if body.engineering_type_key is not None or body.contract_type_key is not None or body.knowledge_document_ids is not None:
+        selection = await validate_inspection_submission(
+            db, user_id=user_id, engineering_type_key=body.engineering_type_key,
+            contract_type_key=body.contract_type_key, knowledge_document_ids=body.knowledge_document_ids,
+        )
+        execute_kwargs.update(
+            engineering_type_key=selection["engineering_type_key"],
+            contract_type_key=selection["contract_type_key"],
+            knowledge_document_ids=body.knowledge_document_ids,
+        )
+    return await execute_inspection(**execute_kwargs)
 
 
 @router.delete("/records/{record_id}", status_code=204)

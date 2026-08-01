@@ -33,7 +33,14 @@ if "markitdown" not in sys.modules or not hasattr(sys.modules.get("markitdown"),
 
 from app.core.database import async_session  # noqa: E402
 from main import app  # noqa: E402
-from app.models.knowledge import InspectionRecord, TabooWord  # noqa: E402
+from app.models.knowledge import (  # noqa: E402
+    DocumentVersion,
+    EngineeringSubcategory,
+    InspectionRecord,
+    InspectionType,
+    KnowledgeDocument,
+    TabooWord,
+)
 from app.api.v1 import inspection as inspection_router  # noqa: E402
 from app.services import inspection_runner  # noqa: E402
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
@@ -830,8 +837,18 @@ async def test_pending_record_can_be_inspected_from_history(client: AsyncClient,
     assert inspect_response.json()["id"] == record_id
     assert inspect_response.json()["overall_risk"] == "medium"
 
+    duplicate_response = await client.post(
+        f"/inspection/records/{record_id}/inspect",
+        headers=headers,
+        json={"project_id": "default"},
+    )
+    assert duplicate_response.status_code == 409
+    assert duplicate_response.json()["detail"]["code"] == "inspection_already_completed"
+
     updated_detail_response = await client.get(f"/inspection/records/{record_id}", headers=headers)
     assert updated_detail_response.json()["overall_risk"] == "medium"
+    assert updated_detail_response.json()["final_engineering_type"] == "municipal-road"
+    assert updated_detail_response.json()["final_contract_type"] == "professional-subcontract"
 
 
 @pytest.mark.asyncio
@@ -895,3 +912,98 @@ async def test_session_inspect_rejects_other_users_session(client: AsyncClient):
     )
 
     assert inspect_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_step2_submission_validates_independent_types_and_document_access(client: AsyncClient):
+    headers, user_id = await register_and_auth(client, "step2_validation_user")
+    other_headers, other_user_id = await register_and_auth(client, "step2_other_user")
+    del other_headers
+
+    async with async_session() as session:
+        engineering = InspectionType(
+            key="private-engineering", name="私有工程", dimension="engineering",
+            owner_type="user", owner_user_id=uuid.UUID(user_id), enabled=True,
+        )
+        contract = InspectionType(
+            key="private-contract", name="私有合同", dimension="contract",
+            owner_type="user", owner_user_id=uuid.UUID(user_id), enabled=True,
+        )
+        other_contract = InspectionType(
+            key="other-contract", name="他人合同", dimension="contract",
+            owner_type="user", owner_user_id=uuid.UUID(other_user_id), enabled=True,
+        )
+        session.add_all([engineering, contract, other_contract])
+        await session.commit()
+        await session.refresh(engineering)
+        await session.refresh(contract)
+
+    async with async_session() as session:
+        subcategory = EngineeringSubcategory(category_key="contract", name="Step2 测试分类")
+        session.add(subcategory)
+        await session.flush()
+        document = KnowledgeDocument(
+            title="可用合同规则", subcategory_id=subcategory.id, owner_type="user",
+            owner_user_id=uuid.UUID(user_id), application_scenario="contract", is_active=True,
+        )
+        session.add(document)
+        await session.flush()
+        version = DocumentVersion(
+            document_id=document.id, version_number=1, display_name="规则.md",
+            original_file_path="/tmp/rules.md", status="completed", file_size_bytes=1,
+            file_type=".md",
+        )
+        session.add(version)
+        await session.flush()
+        document.current_version_id = version.id
+        await session.commit()
+        await session.refresh(document)
+        document_id = document.id
+
+    session = inspection_router._create_inspection_session(
+        user_id=uuid.UUID(user_id), filename="合同.txt", file_size=10, file_format="txt",
+        document_type="contract", document_type_label="合同", text="甲乙双方签订合同并约定违约责任。",
+    )
+
+    async def fake_execute(**kwargs):
+        return {
+            "id": 1, "overall_risk": "low", "summary": "ok", "issues": [],
+            "regulation_refs": [], "document_name": kwargs["document_name"],
+            "document_type": "contract", "document_type_label": "合同",
+        }
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr("app.api.v1.inspection.execute_inspection", fake_execute)
+    try:
+        response = await client.post(
+            f"/inspection/sessions/{session['id']}/inspect", headers=headers,
+            json={
+                "engineering_type_key": "private-engineering",
+                "contract_type_key": "private-contract",
+                "knowledge_document_ids": [document_id],
+            },
+        )
+        assert response.status_code == 200
+
+        cross_dimension = await client.post(
+            f"/inspection/sessions/{session['id']}/inspect", headers=headers,
+            json={"engineering_type_key": "private-contract", "contract_type_key": "private-contract"},
+        )
+        assert cross_dimension.status_code == 422
+        assert cross_dimension.json()["detail"]["code"] == "invalid_engineering_type"
+
+        cross_user = await client.post(
+            f"/inspection/sessions/{session['id']}/inspect", headers=headers,
+            json={"engineering_type_key": "private-engineering", "contract_type_key": "other-contract"},
+        )
+        assert cross_user.status_code == 422
+        assert cross_user.json()["detail"]["code"] == "invalid_contract_type"
+    finally:
+        monkeypatch.undo()
+        async with async_session() as session:
+            await session.execute(
+                InspectionType.__table__.delete().where(
+                    InspectionType.owner_user_id.in_([uuid.UUID(user_id), uuid.UUID(other_user_id)])
+                )
+            )
+            await session.commit()

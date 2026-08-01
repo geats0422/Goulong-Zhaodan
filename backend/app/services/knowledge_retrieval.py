@@ -34,7 +34,7 @@ def _match_rank(engineering_type_key: str | None, contract_type_key: str | None)
     return case((exact, 4), (engineering_only, 3), (contract_only, 2), else_=1)
 
 
-def _base_statement(*, user_id: uuid.UUID, engineering_type_key: str, contract_type_key: str):
+def _base_statement(*, user_id: uuid.UUID, engineering_type_key: str, contract_type_key: str, document_ids: list[int] | None = None):
     return (
         select(KnowledgeDocument, IndexNode)
         .join(DocumentVersion, KnowledgeDocument.current_version_id == DocumentVersion.id)
@@ -53,6 +53,7 @@ def _base_statement(*, user_id: uuid.UUID, engineering_type_key: str, contract_t
             IndexNode.content.is_not(None),
             _binding_filter(KnowledgeDocument.engineering_type_key, engineering_type_key),
             _binding_filter(KnowledgeDocument.contract_type_key, contract_type_key),
+            *( [KnowledgeDocument.id.in_(document_ids)] if document_ids else [] ),
         )
     )
 
@@ -105,6 +106,7 @@ async def retrieve_regulation_base(
     limit: int,
     engineering_type_key: str | None = None,
     contract_type_key: str | None = None,
+    document_ids: list[int] | None = None,
 ) -> dict[str, Any]:
     """按用户优先策略召回合同规则，系统规则只在用户无匹配时回退。"""
     if application_scenario != "contract":
@@ -117,6 +119,7 @@ async def retrieve_regulation_base(
             user_id=user_id,
             engineering_type_key=engineering_type_key,
             contract_type_key=contract_type_key,
+            document_ids=document_ids,
         )
         .where(
             KnowledgeDocument.owner_type == "user",
@@ -141,6 +144,7 @@ async def retrieve_regulation_base(
             user_id=user_id,
             engineering_type_key=engineering_type_key,
             contract_type_key=contract_type_key,
+            document_ids=document_ids,
         )
         .where(
             KnowledgeDocument.owner_type == "system",

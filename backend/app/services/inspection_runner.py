@@ -11,20 +11,19 @@ import uuid
 from typing import Any
 
 from fastapi import HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.inspector import run_inspection
 from app.core.data_encryption import encrypt_text
 from app.core.deps import InspectionDeps
-from app.models.knowledge import InspectionRecord, TabooWord
-from app.services.knowledge_retrieval import retrieve_regulation_base
+from app.models.knowledge import DocumentVersion, InspectionRecord, InspectionType, KnowledgeDocument, TabooWord
+from app.services.knowledge_retrieval import DEFAULT_RULE_PACKAGE_KEY, retrieve_regulation_base
 from app.services.contract_classifier import ContractClassification, classify_contract
 from app.services.contract_classifier import screen_contract_rules
 
 _logger = logging.getLogger(__name__)
-DEFAULT_RULE_PACKAGE_KEY = "general-engineering-contract-rules:v1"
 ENGINEERING_TYPE_NAMES = {
     "building-construction": "房建施工", "municipal-road": "市政道路",
     "decoration-renovation": "装饰装修", "mechanical-electrical-installation": "机电安装",
@@ -33,6 +32,58 @@ ENGINEERING_TYPE_NAMES = {
 CONTRACT_TYPE_NAMES = {
     "labor-subcontract": "劳务分包", "professional-subcontract": "专业工程分包", "other": "其他类",
 }
+
+
+async def validate_inspection_submission(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    engineering_type_key: str | None,
+    contract_type_key: str | None,
+    knowledge_document_ids: list[int] | None,
+) -> dict[str, Any]:
+    """校验 Step 2 的最终类别和知识库选择，拒绝跨维度及越权值。"""
+    engineering_type_key = engineering_type_key or "general-engineering"
+    contract_type_key = contract_type_key or "other"
+
+    async def load_type(key: str, dimension: str, code: str) -> InspectionType:
+        item = await db.scalar(select(InspectionType).where(
+            InspectionType.key == key,
+            InspectionType.dimension == dimension,
+            InspectionType.enabled.is_(True),
+            ((InspectionType.owner_type == "system") | ((InspectionType.owner_type == "user") & (InspectionType.owner_user_id == user_id))),
+        ))
+        if item is None:
+            raise HTTPException(status_code=422, detail={"code": code, "message": "类别不存在、已停用或无权使用"})
+        return item
+
+    engineering = await load_type(engineering_type_key, "engineering", "invalid_engineering_type")
+    contract = await load_type(contract_type_key, "contract", "invalid_contract_type")
+    documents = []
+    if knowledge_document_ids:
+        if len(set(knowledge_document_ids)) != len(knowledge_document_ids):
+            raise HTTPException(status_code=422, detail={"code": "invalid_knowledge_document", "message": "知识库文档 ID 不得重复"})
+        documents = list((await db.scalars(select(KnowledgeDocument).join(
+            DocumentVersion, KnowledgeDocument.current_version_id == DocumentVersion.id,
+        ).where(
+            KnowledgeDocument.id.in_(knowledge_document_ids),
+            KnowledgeDocument.application_scenario == "contract",
+            KnowledgeDocument.is_active.is_(True),
+            DocumentVersion.status == "completed",
+            (((KnowledgeDocument.owner_type == "user") & (KnowledgeDocument.owner_user_id == user_id))
+             | ((KnowledgeDocument.owner_type == "system") & (KnowledgeDocument.rule_package_key == DEFAULT_RULE_PACKAGE_KEY))),
+        ))).all())
+        if {doc.id for doc in documents} != set(knowledge_document_ids):
+            raise HTTPException(status_code=422, detail={"code": "invalid_knowledge_document", "message": "知识库文档不存在、已停用或无权使用"})
+        if len({doc.owner_type for doc in documents}) > 1:
+            raise HTTPException(status_code=422, detail={"code": "invalid_knowledge_document", "message": "用户知识库与系统默认知识库不可混用"})
+    return {
+        "engineering_type_key": engineering.key,
+        "contract_type_key": contract.key,
+        "engineering_type_snapshot": engineering.name,
+        "contract_type_snapshot": contract.name,
+        "documents": documents,
+    }
 
 
 def classification_record_values(
@@ -81,6 +132,12 @@ class InspectionReportResponse(BaseModel):
     document_type: str = ""
     document_type_label: str = ""
     classification: dict[str, Any] | None = None
+    final_engineering_type: str | None = None
+    final_contract_type: str | None = None
+    classification_confidence: str | None = None
+    rule_package_key: str | None = None
+    rule_package_keys: list[str] = Field(default_factory=list)
+    knowledge_sources_snapshot: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def merge_unique_words(*groups: list[str]) -> list[str]:
@@ -199,6 +256,7 @@ async def execute_inspection(
     record_id: int | None = None,
     engineering_type_key: str | None = None,
     contract_type_key: str | None = None,
+    knowledge_document_ids: list[int] | None = None,
 ) -> InspectionReportResponse:
     """公共审查执行：加载违禁词 → 召回知识库 → 运行 Agent → 保存记录 → 返回报告。"""
 
@@ -209,14 +267,22 @@ async def execute_inspection(
         )
     if application_scenario != "contract":
         raise HTTPException(status_code=400, detail="非法应用场景")
+    selection = None
+    if engineering_type_key is not None or contract_type_key is not None or knowledge_document_ids is not None:
+        selection = await validate_inspection_submission(
+            db, user_id=user_id, engineering_type_key=engineering_type_key,
+            contract_type_key=contract_type_key, knowledge_document_ids=knowledge_document_ids,
+        )
     existing_record = None
     if record_id is not None:
         existing_record = await db.scalar(
-            select(InspectionRecord).where(
+            select(InspectionRecord).with_for_update().where(
                 InspectionRecord.id == record_id,
                 InspectionRecord.user_id == user_id,
             )
         )
+        if existing_record is not None and existing_record.status == "completed":
+            raise HTTPException(status_code=409, detail={"code": "inspection_already_completed", "message": "该报告已完成，不能重复提交"})
         if existing_record is not None and (
             existing_record.document_type == "bidding"
             or existing_record.classification_source == "archived_legacy"
@@ -243,9 +309,13 @@ async def execute_inspection(
         or (existing_record.detected_contract_type if existing_record is not None else None)
         or classification.contract_type_key
     )
+    if selection is not None:
+        engineering_type_key = selection["engineering_type_key"]
+        contract_type_key = selection["contract_type_key"]
     saved_taboo_words = await load_user_taboo_words(db, user_id)
     temporary_taboo_words = [w.strip() for w in taboo_words_input.split(",") if w.strip()]
     taboo_list = merge_unique_words(saved_taboo_words, temporary_taboo_words)
+    retrieval_kwargs = {"document_ids": knowledge_document_ids} if knowledge_document_ids is not None else {}
     regulation_base = await retrieve_regulation_base(
         db,
         user_id=user_id,
@@ -253,6 +323,7 @@ async def execute_inspection(
         limit=8,
         engineering_type_key=engineering_type_key,
         contract_type_key=contract_type_key,
+        **retrieval_kwargs,
     )
 
     deps = InspectionDeps(
@@ -315,6 +386,25 @@ async def execute_inspection(
             ),
         }
     )
+    if selection is not None:
+        record_values.update(
+            {
+                "classification_source": "manual",
+                "engineering_type_snapshot": selection["engineering_type_snapshot"],
+                "contract_type_snapshot": selection["contract_type_snapshot"],
+            }
+        )
+    if existing_record is not None:
+        record_values.update(
+            {
+                "detected_engineering_type": existing_record.detected_engineering_type or record_values["detected_engineering_type"],
+                "detected_contract_type": existing_record.detected_contract_type or record_values["detected_contract_type"],
+                "classification_evidence": existing_record.classification_evidence or record_values["classification_evidence"],
+                "classification_source": existing_record.classification_source or record_values["classification_source"],
+                "engineering_type_snapshot": existing_record.engineering_type_snapshot or record_values["engineering_type_snapshot"],
+                "contract_type_snapshot": existing_record.contract_type_snapshot or record_values["contract_type_snapshot"],
+            }
+        )
     for field_name, value in record_values.items():
         setattr(record, field_name, value)
 
@@ -338,4 +428,10 @@ async def execute_inspection(
             "source": classification.source,
             "requires_confirmation": classification.requires_confirmation,
         },
+        final_engineering_type=record.final_engineering_type,
+        final_contract_type=record.final_contract_type,
+        classification_confidence=record.classification_confidence,
+        rule_package_key=record.rule_package_key,
+        rule_package_keys=regulation_base.get("rule_package_keys", []),
+        knowledge_sources_snapshot=record.knowledge_sources_snapshot or [],
     )

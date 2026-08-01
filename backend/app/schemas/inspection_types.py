@@ -45,3 +45,11 @@ class InspectionTypeResponse(BaseModel):
     enabled: bool
     created_at: str
     updated_at: str
+
+
+class InspectionStep2Submission(BaseModel):
+    """Step 2 的最终确认值；两个类别维度保持独立。"""
+
+    engineering_type_key: str | None = None
+    contract_type_key: str | None = None
+    knowledge_document_ids: list[int] | None = None
