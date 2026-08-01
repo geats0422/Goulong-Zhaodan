@@ -44,6 +44,62 @@ from app.services.document_parser import DocumentParseError, ParseResult, parse_
 
 _logger = logging.getLogger(__name__)
 
+_DEFAULT_RULE_PACKAGE_KEY = "general-engineering-contract-rules:v1"
+_ENGINEERING_TYPE_NAMES = {
+    "building-construction": "房建施工",
+    "municipal-road": "市政道路",
+    "decoration-renovation": "装饰装修",
+    "mechanical-electrical-installation": "机电安装",
+    "steel-structure": "钢结构",
+    "general-engineering": "通用工程",
+}
+_CONTRACT_TYPE_NAMES = {
+    "labor-subcontract": "劳务分包",
+    "professional-subcontract": "专业工程分包",
+    "other": "其他类",
+}
+
+
+def _classification_record_values(classification: Any, regulation_base: dict[str, Any]) -> dict[str, Any]:
+    """将已通过分类器边界校验的结果转换为记录快照。"""
+    from app.services.contract_classifier import (
+        CONTRACT_TYPE_KEYS,
+        DEFAULT_CONTRACT_TYPE,
+        DEFAULT_ENGINEERING_TYPE,
+        ENGINEERING_TYPE_KEYS,
+    )
+
+    engineering = (
+        classification.engineering_type_key
+        if classification.engineering_type_key in ENGINEERING_TYPE_KEYS
+        else DEFAULT_ENGINEERING_TYPE
+    )
+    contract = (
+        classification.contract_type_key
+        if classification.contract_type_key in CONTRACT_TYPE_KEYS
+        else DEFAULT_CONTRACT_TYPE
+    )
+    confidence = classification.confidence if classification.confidence in {"high", "medium", "low"} else "low"
+    source = classification.source if classification.source in {"rule", "model", "fallback", "manual"} else "fallback"
+    sources = regulation_base.get("sources", [])
+    safe_sources = [dict(source) for source in sources if isinstance(source, dict)]
+    return {
+        "detected_engineering_type": engineering,
+        "final_engineering_type": engineering,
+        "detected_contract_type": contract,
+        "final_contract_type": contract,
+        "classification_confidence": confidence,
+        "classification_source": source,
+        "rule_package_key": regulation_base.get("rule_package_key") or _DEFAULT_RULE_PACKAGE_KEY,
+        "engineering_type_snapshot": _ENGINEERING_TYPE_NAMES.get(
+            engineering, engineering
+        ),
+        "contract_type_snapshot": _CONTRACT_TYPE_NAMES.get(
+            contract, contract
+        ),
+        "knowledge_sources_snapshot": safe_sources,
+    }
+
 
 @dataclass(frozen=True, slots=True)
 class _DocumentJobSnapshot:
@@ -538,7 +594,7 @@ async def _load_owned_inspection_input(job: _DocumentJobSnapshot) -> _Inspection
             )
             if record is None:
                 raise _DocumentWorkerBusinessError("inspection_failed")
-        scenario = (record.document_type if record is not None else None) or "bidding"
+        scenario = record.document_type if record is not None and record.document_type == "contract" else "contract"
         taboo_words = await load_user_taboo_words(db, job.user_id)
         regulation_base = await retrieve_regulation_base(
             db,
@@ -587,7 +643,7 @@ async def _run_owned_document_inspection(
         deps = InspectionDeps(
             project_id=inspection_input.project_id,
             user_id=str(job.user_id),
-            document_name=inspection_input.document_name,
+            document_name=getattr(inspection_input, "document_name", Path(job.source_path).name),
             application_scenario=inspection_input.application_scenario,
             regulation_base=inspection_input.regulation_base,
             taboo_words=inspection_input.taboo_words or None,
@@ -688,6 +744,11 @@ def _serialize_inspection_result(report: Any, *, classification: Any | None = No
 
 async def _load_inspection_result_artifact(job: _DocumentJobSnapshot) -> Any | None:
     from app.agents.inspector import InspectionResult
+    from app.services.contract_classifier import (
+        CONTRACT_TYPE_KEYS,
+        ContractClassification,
+        ENGINEERING_TYPE_KEYS,
+    )
 
     if not job.inspection_result_path or not job.inspection_result_hash:
         return None
@@ -723,12 +784,40 @@ async def _load_inspection_result_artifact(job: _DocumentJobSnapshot) -> Any | N
             or any(not isinstance(ref, str) for ref in regulation_refs)
         ):
             raise ValueError
-        return InspectionResult(
+        report = InspectionResult(
             overall_risk=overall_risk,
             summary=summary,
             issues=issues,
             regulation_refs=regulation_refs,
         )
+        classification_data = data.get("classification")
+        if isinstance(classification_data, dict):
+            engineering = classification_data.get("engineering_type_key")
+            contract = classification_data.get("contract_type_key")
+            confidence = classification_data.get("confidence")
+            evidence = classification_data.get("evidence")
+            source = classification_data.get("source")
+            requires_confirmation = classification_data.get("requires_confirmation")
+            if (
+                isinstance(engineering, str)
+                and isinstance(contract, str)
+                and engineering in ENGINEERING_TYPE_KEYS
+                and contract in CONTRACT_TYPE_KEYS
+                and confidence in {"high", "medium", "low"}
+                and isinstance(evidence, list)
+                and all(isinstance(item, str) for item in evidence)
+                and source in {"rule", "model", "fallback", "manual"}
+                and isinstance(requires_confirmation, bool)
+            ):
+                setattr(report, "classification", ContractClassification(
+                    engineering_type_key=engineering,
+                    contract_type_key=contract,
+                    confidence=confidence,
+                    evidence=evidence,
+                    source=source,
+                    requires_confirmation=requires_confirmation,
+                ))
+        return report
     except (KeyError, OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
         return None
 
@@ -758,17 +847,20 @@ async def _run_resumable_document_inspection(
     started = await _persist_inspection_call_state(job, state="started", input_hash=input_hash)
     if started is None:
         return None
-    from app.services.inspection_runner import classify_inspection_document
-    from app.services.contract_classifier import screen_contract_rules
+    classification = None
+    if inspection_input.application_scenario == "contract":
+        from app.services.inspection_runner import classify_inspection_document
+        from app.services.contract_classifier import screen_contract_rules
 
-    classification = await classify_inspection_document(
-        document_name=inspection_input.document_name,
-        text=fallback_text or "",
-        rule_screening=screen_contract_rules(
-            filename=inspection_input.document_name,
+        document_name = getattr(inspection_input, "document_name", Path(job.source_path).name)
+        classification = await classify_inspection_document(
+            document_name=document_name,
             text=fallback_text or "",
-        ),
-    )
+            rule_screening=screen_contract_rules(
+                filename=document_name,
+                text=fallback_text or "",
+            ),
+        )
     report = await _run_owned_document_inspection(
         started,
         nodes,
@@ -800,6 +892,7 @@ async def _commit_inspection_success(
     job: _DocumentJobSnapshot,
     artifact: MarkdownArtifact,
     report: Any,
+    classification: Any | None = None,
 ) -> bool:
     from app.core.data_encryption import encrypt_text
     from app.services.inspection_runner import DOCUMENT_TYPE_LABELS
@@ -849,6 +942,13 @@ async def _commit_inspection_success(
             record.text_preview = artifact.markdown[:500]
             record.parsed_content = encrypt_text(artifact.markdown)
             record.quota_consumed = max(1, len(artifact.markdown) // 500)
+            actual_classification = classification or getattr(report, "classification", None)
+            if actual_classification is not None:
+                for field_name, value in _classification_record_values(
+                    actual_classification,
+                    inspection_input.regulation_base,
+                ).items():
+                    setattr(record, field_name, value)
     await _delete_terminal_artifact(job.index_artifact_path, artifact_kind="index")
     await _delete_terminal_artifact(job.inspection_result_path, artifact_kind="inspection_result")
     return True
@@ -1046,7 +1146,12 @@ async def document_processing_task(ctx: dict[str, Any], job_id: str) -> None:
                 if inspection is None:
                     return
                 current = inspection.job
-                await _commit_inspection_success(current, artifact, inspection.report)
+                if getattr(inspection, "classification", None) is None:
+                    await _commit_inspection_success(current, artifact, inspection.report)
+                else:
+                    await _commit_inspection_success(
+                        current, artifact, inspection.report, inspection.classification
+                    )
                 return
 
         if current.job_type == "inspection":
@@ -1068,7 +1173,12 @@ async def document_processing_task(ctx: dict[str, Any], job_id: str) -> None:
             if inspection is None:
                 return
             current = inspection.job
-            await _commit_inspection_success(current, artifact, inspection.report)
+            if getattr(inspection, "classification", None) is None:
+                await _commit_inspection_success(current, artifact, inspection.report)
+            else:
+                await _commit_inspection_success(
+                    current, artifact, inspection.report, inspection.classification
+                )
             return
 
         if current.stage == "indexing" and current.progress >= 85:
@@ -1111,7 +1221,12 @@ async def document_processing_task(ctx: dict[str, Any], job_id: str) -> None:
             if inspection is None:
                 return
             current = inspection.job
-            await _commit_inspection_success(current, artifact, inspection.report)
+            if getattr(inspection, "classification", None) is None:
+                await _commit_inspection_success(current, artifact, inspection.report)
+            else:
+                await _commit_inspection_success(
+                    current, artifact, inspection.report, inspection.classification
+                )
         else:
             await _complete_document_job(current, artifact)
     except _LeaseLostError:

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import CurrentUserContext, get_current_user
@@ -60,14 +62,25 @@ class DocumentJobResponse(BaseModel):
     updated_at: datetime.datetime
     finished_at: datetime.datetime | None
     error: DocumentJobError | None
+    classification: dict[str, Any] | None = None
 
 
-def _response(job) -> DocumentJobResponse:
+def _response(job, record=None) -> DocumentJobResponse:
     error = None
     if job.error_code:
         code, message = sanitize_document_job_error(job.error_code)
         error = DocumentJobError(code=code, message=message)
     message = "任务已取消" if job.status == "cancelled" else _STAGE_MESSAGES.get(job.stage, "文档任务处理中")
+    classification = None
+    if record is not None and record.detected_engineering_type and record.detected_contract_type:
+        classification = {
+            "engineering_type_key": record.final_engineering_type or record.detected_engineering_type,
+            "contract_type_key": record.final_contract_type or record.detected_contract_type,
+            "confidence": record.classification_confidence or "low",
+            "evidence": [],
+            "source": record.classification_source or "fallback",
+            "requires_confirmation": (record.classification_confidence or "low") != "high",
+        }
     return DocumentJobResponse(
         id=job.job_id,
         type=job.job_type,
@@ -84,6 +97,7 @@ def _response(job) -> DocumentJobResponse:
         updated_at=job.updated_at,
         finished_at=job.finished_at,
         error=error,
+        classification=classification,
     )
 
 
@@ -115,7 +129,17 @@ async def get_document_job_status(
         job = await get_document_job(db, job_id, current_user.user_id)
     except DocumentJobNotFoundError:
         raise _not_found() from None
-    return _response(job)
+    record = None
+    if job.inspection_record_id is not None:
+        from app.models.knowledge import InspectionRecord
+
+        record = await db.scalar(
+            select(InspectionRecord).where(
+                InspectionRecord.id == job.inspection_record_id,
+                InspectionRecord.user_id == current_user.user_id,
+            )
+        )
+    return _response(job, record)
 
 
 @router.post("/{job_id}/retry", response_model=DocumentJobResponse)
@@ -164,4 +188,14 @@ async def retry_failed_document_job(
     except RetryLimitExceededError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="任务重试次数已达上限") from None
 
-    return _response(job)
+    record = None
+    if job.inspection_record_id is not None:
+        from app.models.knowledge import InspectionRecord
+
+        record = await db.scalar(
+            select(InspectionRecord).where(
+                InspectionRecord.id == job.inspection_record_id,
+                InspectionRecord.user_id == current_user.user_id,
+            )
+        )
+    return _response(job, record)

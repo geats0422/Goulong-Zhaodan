@@ -575,7 +575,7 @@ async def test_session_inspect_uses_document_type_from_parse_session(client: Asy
 
 
 @pytest.mark.asyncio
-async def test_session_inspect_unknown_type_falls_back_to_bidding(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+async def test_session_inspect_unknown_type_falls_back_to_contract(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
     headers, session_id = await register_and_create_parse_session(
         client,
         "unknown_fallback_user",
@@ -609,7 +609,7 @@ async def test_session_inspect_unknown_type_falls_back_to_bidding(client: AsyncC
     )
 
     assert inspect_response.status_code == 200
-    assert captured["application_scenario"] == "bidding"
+    assert captured["application_scenario"] == "contract"
 
 
 @pytest.mark.asyncio
@@ -656,7 +656,7 @@ async def test_contract_inspect_only_references_contract_sources(client: AsyncCl
 
 
 @pytest.mark.asyncio
-async def test_session_inspect_explicit_scenario_overrides_detected(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+async def test_session_inspect_rejects_deprecated_bidding_scenario(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
     headers, session_id = await register_and_create_parse_session(
         client,
         "scenario_override_user",
@@ -689,8 +689,9 @@ async def test_session_inspect_explicit_scenario_overrides_detected(client: Asyn
         json={"project_id": "proj-override", "application_scenario": "bidding"},
     )
 
-    assert inspect_response.status_code == 200
-    assert captured["application_scenario"] == "bidding"
+    assert inspect_response.status_code == 400
+    assert inspect_response.json()["detail"]["code"] == "deprecated_application_scenario"
+    assert "application_scenario" not in captured
 
 
 @pytest.mark.asyncio

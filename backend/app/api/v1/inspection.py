@@ -43,6 +43,11 @@ from app.services.inspection_runner import (
     classify_inspection_document,
     execute_inspection,
 )
+from app.services.contract_classifier import (
+    ContractClassification,
+    DEFAULT_CONTRACT_TYPE,
+    DEFAULT_ENGINEERING_TYPE,
+)
 from app.services.markdown_converter import ConversionError, convert_to_markdown
 from app.services.report_pdf import render_report_pdf
 
@@ -508,6 +513,19 @@ class ContractClassificationResponse(BaseModel):
     requires_confirmation: bool
 
 
+def _classification_response_from_record(record: InspectionRecord) -> ContractClassificationResponse | None:
+    if not record.detected_engineering_type or not record.detected_contract_type:
+        return None
+    return ContractClassificationResponse(
+        engineering_type_key=record.final_engineering_type or record.detected_engineering_type,
+        contract_type_key=record.final_contract_type or record.detected_contract_type,
+        confidence=record.classification_confidence or "low",
+        evidence=[],
+        source=record.classification_source or "fallback",
+        requires_confirmation=(record.classification_confidence or "low") != "high",
+    )
+
+
 class InspectionParseFileResponse(BaseModel):
     """解析会话中的文件元信息响应"""
 
@@ -698,7 +716,7 @@ def _aggregate_history_stats(records: list[InspectionRecord], days: int = 7) -> 
 async def upload_and_inspect(
     file: UploadFile = File(..., description="待体检的工程文档"),
     project_id: str = Form(default="default"),
-    application_scenario: str = Form(default="bidding"),
+    application_scenario: str = Form(default="contract"),
     taboo_words: str = Form(default=""),
     db=Depends(get_db_session),
     user: CurrentUserContext = Depends(get_current_user),
@@ -715,6 +733,8 @@ async def upload_and_inspect(
         validate_application_scenario(application_scenario)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="非法应用场景") from exc
+    if application_scenario != "contract":
+        raise _type_error(400, "deprecated_application_scenario", "新体检仅支持合同场景")
 
     return await execute_inspection(
         db=db,
@@ -756,8 +776,8 @@ async def parse_inspection_file(
             db=db,
             user_id=user_id,
             document_name=filename,
-            document_type="unknown",
-            document_type_label=DOCUMENT_TYPE_LABELS["unknown"],
+            document_type="contract",
+            document_type_label=DOCUMENT_TYPE_LABELS["contract"],
             text="",
         )
         job = await create_document_job(
@@ -784,7 +804,17 @@ async def parse_inspection_file(
         record_id=record.id,
     )
 
-    classification = await classify_inspection_document(document_name=filename, text="")
+    try:
+        classification = await classify_inspection_document(document_name=filename, text="")
+    except Exception:
+        classification = ContractClassification(
+            engineering_type_key=DEFAULT_ENGINEERING_TYPE,
+            contract_type_key=DEFAULT_CONTRACT_TYPE,
+            confidence="low",
+            evidence=[],
+            source="fallback",
+            requires_confirmation=True,
+        )
 
     return InspectionParseResponse(
         session_id=session["id"],
@@ -818,7 +848,9 @@ async def inspect_session(
     detected_type = session["document_type"]
     effective_scenario = body.application_scenario or detected_type
     if effective_scenario == "unknown":
-        effective_scenario = "bidding"
+        effective_scenario = "contract"
+    if effective_scenario != "contract":
+        raise _type_error(400, "deprecated_application_scenario", "新体检仅支持合同场景")
 
     return await execute_inspection(
         db=db,
@@ -895,6 +927,7 @@ async def get_record(
     user_id = _current_user_id(user)
     record = await db.scalar(select(InspectionRecord).where(InspectionRecord.id == record_id, InspectionRecord.user_id == user_id))
     if record is not None:
+        classification = _classification_response_from_record(record)
         return {
             "id": record.id,
             "document_name": record.document_name,
@@ -905,6 +938,16 @@ async def get_record(
             "regulation_refs": record.regulation_refs or [],
             "document_type": record.document_type,
             "document_type_label": record.document_type_label,
+            "classification": classification.model_dump() if classification else None,
+            "classification_display": (
+                "历史记录 / 招投标资料已归档，无法按旧场景重审"
+                if record.document_type == "bidding"
+                else None
+            ),
+            "rule_package_key": record.rule_package_key,
+            "engineering_type_snapshot": record.engineering_type_snapshot,
+            "contract_type_snapshot": record.contract_type_snapshot,
+            "knowledge_sources_snapshot": record.knowledge_sources_snapshot or [],
             "text_preview": record.text_preview,
             "parsed_content": decrypt_text(record.parsed_content),
             "created_at": record.created_at.isoformat(),

@@ -207,6 +207,7 @@ async def test_status_returns_only_polling_shape_and_sanitized_error(
         "updated_at",
         "finished_at",
         "error",
+        "classification",
     }
     assert payload["id"] == "doc_job_public_id"
     assert payload["type"] == "knowledge"

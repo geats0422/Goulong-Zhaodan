@@ -11,7 +11,12 @@ import pytest
 from app.services.document_parser import DocumentParseError
 from app.services.contract_classifier import ContractClassification
 from app.workers.config import WorkerSettings
-from app.workers.tasks import _persist_parsed_markdown, _serialize_inspection_result, document_processing_task
+from app.workers.tasks import (
+    _classification_record_values,
+    _persist_parsed_markdown,
+    _serialize_inspection_result,
+    document_processing_task,
+)
 from app.workers import tasks
 
 
@@ -33,6 +38,35 @@ def test_inspection_job_result_carries_classification_after_parsing() -> None:
 
     assert payload.decode("utf-8").find('"classification"') >= 0
     assert '"engineering_type_key":"municipal-road"' in payload.decode("utf-8")
+
+
+def test_worker_persists_actual_classification_and_empty_sources_snapshot() -> None:
+    classification = ContractClassification(
+        engineering_type_key="municipal-road",
+        contract_type_key="labor-subcontract",
+        confidence="high",
+        evidence=["市政道路", "劳务分包"],
+        source="model",
+        requires_confirmation=False,
+    )
+
+    values = _classification_record_values(
+        classification,
+        {"sources": []},
+    )
+
+    assert values == {
+        "detected_engineering_type": "municipal-road",
+        "final_engineering_type": "municipal-road",
+        "detected_contract_type": "labor-subcontract",
+        "final_contract_type": "labor-subcontract",
+        "classification_confidence": "high",
+        "classification_source": "model",
+        "rule_package_key": "general-engineering-contract-rules:v1",
+        "engineering_type_snapshot": "市政道路",
+        "contract_type_snapshot": "劳务分包",
+        "knowledge_sources_snapshot": [],
+    }
 
 
 @pytest.fixture(scope="session")
