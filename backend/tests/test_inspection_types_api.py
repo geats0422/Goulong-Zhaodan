@@ -147,6 +147,32 @@ async def test_type_validation_duplicate_disable_and_referenced_delete(client: A
     assert len((await client.get("/inspection/contract-types", headers=headers)).json()) == 1
 
 
+@pytest.mark.asyncio
+async def test_include_disabled_lists_only_own_disabled_types_and_can_reenable(client: AsyncClient):
+    user_a, user_a_id = await register(client, "disabled-a")
+    user_b, user_b_id = await register(client, "disabled-b")
+    await add_type("a-disabled", "甲方停用", "engineering", user_a_id, enabled=False)
+    await add_type("b-disabled", "乙方停用", "engineering", user_b_id, enabled=False)
+
+    default_response = await client.get("/inspection/engineering-types", headers=user_a)
+    assert default_response.status_code == 200
+    assert default_response.json() == []
+
+    managed_response = await client.get("/inspection/engineering-types?include_disabled=true", headers=user_a)
+    assert managed_response.status_code == 200
+    assert {item["key"] for item in managed_response.json()} == {"a-disabled"}
+    type_id = managed_response.json()[0]["id"]
+
+    enabled_response = await client.patch(
+        f"/inspection/engineering-types/{type_id}", headers=user_a, json={"enabled": True}
+    )
+    assert enabled_response.status_code == 200
+    assert enabled_response.json()["enabled"] is True
+    assert {item["key"] for item in (await client.get("/inspection/engineering-types", headers=user_a)).json()} == {
+        "a-disabled"
+    }
+
+
 def test_openapi_exposes_eight_type_operations():
     paths = app.openapi()["paths"]
     expected = {

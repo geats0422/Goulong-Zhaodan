@@ -15,7 +15,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import desc, exists, func, or_, select
+from sqlalchemy import desc, exists, func, or_, select, true
 from sqlalchemy.exc import IntegrityError
 
 from app.core.auth import CurrentUserContext, get_current_user
@@ -90,13 +90,20 @@ def _serialize_inspection_type(item: InspectionType) -> InspectionTypeResponse:
     )
 
 
-async def _list_inspection_types(db, dimension: str, user_id: uuid_mod.UUID) -> list[InspectionTypeResponse]:
+async def _list_inspection_types(
+    db,
+    dimension: str,
+    user_id: uuid_mod.UUID,
+    include_disabled: bool = False,
+) -> list[InspectionTypeResponse]:
+    visibility = or_(InspectionType.owner_type == "system", InspectionType.owner_user_id == user_id)
+    enabled_filter = InspectionType.enabled.is_(True) if not include_disabled else true()
     result = await db.scalars(
         select(InspectionType)
         .where(
             InspectionType.dimension == dimension,
-            InspectionType.enabled.is_(True),
-            or_(InspectionType.owner_type == "system", InspectionType.owner_user_id == user_id),
+            enabled_filter,
+            visibility,
         )
         .order_by(InspectionType.owner_type, InspectionType.name, InspectionType.id)
     )
@@ -209,8 +216,12 @@ async def _delete_inspection_type(db, type_id: int, user_id: uuid_mod.UUID) -> N
 
 
 @router.get("/engineering-types", response_model=list[InspectionTypeResponse])
-async def list_engineering_types(db=Depends(get_db_session), user: CurrentUserContext = Depends(get_current_user)):
-    return await _list_inspection_types(db, "engineering", _current_user_id(user))
+async def list_engineering_types(
+    include_disabled: bool = False,
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
+):
+    return await _list_inspection_types(db, "engineering", _current_user_id(user), include_disabled)
 
 
 @router.post("/engineering-types", response_model=InspectionTypeResponse, status_code=status.HTTP_201_CREATED)
@@ -236,8 +247,12 @@ async def delete_engineering_type(type_id: int, db=Depends(get_db_session), user
 
 
 @router.get("/contract-types", response_model=list[InspectionTypeResponse])
-async def list_contract_types(db=Depends(get_db_session), user: CurrentUserContext = Depends(get_current_user)):
-    return await _list_inspection_types(db, "contract", _current_user_id(user))
+async def list_contract_types(
+    include_disabled: bool = False,
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
+):
+    return await _list_inspection_types(db, "contract", _current_user_id(user), include_disabled)
 
 
 @router.post("/contract-types", response_model=InspectionTypeResponse, status_code=status.HTTP_201_CREATED)
