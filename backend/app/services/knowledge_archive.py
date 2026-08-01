@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
@@ -116,26 +117,40 @@ async def delete_user_archived_document(
     file_paths = _collect_version_file_paths(versions)
 
     # 显式删除索引节点与版本记录，避免依赖数据库级联配置（任务约束：不改旧迁移）。
-    if version_ids:
-        await db.execute(
-            delete(IndexNode).where(IndexNode.version_id.in_(version_ids))
-        )
-        await db.execute(
-            delete(DocumentVersion).where(DocumentVersion.id.in_(version_ids))
-        )
-    await db.delete(document)
-
+    #
+    # 删除顺序必须绕开 FK 循环：
+    #   knowledge_documents.current_version_id → document_versions.id (NO ACTION)
+    #   document_versions.document_id          → knowledge_documents.id (NO ACTION)
+    # 若直接删除 DocumentVersion，会被 current_version_id 引用阻止（真实 PostgreSQL
+    # 下 100% 触发 ForeignKeyViolationError）。因此：
+    #   1. 删 IndexNode（通过 version_id 间接归属 document）
+    #   2. 断开 current_version_id 并 flush，使 KnowledgeDocument 不再引用任何版本
+    #   3. 删 DocumentVersion（此时已无 KnowledgeDocument 引用）
+    #   4. 删 KnowledgeDocument（此时已无 DocumentVersion 引用）
     try:
+        if version_ids:
+            await db.execute(
+                delete(IndexNode).where(IndexNode.version_id.in_(version_ids))
+            )
+        document.current_version_id = None
+        await db.flush()
+        if version_ids:
+            await db.execute(
+                delete(DocumentVersion).where(DocumentVersion.id.in_(version_ids))
+            )
+        await db.delete(document)
         await db.commit()
     except SQLAlchemyError as exc:
         await db.rollback()
         raise ArchiveDeletionError("归档资料删除失败") from exc
 
     # 数据库已提交：清理文件存储为 best-effort，失败不阻塞删除流程（幂等）。
+    # delete_file 是同步阻塞 I/O（本地 unlink / OSS 网络请求），放线程池执行避免
+    # 阻塞事件循环。
     deleted_files = 0
     missing_files = 0
     for path in file_paths:
-        if delete_file(path):
+        if await asyncio.to_thread(delete_file, path):
             deleted_files += 1
         else:
             missing_files += 1
