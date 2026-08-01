@@ -19,7 +19,6 @@ from app.agents.inspector import run_inspection
 from app.core.data_encryption import encrypt_text
 from app.core.deps import InspectionDeps
 from app.models.knowledge import InspectionRecord, TabooWord
-from goulong_auth.models import Membership
 from app.services.knowledge_retrieval import retrieve_regulation_base
 from app.services.contract_classifier import ContractClassification, classify_contract
 from app.services.contract_classifier import screen_contract_rules
@@ -196,15 +195,6 @@ async def execute_inspection(
                 detail={"code": "deprecated_application_scenario", "message": "历史招投标记录不可按旧场景重审"},
             )
 
-    result_mem = await db.execute(
-        select(Membership).where(
-            Membership.user_id == user_id,
-            Membership.product == "zhaodan",
-            Membership.status == "active",
-        )
-    )
-    membership = result_mem.scalar_one_or_none()
-
     saved_taboo_words = await load_user_taboo_words(db, user_id)
     temporary_taboo_words = [w.strip() for w in taboo_words_input.split(",") if w.strip()]
     taboo_list = merge_unique_words(saved_taboo_words, temporary_taboo_words)
@@ -267,10 +257,6 @@ async def execute_inspection(
     record.classification_confidence = classification.confidence
     record.classification_source = classification.source
     record.classification_evidence = classification.evidence
-
-    # ── 扣减用户配额 ──
-    if membership is not None:
-        membership.token_used = (membership.token_used or 0) + record.quota_consumed
 
     await db.commit()
     await db.refresh(record)

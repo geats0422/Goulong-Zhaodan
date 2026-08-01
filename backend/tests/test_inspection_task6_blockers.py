@@ -60,6 +60,10 @@ def test_classification_evidence_has_a_forward_migration_and_reversible_downgrad
 
 def test_usage_has_retry_idempotency_key_and_contract_scenario_guard() -> None:
     assert hasattr(ComputeUsageRecord, "idempotency_key")
+    assert any(
+        constraint.name == "uq_compute_usage_user_idempotency"
+        for constraint in ComputeUsageRecord.__table__.constraints
+    )
     assert usage_idempotency_key("job-1", "input-hash", "inspection_summary") == (
         "job-1:input-hash:inspection_summary"
     )
@@ -76,9 +80,10 @@ def test_usage_has_retry_idempotency_key_and_contract_scenario_guard() -> None:
 async def test_completed_usage_is_reused_without_second_charge() -> None:
     db = MagicMock()
     db.execute = AsyncMock(
-        return_value=SimpleNamespace(
-            scalar_one_or_none=lambda: SimpleNamespace(quota_consumed=37)
-        )
+        side_effect=[
+            SimpleNamespace(scalar_one_or_none=lambda: None),
+            SimpleNamespace(scalar_one_or_none=lambda: 37),
+        ]
     )
 
     result = await record_usage(
@@ -93,3 +98,16 @@ async def test_completed_usage_is_reused_without_second_charge() -> None:
 
     assert result == 37
     db.add.assert_not_called()
+
+
+def test_usage_migration_uses_user_scoped_unique_key() -> None:
+    from pathlib import Path
+
+    source = (
+        Path(__file__).parents[1]
+        / "alembic"
+        / "versions"
+        / "027_compute_usage_idempotency.py"
+    ).read_text(encoding="utf-8")
+    assert '"user_id", "idempotency_key"' in source
+    assert '"ix_compute_usage_records_idempotency_key"' not in source

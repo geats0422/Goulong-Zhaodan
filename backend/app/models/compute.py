@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import uuid
 
-from sqlalchemy import Float, ForeignKey, Integer, String, func
+from sqlalchemy import Float, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,5 +25,9 @@ class ComputeUsageRecord(Base):
     quota_consumed: Mapped[int] = mapped_column(Integer, nullable=False)
     duration_seconds: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     completed_at: Mapped[datetime.datetime] = mapped_column(nullable=False, index=True)
-    idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "idempotency_key", name="uq_compute_usage_user_idempotency"),
+    )

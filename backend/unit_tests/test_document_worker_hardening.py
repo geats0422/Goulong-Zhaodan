@@ -4,18 +4,23 @@ import asyncio
 import hashlib
 import json
 import sys
+import types
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+try:
+    from app.agents import inspector as inspector_module
+except ImportError:
+    fake_pydantic_ai = sys.modules.setdefault("pydantic_ai", types.ModuleType("pydantic_ai"))
+    fake_pydantic_ai.Agent = MagicMock()
+    from app.agents import inspector as inspector_module
 from app.lib.private_temp import FileIdentity
 from app.workers import tasks
-
-inspector_module = sys.modules["app.agents.inspector"]
 
 
 @dataclass
@@ -64,6 +69,13 @@ def _job(**changes):
     }
     values.update(changes)
     return SimpleNamespace(**values)
+
+
+def test_historical_bidding_record_is_blocked_before_worker_inspection() -> None:
+    with pytest.raises(ValueError, match="deprecated_application_scenario"):
+        tasks._ensure_current_inspection_record(
+            SimpleNamespace(document_type="bidding", classification_source="archived_legacy")
+        )
 
 
 @pytest.mark.asyncio
@@ -185,7 +197,7 @@ async def test_inspection_prompt_is_built_from_pageindex_nodes_not_raw_markdown(
     raw_markdown = "RAW_MARKDOWN_MUST_NOT_BE_SENT"
     inspection_input = SimpleNamespace(
         project_id="p",
-        application_scenario="bidding",
+            application_scenario="contract",
         regulation_base={},
         taboo_words=[],
     )
@@ -212,7 +224,7 @@ async def test_inspection_persists_started_input_identity_before_external_call_a
     inspection_input = SimpleNamespace(
         document_name="投标文件.pdf",
         project_id="project-1",
-        application_scenario="bidding",
+            application_scenario="contract",
         regulation_base={"sources": [{"title": "招标法", "content": "法规正文"}]},
         taboo_words=["绝对保证"],
     )
@@ -255,7 +267,7 @@ async def test_inspection_persists_started_input_identity_before_external_call_a
 
     started_hash = persist_state.await_args_list[0].kwargs["input_hash"]
     expected_payload = {
-        "application_scenario": "bidding",
+            "application_scenario": "contract",
         "nodes": [{"content": "结构化条款", "path": "第一章", "position": 1, "type": "section"}],
         "project_id": "project-1",
         "regulation_base": inspection_input.regulation_base,
@@ -270,6 +282,14 @@ async def test_inspection_persists_started_input_identity_before_external_call_a
     assert "招标法".encode() not in saved_bytes
     saved_report = json.loads(decrypt_sensitive_artifact(saved_bytes).decode("utf-8"))
     assert saved_report == {
+        "classification": {
+            "engineering_type_key": "general-engineering",
+            "contract_type_key": "other",
+            "confidence": "low",
+            "evidence": [],
+            "source": "fallback",
+            "requires_confirmation": True,
+        },
         "issues": [],
         "overall_risk": "low",
         "regulation_refs": ["招标法"],
@@ -290,7 +310,7 @@ async def test_completed_valid_inspection_artifact_skips_supplier_call() -> None
         inspection_result_hash="f" * 64,
     )
     inspection_input = SimpleNamespace(
-        project_id="p", application_scenario="bidding", regulation_base={}, taboo_words=[]
+        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[]
     )
     with (
         patch("app.workers.tasks._load_owned_inspection_input", new=AsyncMock(return_value=inspection_input)),
@@ -317,7 +337,7 @@ async def test_started_without_result_or_corrupt_completed_artifact_safely_rerun
     completed = _job(stage="inspecting", inspection_call_state="completed")
     report = InspectionResult("low", "重跑完成", [], [])
     inspection_input = SimpleNamespace(
-        project_id="p", application_scenario="bidding", regulation_base={}, taboo_words=[]
+        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[]
     )
     with (
         patch("app.workers.tasks._load_owned_inspection_input", new=AsyncMock(return_value=inspection_input)),
@@ -337,7 +357,7 @@ async def test_lost_lease_after_inspection_deletes_new_report_and_never_returns_
     started = _job(stage="inspecting", inspection_call_state="started", inspection_input_hash="e" * 64)
     report = InspectionResult("low", "孤儿结果", [], [])
     inspection_input = SimpleNamespace(
-        project_id="p", application_scenario="bidding", regulation_base={}, taboo_words=[]
+        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[]
     )
     with (
         patch("app.workers.tasks._load_owned_inspection_input", new=AsyncMock(return_value=inspection_input)),
@@ -357,7 +377,7 @@ async def test_cancel_between_save_and_persist_deletes_new_inspection_result() -
     started = _job(stage="inspecting", inspection_call_state="started", inspection_input_hash="e" * 64)
     report = InspectionResult("low", "孤儿结果", [], [])
     inspection_input = SimpleNamespace(
-        project_id="p", application_scenario="bidding", regulation_base={}, taboo_words=[]
+        project_id="p", application_scenario="contract", regulation_base={}, taboo_words=[]
     )
     saved_paths: list[str] = []
 

@@ -597,8 +597,10 @@ async def _load_owned_inspection_input(job: _DocumentJobSnapshot) -> _Inspection
             )
             if record is None:
                 raise _DocumentWorkerBusinessError("inspection_failed")
-            if record.document_type == "bidding" or record.classification_source == "archived_legacy":
-                raise _DocumentWorkerBusinessError("deprecated_application_scenario")
+            try:
+                _ensure_current_inspection_record(record)
+            except ValueError as exc:
+                raise _DocumentWorkerBusinessError(str(exc)) from exc
         scenario = record.document_type if record is not None and record.document_type == "contract" else "contract"
         taboo_words = await load_user_taboo_words(db, job.user_id)
         regulation_base = await retrieve_regulation_base(
@@ -1276,6 +1278,11 @@ def _require_contract_scenario(payload: dict[str, Any]) -> str:
     return "contract"
 
 
+def _ensure_current_inspection_record(record: Any) -> None:
+    if record.document_type == "bidding" or record.classification_source == "archived_legacy":
+        raise ValueError("deprecated_application_scenario")
+
+
 async def _run_inspect(ctx, job_id: str) -> dict:
     """从 job.input_payload 取文档正文，运行体检，返回结果摘要。"""
     from sqlalchemy import select
@@ -1328,6 +1335,8 @@ async def _run_parse(ctx, job_id: str) -> dict:
     from app.services.document_job_service import create_document_job, prepare_source_artifact
     from app.services.file_storage import delete_file, save_file
     from app.services.inspection_runner import create_pending_inspection_record
+    from app.services.inspection_runner import classify_inspection_document
+    from app.services.contract_classifier import screen_contract_rules
 
     async with async_session() as db:
         job = (await db.execute(select(AgentJob).where(AgentJob.job_id == job_id))).scalar_one_or_none()
@@ -1344,6 +1353,11 @@ async def _run_parse(ctx, job_id: str) -> dict:
             text = str(text)
             if len(text.strip()) < 10:
                 raise ValueError("input_payload.text 缺失或过短，无法解析")
+            classification = await classify_inspection_document(
+                document_name=document_name,
+                text=text,
+                rule_screening=screen_contract_rules(filename=document_name, text=text),
+            )
             record = await create_pending_inspection_record(
                 db=db,
                 user_id=job.user_id,
@@ -1352,6 +1366,7 @@ async def _run_parse(ctx, job_id: str) -> dict:
                 document_type_label="合同",
                 text=text,
                 project_id=payload.get("project_id", "default"),
+                classification=classification,
             )
             return {
                 "record_id": record.id,
@@ -1359,6 +1374,14 @@ async def _run_parse(ctx, job_id: str) -> dict:
                 "document_type": "contract",
                 "document_type_label": "合同",
                 "text_preview": text[:500],
+                "classification": {
+                    "engineering_type_key": classification.engineering_type_key,
+                    "contract_type_key": classification.contract_type_key,
+                    "confidence": classification.confidence,
+                    "evidence": classification.evidence,
+                    "source": classification.source,
+                    "requires_confirmation": classification.requires_confirmation,
+                },
             }
 
         encoded_content = payload.get("content_base64")

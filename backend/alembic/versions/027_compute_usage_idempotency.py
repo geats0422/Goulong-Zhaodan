@@ -23,9 +23,9 @@ def upgrade() -> None:
         schema="zhaodan",
     )
     op.create_index(
-        "ix_compute_usage_records_idempotency_key",
+        "uq_compute_usage_user_idempotency",
         "compute_usage_records",
-        ["idempotency_key"],
+        ["user_id", "idempotency_key"],
         unique=True,
         schema="zhaodan",
     )
@@ -33,7 +33,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index(
-        "ix_compute_usage_records_idempotency_key",
+        "uq_compute_usage_user_idempotency",
         table_name="compute_usage_records",
         schema="zhaodan",
     )

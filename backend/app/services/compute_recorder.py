@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 import datetime
-import logging
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.model_config import token_multiplier
 from app.models.compute import ComputeUsageRecord
 from goulong_auth.models import Membership
-
-logger = logging.getLogger(__name__)
 
 PRODUCT = "zhaodan"
 
@@ -52,18 +51,7 @@ async def record_usage(
     quota_consumed = tokens_used * multiplier
 
     try:
-        if idempotency_key:
-            existing = (
-                await db.execute(
-                    select(ComputeUsageRecord).where(
-                        ComputeUsageRecord.user_id == user_id,
-                        ComputeUsageRecord.idempotency_key == idempotency_key,
-                    )
-                )
-            ).scalar_one_or_none()
-            if existing is not None:
-                return existing.quota_consumed
-        record = ComputeUsageRecord(
+        values = dict(
             user_id=user_id,
             document_name=document_name or "未命名文档",
             business_type=business_type,
@@ -75,7 +63,30 @@ async def record_usage(
             completed_at=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
             idempotency_key=idempotency_key,
         )
-        db.add(record)
+        inserted = True
+        if idempotency_key:
+            result = await db.execute(
+                pg_insert(ComputeUsageRecord)
+                .values(**values)
+                .on_conflict_do_nothing(index_elements=["user_id", "idempotency_key"])
+                .returning(ComputeUsageRecord.quota_consumed)
+            )
+            quota_value = result.scalar_one_or_none()
+            if quota_value is None:
+                inserted = False
+                existing = (
+                    await db.execute(
+                        select(ComputeUsageRecord.quota_consumed).where(
+                            ComputeUsageRecord.user_id == user_id,
+                            ComputeUsageRecord.idempotency_key == idempotency_key,
+                        )
+                    )
+                ).scalar_one_or_none()
+                if existing is None:
+                    raise RuntimeError("幂等 usage 冲突后未找到原记录")
+                return int(existing)
+        else:
+            db.add(ComputeUsageRecord(**values))
 
         membership = (
             await db.execute(
@@ -86,11 +97,14 @@ async def record_usage(
                 )
             )
         ).scalar_one_or_none()
-        if membership is not None:
+        if inserted and membership is not None:
             membership.token_used = (membership.token_used or 0) + quota_consumed
 
         await db.flush()
         return quota_consumed
+    except IntegrityError:
+        await db.rollback()
+        raise
     except Exception:
-        logger.warning("compute_recorder.record_usage 失败 (scene=%s)", business_type, exc_info=True)
-        return 0
+        await db.rollback()
+        raise
