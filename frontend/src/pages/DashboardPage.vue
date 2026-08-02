@@ -111,7 +111,7 @@ onMounted(() => {
           </div>
           <div>
             <h2>极速载入案卷</h2>
-            <p>拖拽企业材料包至此，或点击调用系统窗口</p>
+            <p>拖拽工程合同至此，或点击调用系统窗口</p>
           </div>
           <button class="primary-action" type="button" @click.stop="openFilePicker">
             <span class="material-symbols-outlined">add_circle</span>

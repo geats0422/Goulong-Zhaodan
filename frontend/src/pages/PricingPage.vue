@@ -20,20 +20,20 @@ const addons = [
 const subscriptions = [
   {
     code: 'pro_monthly', name: 'Pro 月度', kicker: 'MONTHLY ACCESS', period: '/ 月', price: '¥69',
-    copy: '适合短期项目与临时材料体检',
-    features: ['300万 Token 月度额度', '无限次多文件材料包体检', '核心漏洞精准定位', 'Markdown/PDF 报告导出'],
+    copy: '适合短期项目与临时合同体检',
+    features: ['300万 Token 月度额度', '无限次合同初审', '核心风险精准定位', 'PDF 报告导出'],
     featured: false,
   },
   {
     code: 'pro_quarterly', name: 'Pro 季度', kicker: 'QUARTERLY WINDOW', period: '/ 季', price: '¥179',
     copy: '适合持续审查与季度合规窗口',
-    features: ['900万 Token 季度额度', '无限次多文件材料包体检', '核心漏洞精准定位', 'Markdown/PDF 报告导出'],
+    features: ['900万 Token 季度额度', '无限次合同初审', '核心风险精准定位', 'PDF 报告导出'],
     featured: false,
   },
   {
     code: 'pro_yearly', name: 'Pro 年度', kicker: 'ANNUAL TALLY', period: '/ 年', price: '¥599',
     copy: '专属授权令，覆盖全年审查窗口',
-    features: ['3600万 Token 年度额度', '无限次多文件材料包体检', '核心漏洞精准定位', 'Markdown/PDF 报告导出', '优先队列与专属授权令'],
+    features: ['3600万 Token 年度额度', '无限次合同初审', '核心风险精准定位', 'PDF 报告导出', '优先队列与专属授权令'],
     featured: true,
   },
 ]
@@ -129,7 +129,7 @@ function onPaid() {
                 <span class="corner corner-br"></span>
                 <p class="plan-kicker">TEAM WORKSPACE</p>
                 <h2>团队协作版开发中</h2>
-                <p>当前产品处于 MVP 早期阶段，优先打磨个人材料包审查体验。团队版将围绕多人协作、统一订阅和权限边界逐步开放。</p>
+                <p>当前产品处于 MVP 早期阶段，优先打磨单份工程合同初审体验。团队版将围绕多人协作、统一订阅和权限边界逐步开放。</p>
                 <div class="future-feature-grid">
                   <span v-for="f in PLAN_CATALOG.team.features" :key="f">{{ f }}</span>
                 </div>
@@ -167,11 +167,11 @@ function onPaid() {
             <div class="faq-grid">
               <article class="faq-item">
                 <h3>是否需要上传原始文件？</h3>
-                <p>不强制上传原始明文。可先执行本地脱敏策略，再进入材料包体检流程。</p>
+                <p>当前需要上传 PDF、DOCX 或 TXT 合同文件用于解析。建议上传脱敏后的文本型文档。</p>
               </article>
               <article class="faq-item">
                 <h3>能否导出审查报告？</h3>
-                <p>支持 Markdown 与 PDF 诊断报告导出，便于提交业务、法务或合规复核。</p>
+                <p>支持在体检台下载 PDF 审查报告，便于提交业务、法务或合规复核。</p>
               </article>
               <article class="faq-item">
                 <h3>是否支持企业内网部署？</h3>

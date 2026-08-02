@@ -2,17 +2,17 @@
 import MarketingShell from '../components/marketing/MarketingShell.vue'
 
 const capabilities = [
-  ['多文件材料包上传', '合同、报价、申请、证照与说明文件一次载入，形成可追溯审查对象。'],
-  ['主体一致性检查', '校验公司名称、统一社会信用代码、联系人、地址与签署主体是否一致。'],
-  ['金额/日期/编号检查', '识别税率、付款节点、项目编号、签署日期等冲突信息。'],
-  ['附件完整性与证据定位', '定位正文引用但缺失的附件，并标注问题所在文件与段落。'],
+  ['单份工程合同上传', '上传一份 PDF、DOCX 或 TXT 合同，自动解析正文并建立审查记录。'],
+  ['工程与合同类别确认', '识别市政道路、房建施工等工程类别，以及劳务分包等合同类别，支持人工确认。'],
+  ['合同条款风险检查', '围绕付款、工期、质量、安全、违约责任等条款输出风险问题与修改建议。'],
+  ['法规依据与证据定位', '结合默认法规和启用的企业知识库，标注问题来源与正文位置。'],
 ]
 
 const metrics = [
-  ['62%', '退回前置拦截率提升'],
-  ['2.6x', '材料包审查效率提升'],
-  ['89%', '问题建议采纳率'],
-  ['100%', '问题证据可追溯'],
+  ['1 份', '每次审查的合同文档'],
+  ['3 步', '解析、确认、审查'],
+  ['PDF', '报告下载格式'],
+  ['可追溯', '问题与法规依据'],
 ]
 
 const plans = [
@@ -34,7 +34,7 @@ const plans = [
           <span>把明显错误和材料缺口挡在流程外</span>
         </p>
         <p class="lead">
-          在 OA、合同审批、采购申请、项目审批、付款申请正式提交前，对多文件材料包进行一致性与完整性审查，输出可执行问题清单、修改建议和证据定位。
+           上传一份工程合同，完成解析、类别确认和法规辅助初审，输出问题清单、修改建议和证据定位。
         </p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="/dashboard">登录进入应用</a>
@@ -45,12 +45,12 @@ const plans = [
       <section class="marketing-section marketing-container">
         <div class="section-heading">
           <p class="eyebrow">PROBLEM MAP</p>
-          <h2>企业材料包退回，常常不是大问题，而是基础错漏没有前置拦截</h2>
+          <h2>工程合同初审，先把条款风险和法规依据看清楚</h2>
         </div>
         <div class="problem-grid">
-          <article><strong>主体冲突</strong><span>合同、报价、申请表内主体信息不一致。</span></article>
-          <article><strong>附件缺口</strong><span>正文引用附件，但材料包中没有对应文件。</span></article>
-          <article><strong>节点错配</strong><span>金额、日期、编号与付款节点出现冲突。</span></article>
+           <article><strong>类别确认</strong><span>先确认工程类别与合同类别，避免使用错误的审查依据。</span></article>
+           <article><strong>条款风险</strong><span>关注付款、工期、质量、安全和违约责任等关键条款。</span></article>
+           <article><strong>依据定位</strong><span>查看问题对应的法规依据和合同正文位置，便于人工复核。</span></article>
         </div>
       </section>
 
@@ -77,7 +77,7 @@ const plans = [
           <div>
             <p class="eyebrow">DIGITAL VAULT</p>
             <h2>静默处理，证据可追溯</h2>
-            <p>围绕 TEE、本地脱敏、阅后即焚与审计留痕建立安全边界，让业务经办人可以在正式流转前完成低风险自检。</p>
+             <p>部署在阿里云 ECS 的 Docker 环境，使用外部 RDS PostgreSQL 保存业务数据；TEE 保护、访问控制和审计机制共同构成合同初审的安全边界。</p>
           </div>
           <a class="btn btn-ghost" href="/security">查看数据安全</a>
         </div>
@@ -87,9 +87,9 @@ const plans = [
         <div class="section-heading split-heading">
           <div>
             <p class="eyebrow">CASE STUDIES</p>
-            <h2>客户案例</h2>
+           <h2>当前产品能力</h2>
           </div>
-          <a href="/cases">查看完整案例</a>
+           <a href="/solution">查看能力说明</a>
         </div>
         <div class="metrics-grid">
           <article v-for="metric in metrics" :key="metric[1]">
@@ -118,7 +118,7 @@ const plans = [
 
       <section class="final-cta marketing-container">
         <p class="eyebrow">READY FOR INSPECTION</p>
-        <h2>把材料包问题拦在提交之前</h2>
+         <h2>把合同初审做在正式提交之前</h2>
         <div class="hero-actions">
           <a class="btn btn-primary" href="/dashboard">进入应用靶场</a>
           <a class="btn btn-ghost" href="/pricing">选择授权周期</a>

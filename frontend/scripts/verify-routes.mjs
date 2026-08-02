@@ -89,7 +89,7 @@ if (!dashboard.includes('ref="fileInput"') || !dashboard.includes('@click="openF
   throw new Error('Dashboard start inspection action must open the system file picker')
 }
 
-if (!inspectionDesk.includes('智能审查诊断书') || !inspectionDesk.includes('物理销毁案卷') || !inspectionDesk.includes('A区数据中心项目招标文件')) {
+if (!inspectionDesk.includes('智能审查诊断书') || !inspectionDesk.includes('删除记录') || !inspectionDesk.includes('A区数据中心项目招标文件')) {
   throw new Error('Inspection desk page must restore the Stitch diagnostic terminal sections')
 }
 
@@ -277,7 +277,7 @@ if (!appTopNav.includes('account-menu') || !appTopNav.includes('切换账号') |
 }
 
 const marketingHomeText = marketingHome.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
-if (!marketingHomeText.includes('业务提交前审查 Agent') || !marketingHomeText.includes('客户案例') || !marketingHomeText.includes('版本与定价')) {
+if (!marketingHomeText.includes('业务提交前审查 Agent') || !marketingHomeText.includes('当前产品能力') || !marketingHomeText.includes('版本与定价')) {
   throw new Error('Marketing home must combine positioning, cases, and pricing content')
 }
 

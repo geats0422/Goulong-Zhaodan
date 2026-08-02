@@ -196,7 +196,7 @@ Authorization: Bearer glk_xxx
               <span class="docs-meta-tag">2A CAPABILITY</span>
             </div>
             <h2>照胆开发者文档</h2>
-            <p class="docs-lead">照胆是国家合规审查 AI 代理服务器，支持工程文档智能体检、法规知识检索和异步批处理。本文档面向通过 API、MCP 或 CLI 接入照胆的开发者和 AI Agent。</p>
+            <p class="docs-lead">照胆是工程合同初审 AI 代理服务器，支持合同文档解析、法规知识检索和异步审查任务。本文档面向通过 API、MCP 或 CLI 接入照胆的开发者和 AI Agent。</p>
 
             <div class="docs-callout">
               <span class="material-symbols-outlined">rocket_launch</span>
@@ -481,7 +481,7 @@ ln -s "&lt;仓库&gt;/skills/zhaodan-api-access" ~/.claude/skills/
 
 # 或直接把整个 skills/ 目录复制到对应位置</code></pre>
             </div>
-            <p>加载后，当用户提到「审查材料包」「查法规」「体检记录」等意图时，Agent 会自动触发对应 skill。</p>
+            <p>加载后，当用户提到「审查合同」「查法规」「体检记录」等意图时，Agent 会自动触发对应 skill。</p>
           </article>
 
           <hr class="docs-divider" />
@@ -547,8 +547,8 @@ ln -s "&lt;仓库&gt;/skills/zhaodan-api-access" ~/.claude/skills/
               <div class="docs-security-item">
                 <span class="material-symbols-outlined">visibility_off</span>
                 <div>
-                  <h4>阅后即焚</h4>
-                  <p>照胆默认开启阅后即焚，体检报告在查看后自动清理中间态，不持久化原始文档正文。</p>
+                  <h4>处理保护</h4>
+                  <p>照胆审查过程在 TEE 保护下进行，体检报告与中间态按需清理，降低敏感数据持久化风险。</p>
                 </div>
               </div>
               <div class="docs-security-item">

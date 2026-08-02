@@ -2,8 +2,8 @@
 import MarketingShell from '../components/marketing/MarketingShell.vue'
 
 const nav = [
-  { group: '新手入门', items: [['start', '开始使用'], ['first-inspect', '第一次材料包体检']] },
-  { group: '功能指南', items: [['feature-inspect', '材料包体检'], ['feature-knowledge', '知识库'], ['feature-history', '体检台'], ['feature-stats', '数据统计']] },
+  { group: '新手入门', items: [['start', '开始使用'], ['first-inspect', '第一次合同初审']] },
+  { group: '功能指南', items: [['feature-inspect', '合同初审'], ['feature-knowledge', '知识库'], ['feature-history', '体检台'], ['feature-stats', '数据统计']] },
   { group: '账户与订阅', items: [['faq-account', '账户登录'], ['faq-billing', '订阅与额度'], ['faq-payment', '支付方式'], ['faq-security', '数据安全']] },
   { group: 'Agent 接入', items: [['agent-key', 'API Key'], ['agent-intro', 'MCP / CLI / Skill']] },
   { group: '常见问题', items: [['faq-doc', '文档相关'], ['faq-ai', 'AI 相关'], ['faq-export', '报告导出']] },
@@ -11,18 +11,18 @@ const nav = [
 
 const steps = [
   { ref: 'REF.GL-H01', step: '第 1 步', title: '注册账号', desc: '支持手机号 + 短信验证码，或邮箱 + 密码（8 位以上，含大小写字母和数字）注册。', href: '/register', cta: '前往注册' },
-  { ref: 'REF.GL-H02', step: '第 2 步', title: '上传材料包体检', desc: '进入靶场（Dashboard），拖拽上传合同、报价、申请表、证照等多个文件，系统自动解析并识别文件类型。', href: '/dashboard', cta: '进入靶场' },
-  { ref: 'REF.GL-H03', step: '第 3 步', title: '查看体检报告', desc: '审查完成后获得问题清单、修改建议与证据定位（章-节-段-句），支持 Markdown / PDF 导出。', href: '/dashboard', cta: '查看报告' },
+  { ref: 'REF.GL-H02', step: '第 2 步', title: '上传合同并确认类别', desc: '进入体检台上传一份 PDF、DOCX 或 TXT 工程合同，确认系统推荐的工程类别与合同类别。', href: '/dashboard', cta: '进入体检台' },
+  { ref: 'REF.GL-H03', step: '第 3 步', title: '查看体检报告', desc: '审查完成后获得风险问题、修改建议、法规依据与正文位置，并可下载 PDF 报告。', href: '/dashboard', cta: '查看报告' },
 ]
 
 const faqGroups = [
   {
     id: 'feature-inspect',
     tag: '§ 功能 · 体检',
-    title: '材料包体检',
+    title: '合同初审',
     items: [
-      ['支持哪些文件格式？', '支持 PDF、DOCX、DOC、TXT 等常见文档格式。可一次上传多个文件（合同、报价、申请表、证照、说明文件），系统会做跨文件的一致性与完整性审查。'],
-      ['体检会检查哪些问题？', '主体一致性（公司名称、统一社会信用代码、联系人、地址）、金额/日期/编号冲突、附件完整性（正文引用但缺失的附件），并标注问题所在文件与段落。'],
+      ['支持哪些文件格式？', '当前支持 PDF、DOCX、TXT 三类文本型合同文件，每次上传一份文档。旧版 DOC 请先另存为 DOCX。'],
+      ['体检会检查哪些问题？', '围绕工程合同中的付款、工期、质量、安全、违约责任等条款识别风险，并返回法规依据、问题说明和正文位置。'],
       ['合同类别怎么识别？', '在文件解析阶段，AI 根据文件名与正文识别工程类别（房建施工、市政道路、装饰装修等）与合同类别（劳务分包、专业工程分包、其他类），给出推荐值与置信度，你在「合同初审准备」中确认或修改即可，低置信度仅提醒不阻塞。'],
     ],
   },
@@ -31,8 +31,8 @@ const faqGroups = [
     tag: '§ 功能 · 知识库',
     title: '知识库',
     items: [
-      ['知识库是什么？', '企业专属参考卷宗库。可上传历史合同、行业范本、企业规范，体检时按相似度召回相关条款作为审查依据。'],
-      ['知识库支持哪些操作？', '在知识库页面可上传新卷宗、重命名、删除，并按分类管理。'],
+      ['知识库是什么？', '企业专属参考库。系统默认法规作为基础依据，用户还可以上传合同参考文档，在合同初审时选择启用。'],
+      ['知识库支持哪些操作？', '在知识库页面可按工程类别和合同类别上传参考文档，查看处理状态并管理用户自己的文档。'],
     ],
   },
   {
@@ -40,8 +40,8 @@ const faqGroups = [
     tag: '§ 功能 · 体检台',
     title: '体检台（历史记录）',
     items: [
-      ['体检台能做什么？', '查看所有历史体检记录的档案库，可按状态筛选、查看报告详情、物理销毁案卷（阅后即焚）。'],
-      ['已销毁的记录还能找回吗？', '物理销毁（焚毁）后文档原文不可恢复，仅保留审查结论元数据。请确认后再操作。'],
+      ['体检台能做什么？', '查看历史合同初审记录、打开报告、下载 PDF 报告，或删除不再需要的记录。'],
+      ['删除记录后还能找回吗？', '删除操作不可恢复。请在确认不再需要该记录后再执行删除。'],
     ],
   },
   {
@@ -58,7 +58,7 @@ const faqGroups = [
     title: '账户登录',
     items: [
       ['忘记密码怎么办？', '登录页点击「账号密码登录」，使用「忘记密码」通过手机号验证码重置；后端也提供 /auth/reset-password 端点。'],
-      ['可以用邮箱登录吗？', '可以。注册时填写邮箱并完成邮箱验证后，即可用邮箱 + 密码登录；也支持手机号 + 短信验证码快捷登录。'],
+      ['可以用邮箱登录吗？', '可以使用邮箱和密码登录；手机号验证码登录是否可用取决于当前部署的短信配置。'],
     ],
   },
   {
@@ -85,7 +85,7 @@ const faqGroups = [
     tag: '§ 安全',
     title: '数据安全',
     items: [
-      ['上传的文档安全吗？', '数据流转于 TEE 加密内存，支持阅后即焚。文档处理方式由您自主选择：审查后即焚（物理删除原文）或保留备查。'],
+      ['上传的文档安全吗？', '生产环境部署在阿里云 ECS 的 Docker 环境，业务数据使用外部阿里云 RDS PostgreSQL；TEE、访问控制和审计机制用于保护处理过程。当前文件使用 ECS 本地存储，不使用 OSS。'],
       ['什么是数据安全锁？', '设置中的数据安全锁可对敏感操作二次确认。结合本地脱敏与审计留痕，建立安全边界。'],
       ['文档会被用于训练模型吗？', '不会。照胆采用原生结构解析与确定性树状寻址，拒绝把敏感数据沉淀进公有云向量数据库。'],
     ],
@@ -104,7 +104,7 @@ const faqGroups = [
     tag: '§ Agent · 接入',
     title: 'MCP / CLI / Skill',
     items: [
-      ['Agent 怎么接入照胆？', '支持三种方式：MCP Server（Claude Code / Cursor / Codex 等）、CLI（zhaodan 命令）、Skill（opencode / Claude Code 加载技能文件）。详见技术文档。', '/docs'],
+      ['Agent 怎么接入照胆？', '当前提供 MCP Server、CLI、Skill 和 REST API 接入方式，均通过 API Key 与权限范围控制。详见技术文档。', '/docs'],
       ['REST API 怎么调？', '所有端点以 /api/v1/agent 为前缀，使用 Authorization: Bearer <API_KEY> 认证。完整端点列表见技术文档。', '/docs'],
     ],
   },
@@ -113,8 +113,8 @@ const faqGroups = [
     tag: '§ FAQ · 文档',
     title: '文档相关',
     items: [
-      ['单个文件最大多大？', '单文件建议不超过 50MB。超大文件建议拆分或使用异步 job 处理。'],
-      ['可以上传扫描件 / 图片吗？', '目前以文本型文档为主（PDF/DOCX/TXT）。纯图片扫描件的识别效果取决于其中是否包含可提取文本。'],
+      ['单个文件最大多大？', '单文件解析上限由后端配置控制，当前前端支持一份 PDF、DOCX 或 TXT 文档。超大文件请先压缩或拆分。'],
+      ['可以上传扫描件 / 图片吗？', '目前以包含可提取文本的 PDF、DOCX、TXT 为主，纯图片扫描件不属于稳定支持范围。'],
     ],
   },
   {
@@ -131,7 +131,7 @@ const faqGroups = [
     tag: '§ FAQ · 导出',
     title: '报告导出',
     items: [
-      ['可以导出报告吗？', '可以。支持 Markdown 与 PDF 诊断报告导出，便于提交业务、法务或合规复核。'],
+      ['可以导出报告吗？', '可以在体检台下载 PDF 审查报告。'],
       ['报告里有证据定位吗？', '有。每个问题都标注来源文件与「章-节-段-句」层级位置，可追溯。'],
     ],
   },
@@ -175,7 +175,7 @@ const faqGroups = [
           <section id="start" class="help-section">
             <div class="help-section-tag">§ 01 · 入门</div>
             <h2>欢迎使用句龙 · 照胆</h2>
-            <p class="help-lead">照胆是业务提交前审查 Agent，在 OA、合同审批、采购申请正式流转前，对材料包做一致性与完整性审查。三步即可上手。</p>
+            <p class="help-lead">照胆是工程合同初审 Agent，帮助你在正式提交前完成合同解析、类别确认和法规辅助审查。三步即可上手。</p>
             <div class="help-step-grid">
               <div v-for="s in steps" :key="s.ref" class="circuit-card help-step-card">
                 <span class="corner corner-tl"></span>
@@ -196,13 +196,13 @@ const faqGroups = [
 
           <section id="first-inspect" class="help-section">
             <div class="help-section-tag">§ 02 · 教程</div>
-            <h2>5 分钟完成第一次材料包体检</h2>
+            <h2>5 分钟完成第一次合同初审</h2>
             <ol class="help-tutorial">
               <li><span class="help-tutorial-num">01</span><div><h3>登录进入靶场</h3><p>登录后在 Dashboard（靶场）点击上传，或直接拖拽文件到上传区。</p></div></li>
-              <li><span class="help-tutorial-num">02</span><div><h3>上传材料包</h3><p>一次选择多个文件（合同、报价、申请表、证照），系统自动解析并识别文件类型。</p></div></li>
-              <li><span class="help-tutorial-num">03</span><div><h3>确认解析与知识库</h3><p>在审查弹窗中确认解析结果，按需勾选启用的知识库与审查场景。</p></div></li>
-              <li><span class="help-tutorial-num">04</span><div><h3>执行审查</h3><p>点击执行，AI 按一致性、完整性、法规依据输出问题清单与证据定位。</p></div></li>
-              <li><span class="help-tutorial-num">05</span><div><h3>查看与导出报告</h3><p>在体检台查看报告详情，导出 Markdown / PDF，或对案卷执行阅后即焚。</p></div></li>
+              <li><span class="help-tutorial-num">02</span><div><h3>上传一份合同</h3><p>选择 PDF、DOCX 或 TXT 工程合同，系统异步解析正文。</p></div></li>
+              <li><span class="help-tutorial-num">03</span><div><h3>确认类别与依据</h3><p>确认工程类别、合同类别，并按需启用企业知识库文档。</p></div></li>
+              <li><span class="help-tutorial-num">04</span><div><h3>执行审查</h3><p>点击执行，AI 按合同条款和法规依据输出风险问题与证据定位。</p></div></li>
+              <li><span class="help-tutorial-num">05</span><div><h3>查看与下载报告</h3><p>在体检台查看报告详情并下载 PDF，必要时删除历史记录。</p></div></li>
             </ol>
           </section>
 

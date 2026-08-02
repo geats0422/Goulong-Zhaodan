@@ -24,29 +24,28 @@ const laws = [
 
 const collectData = [
   ['账号信息', '邮箱、手机号、昵称、密码哈希（bcrypt）', '身份认证'],
-  ['上传材料', '合同、报价、申请表、证照等文档原文', '一致性与完整性审查'],
+  ['上传材料', '上传的工程合同文档正文', '合同初审'],
   ['AI 调用记录', 'Token 消耗、耗时、文档名称', '用量计费与追溯'],
   ['订阅与支付', '方案名称、状态、额度、订单号', '订阅管理'],
   ['操作日志', '审查操作、账户变更记录', '操作追溯'],
 ]
 
 const localStore = [
-  { name: 'localStorage', items: ['access_token — JWT 登录令牌', 'theme — 主题偏好（dark/light）'] },
-  { name: '不使用', items: ['本服务不使用 Cookie', '不集成任何第三方追踪或分析工具（如 Google Analytics、百度统计）'] },
+  { name: 'localStorage', items: ['access_token — JWT 登录令牌', 'refresh_token — JWT 刷新令牌', 'theme — 主题偏好（dark/light）'] },
+  { name: '不使用', items: ['本服务不集成任何第三方追踪或分析工具（如 Google Analytics、百度统计）'] },
 ]
 
 const vendors = [
-  { ref: 'REF.GL-V01', name: '阿里云 ECS', tags: ['应用服务器', '中国大陆'], desc: '后端应用部署，处理运行时数据与系统日志。', outbound: false },
+  { ref: 'REF.GL-V01', name: '阿里云 ECS', tags: ['应用服务器', '中国大陆'], desc: '后端应用通过 Docker 部署在 ECS，处理运行时数据与系统日志，上传文件暂存于 ECS 本地存储。', outbound: false },
   { ref: 'REF.GL-V02', name: '阿里云 RDS PostgreSQL', tags: ['数据库', '中国大陆'], desc: '业务核心数据存储，包括账号、订阅、审查记录。', outbound: false },
-  { ref: 'REF.GL-V03', name: '阿里云 OSS', tags: ['对象存储', '中国大陆'], desc: '用户上传的材料包文档与附件存储。', outbound: false },
-  { ref: 'REF.GL-V04', name: '阿里云短信', tags: ['验证码', '中国大陆'], desc: '发送手机验证码，仅包含手机号与验证码内容。', outbound: false },
-  { ref: 'REF.GL-V05', name: '阿里云邮件', tags: ['邮件发送', '中国大陆'], desc: '邮箱验证码邮件发送。', outbound: false },
-  { ref: 'REF.GL-V06', name: 'DeepSeek', tags: ['AI 模型', '中国大陆'], desc: '材料包一致性、完整性审查等 AI 能力。', outbound: false },
+  { ref: 'REF.GL-V03', name: '阿里云短信', tags: ['验证码', '中国大陆'], desc: '发送手机验证码，仅包含手机号与验证码内容。', outbound: false },
+  { ref: 'REF.GL-V04', name: '阿里云邮件', tags: ['邮件发送', '中国大陆'], desc: '邮箱验证码邮件发送。', outbound: false },
+  { ref: 'REF.GL-V05', name: 'DeepSeek', tags: ['AI 模型', '中国大陆'], desc: '合同条款审查等 AI 能力。', outbound: false },
 ]
 
 const usageRows = [
   ['用户注册与认证', '邮箱、手机号、密码', '合同履行（PIPL §13(2)）'],
-  ['材料包 AI 审查', '用户上传的文档内容', '合同履行'],
+  ['合同 AI 审查', '上传的合同正文', '合同履行'],
   ['短信/邮件验证码', '手机号、邮箱', '合同履行'],
   ['用量计费', 'Token 消耗记录', '合同履行'],
   ['安全防护（限频、人机验证）', 'IP、请求频率', '合法利益（PIPL §13(6)）'],
@@ -76,7 +75,7 @@ const security = [
   ['key', '存储', '密码 bcrypt 加密'],
   ['vpn_key', '访问', 'JWT Bearer + 资源级越权检查'],
   ['shield', '请求防护', 'IP/账户限频、人机验证'],
-  ['memory', '内存', 'TEE 加密内存 · 阅后即焚'],
+  ['memory', '内存', 'TEE 保护'],
   ['history_edu', '审计', '操作变更日志全程留痕'],
 ]
 </script>
@@ -191,17 +190,17 @@ const security = [
         <section id="doc" class="legal-section">
           <div class="legal-section-tag">§ 05</div>
           <h2>上传文档处理方式</h2>
-          <p>您上传的材料包（合同、报价、申请等文档）是审查的核心对象。处理方式由您自主选择：</p>
+          <p>您上传的工程合同是审查的核心对象。文件经解析后用于 AI 审查，原文暂存于阿里云 ECS 本地存储。当前阶段暂不使用阿里云 OSS 对象存储。</p>
           <div class="legal-doc-grid">
             <div class="legal-doc-card">
-              <span class="material-symbols-outlined">local_fire_department</span>
-              <h4>审查后即焚</h4>
-              <p>任务完成后物理删除文档原文，仅保留审查结论与证据定位，绝不落盘留痕。</p>
+              <span class="material-symbols-outlined">shield</span>
+              <h4>审查过程保护</h4>
+              <p>合同在 TEE 保护的环境中处理，结合访问控制与审计留痕降低泄露风险。</p>
             </div>
             <div class="legal-doc-card">
-              <span class="material-symbols-outlined">save</span>
-              <h4>保留备查</h4>
-              <p>文档保留在阿里云 OSS，您可随时查看、下载，或手动执行「物理销毁案卷」。</p>
+              <span class="material-symbols-outlined">delete_sweep</span>
+              <h4>手动清理</h4>
+              <p>您可在体检台手动删除历史记录；删除后数据库记录一并清除。</p>
             </div>
           </div>
         </section>

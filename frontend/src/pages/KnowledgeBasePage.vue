@@ -145,6 +145,24 @@ const currentCategorySubcategories = computed(() => {
   return group.subcategories || []
 })
 
+const displaySubcategories = computed(() => {
+  const merged = new Map()
+  for (const group of categoryGroups.value) {
+    for (const subcategory of group.subcategories || []) {
+      const existing = merged.get(subcategory.name)
+      if (existing) {
+        existing.assets.push(...subcategory.assets)
+      } else {
+        merged.set(subcategory.name, {
+          ...subcategory,
+          assets: [...subcategory.assets],
+        })
+      }
+    }
+  }
+  return [...merged.values()]
+})
+
 const subcategoryOptions = computed(() => [
   { value: '', label: '-- 选择已有子类 --' },
   ...currentCategorySubcategories.value.map((sub) => ({ value: String(sub.id), label: sub.name })),
@@ -196,50 +214,44 @@ onMounted(fetchAllData)
       </div>
 
       <div v-else class="category-stack">
-        <section v-for="group in categoryGroups" :key="group.key" class="asset-category">
-          <template v-for="sub in group.subcategories" :key="sub.id">
-            <div v-if="sub.assets.length > 0" class="subcategory-section">
-              <div class="category-title">
-                <i></i>
-                <h2>{{ sub.name }}</h2>
-                <span></span>
-              </div>
-
-              <div class="asset-grid">
-                <article v-for="asset in sub.assets" :key="asset.id" class="asset-card glass-card">
-                  <div class="asset-card-head">
-                    <span class="material-symbols-outlined file-icon">{{ asset.icon }}</span>
-                    <div class="asset-actions">
-                      <button v-if="asset.owner_type !== 'system'" type="button" title="重命名" aria-label="重命名">
-                        <span class="material-symbols-outlined">edit</span>
-                      </button>
-                      <button v-if="asset.owner_type !== 'system'" type="button" title="删除" aria-label="删除">
-                        <span class="material-symbols-outlined">delete</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="asset-body">
-                    <h3>{{ asset.name }}</h3>
-                    <div class="asset-meta">
-                      <span v-if="asset.owner_type === 'system'" class="status-chip status-system">
-                        <i></i>
-                        [系统默认]
-                      </span>
-                      <span class="status-chip" :class="`status-${asset.state}`">
-                        <i></i>
-                        [{{ asset.status }}]
-                      </span>
-                      <span v-if="asset.size">{{ asset.size }}</span>
-                    </div>
-                  </div>
-                </article>
-              </div>
+        <section v-for="sub in displaySubcategories" :key="sub.name" class="asset-category">
+          <div v-if="sub.assets.length > 0" class="subcategory-section">
+            <div class="category-title">
+              <i></i>
+              <h2>{{ sub.name }}</h2>
+              <span></span>
             </div>
-          </template>
 
-          <div v-if="group.subcategories.length === 0" class="empty-category">
-            <p>暂无文档</p>
+            <div class="asset-grid">
+              <article v-for="asset in sub.assets" :key="asset.id" class="asset-card glass-card">
+                <div class="asset-card-head">
+                  <span class="material-symbols-outlined file-icon">{{ asset.icon }}</span>
+                  <div class="asset-actions">
+                    <button v-if="asset.owner_type !== 'system'" type="button" title="重命名" aria-label="重命名">
+                      <span class="material-symbols-outlined">edit</span>
+                    </button>
+                    <button v-if="asset.owner_type !== 'system'" type="button" title="删除" aria-label="删除">
+                      <span class="material-symbols-outlined">delete</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="asset-body">
+                  <h3>{{ asset.name }}</h3>
+                  <div class="asset-meta">
+                    <span v-if="asset.owner_type === 'system'" class="status-chip status-system">
+                      <i></i>
+                      [系统默认]
+                    </span>
+                    <span class="status-chip" :class="`status-${asset.state}`">
+                      <i></i>
+                      [{{ asset.status }}]
+                    </span>
+                    <span v-if="asset.size">{{ asset.size }}</span>
+                  </div>
+                </div>
+              </article>
+            </div>
           </div>
         </section>
 

@@ -41,11 +41,11 @@ import MarketingShell from '../components/marketing/MarketingShell.vue'
           <div class="security-features">
             <article class="security-feature-card">
               <p class="security-icon">local_fire_department</p>
-              <h2>内存级阅后即焚</h2>
-              <p>数据流转于 TEE (Trusted Execution Environment) 级加密内存中。任务完成后触发物理级内存覆写，绝不落盘。</p>
+              <h2>TEE 处理保护</h2>
+              <p>合同审查过程在 TEE (Trusted Execution Environment) 保护下进行。结合访问控制与审计留痕，降低敏感数据在处理过程中的泄露风险。</p>
               <div class="security-tags">
-                <span>[ TEE 内存加密流 ]</span>
-                <span>[ 物理级绝密销毁 ]</span>
+                <span>[ TEE 处理保护 ]</span>
+                <span>[ 审计留痕 ]</span>
               </div>
             </article>
 
@@ -62,10 +62,10 @@ import MarketingShell from '../components/marketing/MarketingShell.vue'
             <article class="security-feature-card">
               <p class="security-icon">router</p>
               <h2>业务服务层天然隔离</h2>
-              <p>作为独立的前置初审层，系统从网络架构设计上与核心 OA/ERP 系统实施物理+逻辑双重隔离。</p>
+              <p>作为独立的前置审查层，系统从网络架构上与核心审批系统实施逻辑隔离，Docker 容器化部署在阿里云 ECS，数据存储于外部 RDS PostgreSQL。</p>
               <div class="security-tags">
-                <span>[ 独立服务层边界 ]</span>
-                <span>[ OA内核无痕隔离 ]</span>
+                <span>[ 独立审查层 ]</span>
+                <span>[ 容器化隔离 ]</span>
               </div>
             </article>
           </div>

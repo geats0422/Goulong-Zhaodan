@@ -41,8 +41,8 @@ const issues = [
           导出体检报告
         </button>
         <button class="inspection-action danger" type="button">
-          <span class="material-symbols-outlined">local_fire_department</span>
-          物理销毁案卷
+          <span class="material-symbols-outlined">delete</span>
+          删除记录
         </button>
       </div>
     </div>

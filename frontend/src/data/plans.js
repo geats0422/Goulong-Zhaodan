@@ -26,7 +26,7 @@ export const POWER_PACKS = [
     features: [
       { text: '100 万 Token', ok: true },
       { text: '永久有效', ok: true },
-      { text: '多文件材料包体检', ok: true },
+      { text: '无限次合同初审', ok: true },
       { text: 'Pro 专属深度审查', ok: false },
     ],
   },
@@ -40,8 +40,8 @@ export const POWER_PACKS = [
     features: [
       { text: '500 万 Token', ok: true },
       { text: '永久有效', ok: true },
-      { text: '多文件材料包体检', ok: true },
-      { text: '核心漏洞精准定位', ok: true },
+      { text: '无限次合同初审', ok: true },
+      { text: '核心风险精准定位', ok: true },
     ],
   },
   {
@@ -70,7 +70,7 @@ export const SUB_PLANS = [
     period: '/ 月',
     recommended: false,
     actionLabel: '订阅月度',
-    features: ['300 万 Token 月度额度', '无限次多文件材料包体检', '核心漏洞精准定位', 'Markdown / PDF 报告导出'],
+    features: ['300 万 Token 月度额度', '无限次合同初审', '核心风险精准定位', 'PDF 报告导出'],
   },
   {
     key: 'pro_quarterly',
@@ -80,7 +80,7 @@ export const SUB_PLANS = [
     period: '/ 季',
     recommended: false,
     actionLabel: '订阅季度',
-    features: ['900 万 Token 季度额度', '无限次多文件材料包体检', '核心漏洞精准定位', 'Markdown / PDF 报告导出'],
+    features: ['900 万 Token 季度额度', '无限次合同初审', '核心风险精准定位', 'PDF 报告导出'],
   },
   {
     key: 'pro_yearly',
@@ -92,9 +92,9 @@ export const SUB_PLANS = [
     actionLabel: '获取年度特符',
     features: [
       '3600 万 Token 年度额度',
-      '无限次多文件材料包体检',
-      '核心漏洞精准定位',
-      'Markdown / PDF 报告导出',
+      '无限次合同初审',
+      '核心风险精准定位',
+      'PDF 报告导出',
       '优先队列与专属授权令',
     ],
   },
@@ -119,8 +119,8 @@ export const MODEL_CATALOG = [
 // API Key 权限范围（自定义模板用；与后端 AVAILABLE_SCOPES 对齐，不含 records:delete）
 export const API_KEY_SCOPES = [
   { key: 'profile:read', label: '读取身份', description: '查看昵称、头像等基础信息' },
-  { key: 'inspection:run', label: '发起体检', description: '触发 AI 材料包审查任务' },
-  { key: 'inspection:read', label: '读取报告', description: '查看历史体检记录与结论' },
+  { key: 'inspection:run', label: '发起体检', description: '触发 AI 合同审查任务' },
+  { key: 'inspection:read', label: '读取报告', description: '查看历史审查记录与结论' },
   { key: 'knowledge:read', label: '读取知识库', description: '查询知识文档与索引节点' },
   { key: 'knowledge:write', label: '写入知识库', description: '新增或更新知识文档' },
   { key: 'settings:write', label: '修改设置', description: '更新偏好与模型配置' },

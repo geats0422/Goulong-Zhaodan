@@ -27,18 +27,18 @@ import MarketingShell from '../components/marketing/MarketingShell.vue'
             <span class="corner corner-tr"></span>
             <span class="corner corner-bl"></span>
             <span class="corner corner-br"></span>
-            <div class="diagram-node source">业务材料包</div>
+            <div class="diagram-node source">工程合同</div>
             <div class="diagram-path"><span></span><span></span><span></span></div>
             <div class="diagram-node service">前置初审服务层</div>
             <div class="diagram-path"><span></span><span></span><span></span></div>
-            <div class="diagram-node target">OA / ERP 正式流转</div>
+            <div class="diagram-node target">正式审批流转</div>
           </aside>
 
           <div class="solution-feature-list">
             <article class="solution-feature-card">
               <p class="solution-icon">crossword</p>
               <h2>第零步防线：免责护城河</h2>
-              <p>不触碰、不干预企业现有的 OA 或 ERP 最终审批流。在进入正式流转前，构建一道坚实的初审屏障，确保基础合规与逻辑自洽。</p>
+              <p>不触碰、不干预企业现有的 OA 或 ERP 最终审批流。在合同进入正式审批前，构建一道初审屏障，确保条款风险被提前发现。</p>
               <div class="solution-tags">
                 <span>前置化初审定位</span>
                 <span>不越权最终裁决</span>
