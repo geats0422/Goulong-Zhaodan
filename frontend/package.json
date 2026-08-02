@@ -12,6 +12,7 @@
     "test:knowledge-archive": "node scripts/verify-knowledge-archive.mjs",
     "test:quota-modal": "node scripts/verify-quota-modal.mjs",
     "test:docs": "node scripts/verify-docs-no-bidding.mjs",
+    "test:accessibility": "node scripts/quality-accessibility.test.mjs",
     "design:check": "node scripts/check-design-tokens.mjs",
     "preview": "vite preview"
   },

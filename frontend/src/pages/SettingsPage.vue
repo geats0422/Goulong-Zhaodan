@@ -369,7 +369,6 @@ async function openHistory() {
     historyOrders.value = Array.isArray(data) ? data : []
   } catch (err) {
     historyError.value = err instanceof Error ? err.message : '历史订单加载失败'
-    historyOrders.value = []
   } finally {
     historyLoading.value = false
   }

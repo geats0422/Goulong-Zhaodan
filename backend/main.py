@@ -42,16 +42,43 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-
 _MAX_CONTENT_LENGTH = 100 * 1024 * 1024
+
+
+class _RequestBodyTooLarge(Exception):
+    """请求体在接收过程中超过允许大小。"""
 
 
 @app.middleware("http")
 async def max_body_size_middleware(request: Request, call_next):
     content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > _MAX_CONTENT_LENGTH:
+    if content_length:
+        try:
+            declared_length = int(content_length)
+        except ValueError:
+            return JSONResponse(status_code=400, content={"detail": "Content-Length 无效"})
+        if declared_length < 0:
+            return JSONResponse(status_code=400, content={"detail": "Content-Length 无效"})
+        if declared_length > _MAX_CONTENT_LENGTH:
+            return JSONResponse(status_code=413, content={"detail": "请求体过大"})
+
+    received_length = 0
+    receive = request._receive
+
+    async def limited_receive():
+        nonlocal received_length
+        message = await receive()
+        if message["type"] == "http.request":
+            received_length += len(message.get("body", b""))
+            if received_length > _MAX_CONTENT_LENGTH:
+                raise _RequestBodyTooLarge
+        return message
+
+    request._receive = limited_receive
+    try:
+        return await call_next(request)
+    except _RequestBodyTooLarge:
         return JSONResponse(status_code=413, content={"detail": "请求体过大"})
-    return await call_next(request)
 
 
 @app.middleware("http")
@@ -86,6 +113,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
     max_age=600,
 )
+
 
 app.include_router(inspection_router)
 app.include_router(knowledge_router, prefix="/api/v1")

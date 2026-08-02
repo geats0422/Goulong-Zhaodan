@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+from typing import Any
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,9 +28,49 @@ from app.api.v1.inspection import ContractClassificationResponse, _read_inspecti
 
 router = APIRouter(prefix="/api/v1/agent", tags=["Agent API"])
 
+MAX_AGENT_PAYLOAD_BYTES = 32 * 1024
+MAX_AGENT_PAYLOAD_DEPTH = 5
+MAX_AGENT_PAYLOAD_ITEMS = 100
+MAX_AGENT_PAYLOAD_TOP_LEVEL_KEYS = 50
+MAX_AGENT_TEXT_CHARS = 12_000
+MAX_AGENT_TABOO_WORDS_CHARS = 2_000
+MAX_AGENT_PROJECT_ID_CHARS = 100
+MAX_AGENT_CATEGORY_KEY_CHARS = 100
+MAX_KNOWLEDGE_QUERY_CHARS = 1_000
+
+
+def _validate_json_payload(value: Any, depth: int = 0) -> int:
+    if depth > MAX_AGENT_PAYLOAD_DEPTH:
+        raise ValueError(f"input_payload 嵌套层级不得超过 {MAX_AGENT_PAYLOAD_DEPTH}")
+    if isinstance(value, dict):
+        return sum(_validate_json_payload(item, depth + 1) + 1 for item in value.values())
+    if isinstance(value, list):
+        return sum(_validate_json_payload(item, depth + 1) + 1 for item in value)
+    if value is None or isinstance(value, str | int | float | bool):
+        return 0
+    raise ValueError("input_payload 仅支持 JSON 值")
+
 
 class CreateJobRequest(BaseModel):
-    input_payload: dict | None = None
+    input_payload: dict[str, Any] | None = None
+
+    @field_validator("input_payload")
+    @classmethod
+    def _validate_input_payload(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return value
+        if len(value) > MAX_AGENT_PAYLOAD_TOP_LEVEL_KEYS:
+            raise ValueError(f"input_payload 顶层项目不得超过 {MAX_AGENT_PAYLOAD_TOP_LEVEL_KEYS} 个")
+        item_count = _validate_json_payload(value)
+        if item_count > MAX_AGENT_PAYLOAD_ITEMS:
+            raise ValueError(f"input_payload 项目不得超过 {MAX_AGENT_PAYLOAD_ITEMS} 个")
+        try:
+            payload_size = len(json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode())
+        except (TypeError, ValueError) as exc:
+            raise ValueError("input_payload 必须可序列化为 JSON") from exc
+        if payload_size > MAX_AGENT_PAYLOAD_BYTES:
+            raise ValueError(f"input_payload 序列化后不得超过 {MAX_AGENT_PAYLOAD_BYTES} 字节")
+        return value
 
 
 def _validate_agent_job_scenario(body: CreateJobRequest | None) -> None:
@@ -175,11 +218,11 @@ async def get_record_detail(
 
 
 class KnowledgeSearchRequest(BaseModel):
-    query: str
-    application_scenario: str = "contract"
+    query: str = Field(min_length=1, max_length=MAX_KNOWLEDGE_QUERY_CHARS)
+    application_scenario: str = Field(default="contract", min_length=1, max_length=20)
     limit: int = 10
-    engineering_type_key: str | None = None
-    contract_type_key: str | None = None
+    engineering_type_key: str | None = Field(default=None, min_length=1, max_length=MAX_AGENT_CATEGORY_KEY_CHARS)
+    contract_type_key: str | None = Field(default=None, min_length=1, max_length=MAX_AGENT_CATEGORY_KEY_CHARS)
 
     @field_validator("limit")
     @classmethod
@@ -229,7 +272,17 @@ async def agent_parse(
     db: AsyncSession = Depends(get_db_session),
 ) -> AgentParseResponse:
     """同步解析：MCP / Agent 客户端上传文件，返回可二次体检的 record_id。"""
+    if not project_id.strip() or len(project_id) > MAX_AGENT_PROJECT_ID_CHARS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"project_id 长度须为 1-{MAX_AGENT_PROJECT_ID_CHARS} 字符且不能为空白",
+        )
     filename, _, text = await _read_inspection_upload_text(file)
+    if len(text) > MAX_AGENT_TEXT_CHARS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件解析后内容超过 {MAX_AGENT_TEXT_CHARS} 字符限制",
+        )
     classification = await classify_inspection_document(
         document_name=filename,
         text=text,
@@ -256,14 +309,14 @@ async def agent_parse(
 
 
 class AgentInspectRequest(BaseModel):
-    document_name: str | None = None
-    text: str | None = None
+    document_name: str | None = Field(default=None, max_length=200)
+    text: str | None = Field(default=None, max_length=MAX_AGENT_TEXT_CHARS)
     record_id: int | None = None
-    application_scenario: str = "contract"
-    taboo_words: str = ""
-    project_id: str = "default"
-    engineering_type_key: str | None = None
-    contract_type_key: str | None = None
+    application_scenario: str = Field(default="contract", min_length=1, max_length=20)
+    taboo_words: str = Field(default="", max_length=MAX_AGENT_TABOO_WORDS_CHARS)
+    project_id: str = Field(default="default", min_length=1, max_length=MAX_AGENT_PROJECT_ID_CHARS)
+    engineering_type_key: str | None = Field(default=None, min_length=1, max_length=MAX_AGENT_CATEGORY_KEY_CHARS)
+    contract_type_key: str | None = Field(default=None, min_length=1, max_length=MAX_AGENT_CATEGORY_KEY_CHARS)
 
     @field_validator("document_name")
     @classmethod

@@ -95,11 +95,11 @@ async def test_settings_overview_defaults(client: AsyncClient):
     data = response.json()
     assert data["profile"]["nickname"] == "settings_user"
     assert data["profile"]["subscription_plan"] == "free"
-    assert data["profile"]["monthly_quota"] == 50
+    assert data["profile"]["monthly_quota"] == 200_000
     assert data["profile"]["quota_used"] == 0
     assert data["profile"]["burn_after_read"] is True
     assert data["taboo_words"] == []
-    docs = [doc for cat in data["knowledge"] for sub in cat["subcategories"] for doc in sub["documents"]]
+    docs = [doc for group in data["knowledge"] for doc in group["documents"]]
     assert {"id": doc_id, "title": "施工规范", "enabled": True, "owner_type": "system", "application_scenario": "contract"} in docs
 
 

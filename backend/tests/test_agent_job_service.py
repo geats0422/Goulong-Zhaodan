@@ -33,6 +33,7 @@ from app.services.agent_job_service import (  # noqa: E402
     mark_job_succeeded,
     update_job_status,
 )
+from app.api.v1.agent import _job_response  # noqa: E402
 
 
 @pytest_asyncio.fixture
@@ -240,19 +241,23 @@ async def test_mark_job_failed(
 
 @pytest.mark.asyncio
 async def test_create_job_enqueue_failure(
-    session: AsyncSession, user_id: int, api_key_id: int
+    session: AsyncSession, user_id: int, api_key_id: int, caplog: pytest.LogCaptureFixture
 ):
+    redis_error = "redis://redis.internal:6379/0 connection refused"
     with patch(
         "app.services.agent_job_service.enqueue_job",
         new_callable=AsyncMock,
-        side_effect=Exception("Redis connection refused"),
+        side_effect=Exception(redis_error),
     ):
         job = await create_job(session, user_id, api_key_id, "inspect")
 
     assert job is not None
     assert job.status == "failed"
     assert job.finished_at is not None
-    assert "任务投递失败" in (job.error_message or "")
+    assert job.error_message == "任务投递失败，请稍后重试"
+    assert "Exception" in caplog.text
+    assert redis_error not in caplog.text
+    assert redis_error not in str(_job_response(job))
     assert job.job_id.startswith("job_")
 
     found = await get_job(session, job.job_id, user_id)

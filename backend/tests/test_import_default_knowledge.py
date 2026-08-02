@@ -347,6 +347,23 @@ class TestLoadManifest:
         assert len(manifest["official_domain_allowlist"]) > 0
         assert len(manifest["sources"]) >= 1
 
+    def test_default_manifest_matches_the_seven_supplementary_docx_sources(self):
+        """默认规则包仅声明已确认的 6 部法规和 1 部司法解释。"""
+        manifest = load_manifest(DEFAULT_MANIFEST_PATH)
+
+        expected_hashes = {
+            "《中华人民共和国民法典》第三编合同.docx": "sha256:45cdf695b3b1223e2e42ae0416af835663eabda262ccefd16e4045905890f581",
+            "中华人民共和国建筑法.docx": "sha256:15df304d2e16d1f108821fab2a38e1a20ccabe98ab72a7f4b379a613e36f48db",
+            "建设工程质量管理条例.docx": "sha256:9fc0053577b79af5f1a2a437dd2ef1a07434e59027252f2a7df86c1f8d9acba2",
+            "建设工程安全生产条例.docx": "sha256:2a8c95c5776c04fc3a69da3565a24d8af7ac2f2db19044cbd3261aa86266fa6d",
+            "中华人民共和国安全生产法.docx": "sha256:089f5e97d05beee13b12103bd9d1ee7e354f4ff9e6d64336241f049cbf6ed109",
+            "保障农民工工资支付条例.docx": "sha256:a1cf9e8f6b3e186d33b46d55767fb7ef6f1f859a8821dba628ca086e724dd1bb",
+            "最高人民法院关于审理建设工程施工合同纠纷案件适用法律问题的解释（一）.docx": "sha256:fb3c394e14fb81ccaf8eba4bd9497433522934a7932ab5f3c3474981a82465c2",
+        }
+
+        actual_hashes = {source["filename"]: source["content_hash"] for source in manifest["sources"]}
+        assert actual_hashes == expected_hashes
+
     def test_missing_file_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
             load_manifest(tmp_path / "missing.json")

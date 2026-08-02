@@ -561,7 +561,7 @@ async def run_manifest_import(
         manifest_path = DEFAULT_MANIFEST_PATH
     if reference_dir is None:
         project_root = Path(__file__).resolve().parent.parent.parent
-        reference_dir = project_root / "knowledge-base" / "system" / "legal-regulations"
+        reference_dir = project_root / "reference" / "补充知识库"
 
     manifest = load_manifest(manifest_path)
     errors = validate_manifest(manifest)
@@ -739,7 +739,7 @@ def main() -> None:
         "--reference-dir",
         type=str,
         default=None,
-        help="参考文件目录路径（默认: knowledge-base/system/legal-regulations）",
+        help="参考文件目录路径（默认: reference/补充知识库）",
     )
     parser.add_argument(
         "--manifest",

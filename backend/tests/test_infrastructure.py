@@ -116,7 +116,7 @@ async def test_tables_created() -> None:
         result = await conn.execute(
             text(
                 "SELECT table_name FROM information_schema.tables "
-                "WHERE table_schema IN ('public', 'goulong_auth') ORDER BY table_name"
+                "WHERE table_schema IN ('zhaodan', 'goulong_auth') ORDER BY table_name"
             )
         )
         table_names = {row[0] for row in result.fetchall()}

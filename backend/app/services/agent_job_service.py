@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import datetime
+import logging
 import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.api_keys import AgentJob
+
+logger = logging.getLogger(__name__)
 
 
 async def enqueue_job(task_name: str, job_id: str) -> None:
@@ -46,8 +49,9 @@ async def create_job(
     try:
         await enqueue_job(f"{job_type}_document_task", job.job_id)
     except Exception as exc:
+        logger.error("任务投递失败，任务 ID：%s，错误类型：%s", job.job_id, type(exc).__name__)
         job.status = "failed"
-        job.error_message = f"任务投递失败: {exc}"
+        job.error_message = "任务投递失败，请稍后重试"
         job.finished_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         await db.commit()
         await db.refresh(job)

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { nextTick, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import QRCode from 'qrcode'
 import { createAlipayPageOrder, createNativeOrder, getOrderStatus } from '../services/paymentApi.js'
 
@@ -18,9 +18,13 @@ const orderId = ref(null)
 const status = ref('pending')
 const payMethod = ref('wechat')
 const alipayUrl = ref('')
+const modalRef = ref(null)
+const closeButtonRef = ref(null)
+let previouslyFocusedElement = null
 
 let pollTimer = null
 const QR_SIZE = 240
+const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 async function renderQr(url) {
   if (!url) {
@@ -101,33 +105,58 @@ function openAlipayCashier() {
   }
 }
 
-onMounted(initOrder)
+function close() {
+  emit('close')
+}
+
+function trapFocus(event) {
+  const focusableElements = [...(modalRef.value?.querySelectorAll(FOCUSABLE_SELECTOR) ?? [])]
+  if (!focusableElements.length) return
+
+  const firstElement = focusableElements[0]
+  const lastElement = focusableElements.at(-1)
+
+  if (event.shiftKey && (document.activeElement === firstElement || !modalRef.value.contains(document.activeElement))) {
+    event.preventDefault()
+    lastElement.focus()
+  } else if (!event.shiftKey && (document.activeElement === lastElement || !modalRef.value.contains(document.activeElement))) {
+    event.preventDefault()
+    firstElement.focus()
+  }
+}
+
+onMounted(() => {
+  previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  nextTick(() => closeButtonRef.value?.focus())
+  initOrder()
+})
 onBeforeUnmount(() => {
   stopPolling()
+  previouslyFocusedElement?.focus()
 })
 
 watch(() => props.productCode, () => initOrder(payMethod.value))
 </script>
 
 <template>
-  <div class="payment-overlay" @click.self="emit('close')">
-    <div class="payment-modal">
-      <button class="close-btn" @click="emit('close')" aria-label="关闭">
+  <div class="payment-overlay" @click.self="close">
+    <div ref="modalRef" class="payment-modal" role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" tabindex="-1" @keydown.esc="close" @keydown.tab="trapFocus">
+      <button ref="closeButtonRef" type="button" class="close-btn" @click="close" aria-label="关闭">
         <span class="material-symbols-outlined">close</span>
       </button>
 
       <header class="modal-header">
         <span class="modal-ref">REF.PAY-001</span>
-        <h2>选择支付方式</h2>
+        <h2 id="payment-modal-title">选择支付方式</h2>
         <p class="modal-sub" v-if="productName">{{ productName }}<span v-if="amountLabel"> · {{ amountLabel }}</span></p>
       </header>
 
       <div class="method-tabs">
-        <button :class="{ active: payMethod === 'wechat' }" @click="initOrder('wechat')">微信</button>
-        <button :class="{ active: payMethod === 'alipay' }" @click="initOrder('alipay')">支付宝</button>
+        <button type="button" :class="{ active: payMethod === 'wechat' }" @click="initOrder('wechat')">微信</button>
+        <button type="button" :class="{ active: payMethod === 'alipay' }" @click="initOrder('alipay')">支付宝</button>
       </div>
 
-      <div v-if="error" class="error-box">{{ error }}</div>
+      <div v-if="error" class="error-box" role="alert">{{ error }}</div>
 
       <div v-if="loading" class="loading-box">
         <span class="material-symbols-outlined spin">progress_activity</span>
@@ -151,7 +180,7 @@ watch(() => props.productCode, () => initOrder(payMethod.value))
 
       <div v-else-if="payMethod === 'alipay'" class="qr-section">
         <span class="material-symbols-outlined alipay-icon">open_in_new</span>
-        <button class="alipay-btn" @click="openAlipayCashier">打开支付宝收银台</button>
+        <button type="button" class="alipay-btn" @click="openAlipayCashier">打开支付宝收银台</button>
         <p class="qr-hint">支付后请返回本页，系统会自动确认到账</p>
         <div class="status-row">
           <span class="dot pulse"></span>

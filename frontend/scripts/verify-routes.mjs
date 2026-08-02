@@ -276,7 +276,8 @@ if (!appTopNav.includes('account-menu') || !appTopNav.includes('切换账号') |
   throw new Error('AppTopNav avatar must open the account menu with required actions')
 }
 
-if (!marketingHome.includes('业务提交前审查 Agent') || !marketingHome.includes('客户案例') || !marketingHome.includes('版本与定价')) {
+const marketingHomeText = marketingHome.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+if (!marketingHomeText.includes('业务提交前审查 Agent') || !marketingHomeText.includes('客户案例') || !marketingHomeText.includes('版本与定价')) {
   throw new Error('Marketing home must combine positioning, cases, and pricing content')
 }
 

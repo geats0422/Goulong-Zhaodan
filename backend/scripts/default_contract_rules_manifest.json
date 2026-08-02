@@ -20,10 +20,10 @@
       "official_url": "http://www.npc.gov.cn/npc/c30834/202006/t20200602_306457.html",
       "publish_date": "2020-05-28",
       "effective_date": "2021-01-01",
-      "version": "2020-05-28 修正",
+      "version": "2020-05-28 公布",
       "fetched_date": "2026-08-01",
-      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "filename": "民法典合同编.txt"
+      "content_hash": "sha256:45cdf695b3b1223e2e42ae0416af835663eabda262ccefd16e4045905890f581",
+      "filename": "《中华人民共和国民法典》第三编合同.docx"
     },
     {
       "title": "中华人民共和国建筑法",
@@ -32,8 +32,8 @@
       "effective_date": "2019-04-23",
       "version": "2019-04-23 修正",
       "fetched_date": "2026-08-01",
-      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "filename": "建筑法.txt"
+      "content_hash": "sha256:15df304d2e16d1f108821fab2a38e1a20ccabe98ab72a7f4b379a613e36f48db",
+      "filename": "中华人民共和国建筑法.docx"
     },
     {
       "title": "建设工程质量管理条例",
@@ -42,8 +42,8 @@
       "effective_date": "2019-04-23",
       "version": "2019-04-23 修订",
       "fetched_date": "2026-08-01",
-      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "filename": "建设工程质量管理条例.txt"
+      "content_hash": "sha256:9fc0053577b79af5f1a2a437dd2ef1a07434e59027252f2a7df86c1f8d9acba2",
+      "filename": "建设工程质量管理条例.docx"
     },
     {
       "title": "建设工程安全生产管理条例",
@@ -52,8 +52,8 @@
       "effective_date": "2004-02-01",
       "version": "2003-11-24 公布",
       "fetched_date": "2026-08-01",
-      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "filename": "建设工程安全生产管理条例.txt"
+      "content_hash": "sha256:2a8c95c5776c04fc3a69da3565a24d8af7ac2f2db19044cbd3261aa86266fa6d",
+      "filename": "建设工程安全生产条例.docx"
     },
     {
       "title": "中华人民共和国安全生产法",
@@ -62,8 +62,8 @@
       "effective_date": "2021-09-01",
       "version": "2021-06-10 修正",
       "fetched_date": "2026-08-01",
-      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "filename": "安全生产法.txt"
+      "content_hash": "sha256:089f5e97d05beee13b12103bd9d1ee7e354f4ff9e6d64336241f049cbf6ed109",
+      "filename": "中华人民共和国安全生产法.docx"
     },
     {
       "title": "保障农民工工资支付条例",
@@ -72,8 +72,8 @@
       "effective_date": "2020-05-01",
       "version": "2019-12-30 公布",
       "fetched_date": "2026-08-01",
-      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "filename": "保障农民工工资支付条例.txt"
+      "content_hash": "sha256:a1cf9e8f6b3e186d33b46d55767fb7ef6f1f859a8821dba628ca086e724dd1bb",
+      "filename": "保障农民工工资支付条例.docx"
     },
     {
       "title": "最高人民法院关于审理建设工程施工合同纠纷案件适用法律问题的解释（一）",
@@ -82,18 +82,8 @@
       "effective_date": "2021-01-01",
       "version": "法释〔2020〕25号",
       "fetched_date": "2026-08-01",
-      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "filename": "建设工程施工合同纠纷司法解释.txt"
-    },
-    {
-      "title": "建设工程施工合同（示范文本）条款部分",
-      "official_url": "https://www.mohurd.gov.cn/gongkai/zhengce/zhengcefilelib/201803/t20180309_230018.html",
-      "publish_date": "2017-09-22",
-      "effective_date": "2017-10-01",
-      "version": "建市〔2017〕47号 GF-2017-0201",
-      "fetched_date": "2026-08-01",
-      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "filename": "建设工程施工合同示范文本.txt"
+      "content_hash": "sha256:fb3c394e14fb81ccaf8eba4bd9497433522934a7932ab5f3c3474981a82465c2",
+      "filename": "最高人民法院关于审理建设工程施工合同纠纷案件适用法律问题的解释（一）.docx"
     }
   ]
 }

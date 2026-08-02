@@ -38,7 +38,10 @@ export async function getOrderStatus(orderId) {
 
 export async function listOrders() {
   const resp = await fetchWithAuth('/payment/orders')
-  if (!resp.ok) return []
+  if (!resp.ok) {
+    const detail = (await parseErr(resp)).detail
+    throw new Error(typeof detail === 'string' && detail.trim() ? detail : '历史订单加载失败')
+  }
   return resp.json()
 }
 

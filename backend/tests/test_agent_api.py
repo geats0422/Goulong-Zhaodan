@@ -150,6 +150,57 @@ async def test_create_parse_job(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_create_job_rejects_oversized_payload_before_creating_job(client: AsyncClient, monkeypatch):
+    jwt_headers = await register_user(client, "oversized_job_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+
+    from unittest.mock import AsyncMock
+    from app.api.v1 import agent
+
+    create_job = AsyncMock()
+    monkeypatch.setattr(agent, "create_job", create_job)
+
+    response = await client.post(
+        "/api/v1/agent/jobs/inspect",
+        headers=api_headers,
+        json={"input_payload": {"text": "x" * 32_769}},
+    )
+
+    assert response.status_code == 422
+    create_job.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_job_rejects_deeply_nested_payload_before_creating_job(client: AsyncClient, monkeypatch):
+    jwt_headers = await register_user(client, "nested_job_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+
+    from unittest.mock import AsyncMock
+    from app.api.v1 import agent
+
+    create_job = AsyncMock()
+    monkeypatch.setattr(agent, "create_job", create_job)
+    payload = {"level": {"level": {"level": {"level": {"level": {"level": "value"}}}}}}
+
+    response = await client.post(
+        "/api/v1/agent/jobs/inspect",
+        headers=api_headers,
+        json={"input_payload": payload},
+    )
+
+    assert response.status_code == 422
+    create_job.assert_not_awaited()
+
+
+def test_create_job_request_rejects_excessive_payload_items() -> None:
+    from pydantic import ValidationError
+    from app.api.v1.agent import CreateJobRequest
+
+    with pytest.raises(ValidationError, match="项目不得超过"):
+        CreateJobRequest(input_payload={"items": list(range(101))})
+
+
+@pytest.mark.asyncio
 async def test_get_job_status(client: AsyncClient):
     jwt_headers = await register_user(client, "status_user")
     api_headers = await create_agent_api_key(client, jwt_headers)
@@ -407,6 +458,48 @@ async def test_knowledge_search_no_scope(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_knowledge_search_rejects_oversized_query_before_retrieval(client: AsyncClient, monkeypatch):
+    jwt_headers = await register_user(client, "oversized_query_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+
+    from unittest.mock import AsyncMock
+    from app.api.v1 import agent
+
+    retrieve = AsyncMock()
+    monkeypatch.setattr(agent, "retrieve_regulation_base", retrieve)
+
+    response = await client.post(
+        "/api/v1/agent/knowledge/search",
+        headers=api_headers,
+        json={"query": "x" * 1_001},
+    )
+
+    assert response.status_code == 422
+    retrieve.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_knowledge_search_rejects_oversized_category_key_before_retrieval(client: AsyncClient, monkeypatch):
+    jwt_headers = await register_user(client, "oversized_category_key_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+
+    from unittest.mock import AsyncMock
+    from app.api.v1 import agent
+
+    retrieve = AsyncMock()
+    monkeypatch.setattr(agent, "retrieve_regulation_base", retrieve)
+
+    response = await client.post(
+        "/api/v1/agent/knowledge/search",
+        headers=api_headers,
+        json={"query": "合同法规", "engineering_type_key": "x" * 101},
+    )
+
+    assert response.status_code == 422
+    retrieve.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_agent_inspect_success(client: AsyncClient):
     jwt_headers = await register_user(client, "inspect_sync_user")
     api_headers = await create_agent_api_key(client, jwt_headers)
@@ -444,6 +537,57 @@ async def test_agent_parse_creates_pending_record(client: AsyncClient):
     assert "classification" in data
     assert "evidence" in data["classification"]
     assert "公开招标" in data["text_preview"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("project_id", [" ", "x" * 101])
+async def test_agent_parse_rejects_invalid_project_id_before_reading_upload(
+    client: AsyncClient, monkeypatch, project_id: str
+):
+    from unittest.mock import AsyncMock
+    from app.api.v1 import agent
+
+    jwt_headers = await register_user(client, f"invalid_project_{len(project_id)}_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+    read_upload = AsyncMock()
+    monkeypatch.setattr(agent, "_read_inspection_upload_text", read_upload)
+
+    response = await client.post(
+        "/api/v1/agent/parse",
+        headers=api_headers,
+        data={"project_id": project_id},
+        files={"file": ("合同.txt", "合同正文内容足够长。", "text/plain")},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "project_id 长度须为 1-100 字符且不能为空白"
+    read_upload.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_agent_parse_rejects_oversized_converted_text_before_classification_or_persistence(client: AsyncClient, monkeypatch):
+    from unittest.mock import AsyncMock
+    from app.api.v1 import agent
+
+    jwt_headers = await register_user(client, "oversized_parsed_text_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+    read_upload = AsyncMock(return_value=("合同.txt", b"source", "x" * 12_001))
+    classify = AsyncMock()
+    create_record = AsyncMock()
+    monkeypatch.setattr(agent, "_read_inspection_upload_text", read_upload)
+    monkeypatch.setattr(agent, "classify_inspection_document", classify)
+    monkeypatch.setattr(agent, "create_pending_inspection_record", create_record)
+
+    response = await client.post(
+        "/api/v1/agent/parse",
+        headers=api_headers,
+        files={"file": ("合同.txt", "源文件内容", "text/plain")},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["detail"] == "文件解析后内容超过 12000 字符限制"
+    classify.assert_not_awaited()
+    create_record.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -532,6 +676,59 @@ async def test_agent_inspect_short_text(client: AsyncClient):
 
     assert response.status_code == 400
     assert "过短" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_agent_inspect_rejects_oversized_text_before_model_execution(client: AsyncClient, monkeypatch):
+    jwt_headers = await register_user(client, "oversized_inspect_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+
+    from unittest.mock import AsyncMock
+    from app.api.v1 import agent
+
+    execute = AsyncMock()
+    monkeypatch.setattr(agent, "execute_inspection", execute)
+
+    response = await client.post(
+        "/api/v1/agent/inspect",
+        headers=api_headers,
+        json={"document_name": "doc.pdf", "text": "x" * 12_001},
+    )
+
+    assert response.status_code == 422
+    execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("taboo_words", "x" * 2_001),
+        ("project_id", "x" * 101),
+        ("engineering_type_key", "x" * 101),
+        ("contract_type_key", "x" * 101),
+    ],
+)
+async def test_agent_inspect_rejects_oversized_auxiliary_input_before_model_execution(
+    client: AsyncClient, monkeypatch, field: str, value: str
+):
+    jwt_headers = await register_user(client, f"oversized_{field}_user")
+    api_headers = await create_agent_api_key(client, jwt_headers)
+
+    from unittest.mock import AsyncMock
+    from app.api.v1 import agent
+
+    execute = AsyncMock()
+    monkeypatch.setattr(agent, "execute_inspection", execute)
+
+    response = await client.post(
+        "/api/v1/agent/inspect",
+        headers=api_headers,
+        json={"document_name": "doc.pdf", "text": "足够长的正文内容用于体检", field: value},
+    )
+
+    assert response.status_code == 422
+    execute.assert_not_awaited()
 
 
 @pytest.mark.asyncio

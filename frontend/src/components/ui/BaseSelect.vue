@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import { getEnabledOptionIndex, getNextEnabledOptionIndex } from './selectNavigation.js'
 
 const props = defineProps({
   modelValue: { type: [String, Number], default: '' },
@@ -13,66 +14,111 @@ const emit = defineEmits(['update:modelValue', 'change'])
 
 const open = ref(false)
 const rootRef = ref(null)
+const activeIndex = ref(-1)
+const labelId = useId()
+const listboxId = `base-select-listbox-${Math.random().toString(36).slice(2)}`
 
 const selectedLabel = computed(() => {
   const hit = props.options.find((opt) => String(opt.value) === String(props.modelValue))
   return hit?.label ?? props.placeholder
 })
 
+function openMenu() {
+  if (props.disabled) return
+  activeIndex.value = getEnabledOptionIndex(props.options, props.modelValue)
+  open.value = true
+}
+
+function closeMenu() {
+  open.value = false
+}
+
 function toggle() {
   if (props.disabled) return
-  open.value = !open.value
+  if (open.value) closeMenu()
+  else openMenu()
 }
 
 function selectOption(opt) {
   if (props.disabled || opt.disabled) return
   emit('update:modelValue', opt.value)
   emit('change', opt.value)
-  open.value = false
+  closeMenu()
 }
 
 function onDocClick(event) {
-  if (!rootRef.value?.contains(event.target)) open.value = false
+  if (!rootRef.value?.contains(event.target)) closeMenu()
 }
 
 function onKeydown(event) {
-  if (event.key === 'Escape') open.value = false
+  if (props.disabled) return
+  const navigation = { ArrowDown: 1, ArrowUp: -1, Home: 'home', End: 'end' }
+
+  if (event.key === 'Escape') {
+    if (open.value) {
+      event.preventDefault()
+      closeMenu()
+    }
+    return
+  }
+
+  if (Object.hasOwn(navigation, event.key)) {
+    event.preventDefault()
+    if (!open.value) openMenu()
+    activeIndex.value = getNextEnabledOptionIndex(props.options, activeIndex.value, navigation[event.key])
+    return
+  }
+
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    if (!open.value) {
+      openMenu()
+      return
+    }
+    const option = props.options[activeIndex.value]
+    if (option) selectOption(option)
+  }
 }
 
-watch(() => props.disabled, (v) => { if (v) open.value = false })
+watch(() => props.disabled, (v) => { if (v) closeMenu() })
 
 onMounted(() => {
   document.addEventListener('click', onDocClick)
-  document.addEventListener('keydown', onKeydown)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
-  document.removeEventListener('keydown', onKeydown)
 })
 </script>
 
 <template>
   <div ref="rootRef" class="base-select" :class="{ open, disabled }">
-    <span v-if="label" class="base-select-label">{{ label }}</span>
+    <span v-if="label" :id="labelId" class="base-select-label">{{ label }}</span>
     <button
       type="button"
       class="base-select-trigger"
       :disabled="disabled"
+      role="combobox"
       :aria-expanded="open"
       aria-haspopup="listbox"
+      :aria-controls="listboxId"
+      :aria-labelledby="label ? labelId : undefined"
+      :aria-activedescendant="open && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined"
+      @keydown="onKeydown"
       @click="toggle"
     >
       <span class="base-select-value" :class="{ placeholder: modelValue === '' || modelValue == null }">{{ selectedLabel }}</span>
       <span class="material-symbols-outlined base-select-caret">expand_more</span>
     </button>
-    <ul v-if="open" class="base-select-menu" role="listbox">
+    <ul v-if="open" :id="listboxId" class="base-select-menu" role="listbox">
       <li
-        v-for="opt in options"
+        v-for="(opt, index) in options"
         :key="String(opt.value)"
+        :id="`${listboxId}-option-${index}`"
         role="option"
         class="base-select-option"
-        :class="{ active: String(opt.value) === String(modelValue), disabled: opt.disabled }"
+        :class="{ active: index === activeIndex, disabled: opt.disabled }"
         :aria-selected="String(opt.value) === String(modelValue)"
+        :aria-disabled="opt.disabled || undefined"
         @click="selectOption(opt)"
       >
         {{ opt.label }}
