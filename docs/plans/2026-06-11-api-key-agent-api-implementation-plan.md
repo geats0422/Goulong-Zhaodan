@@ -251,7 +251,7 @@
   - 修改 `README.md` 或 `backend/README.md`（按项目现有文档位置选择）
   - 如有必要，修改 `.env.example`
 - **测试**: 文档无需单测。
-- **验证**: 文档包含 `API_KEY_ENCRYPTION_SECRET` 和 `cd backend && uv run arq workers.config.WorkerSettings`。
+- **验证**: 文档包含 `API_KEY_ENCRYPTION_SECRET` 和 `cd backend && uv run arq app.workers.config.WorkerSettings`。
 - **依赖**: 任务 14、18
 
 ### 任务 29: 全量验证与影响检查 (~5 min)

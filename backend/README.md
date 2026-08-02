@@ -73,7 +73,7 @@ uv run uvicorn main:app --reload --port 8000
 
 ```powershell
 cd backend
-uv run arq workers.config.WorkerSettings
+uv run arq app.workers.config.WorkerSettings
 ```
 
 前提：Redis 服务已启动，且 `.env` 中 `REDIS_URL` 配置正确。

@@ -21,7 +21,7 @@
 - 外部调用不直接复用 Web API，而是使用专用 `/api/v1/agent/*`。
 - API Key 管理等业务操作走同步 async/await。
 - Agent API 的大文件解析、AI 审查、知识库上传入库走 Arq + Redis + Worker。
-- Worker 启动方式固定为：`cd backend && uv run arq workers.config.WorkerSettings`。
+- Worker 启动方式固定为：`cd backend && uv run arq app.workers.config.WorkerSettings`。
 
 ## 权限模型
 
@@ -137,7 +137,7 @@
 
 ```powershell
 cd backend
-uv run arq workers.config.WorkerSettings
+uv run arq app.workers.config.WorkerSettings
 ```
 
 ### 目录结构
