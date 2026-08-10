@@ -11,28 +11,38 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select, update
 
 from app.core.database import get_db_session
+from app.core.password_rules import BCRYPT_MAX_PASSWORD_BYTES
 from goulong_auth.config import auth_settings
 
 
 def hash_password(password: str) -> str:
+    if len(password.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES:
+        raise ValueError(f"password cannot be longer than {BCRYPT_MAX_PASSWORD_BYTES} bytes")
     from goulong_auth.auth.password import hash_password as _hash
     return _hash(password)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
+    if len(plain.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES:
+        return False
     from goulong_auth.auth.password import verify_password as _verify
-    return _verify(plain, hashed)
+    try:
+        return _verify(plain, hashed)
+    except (TypeError, ValueError):
+        return False
 
 
 def create_access_token(user_id: uuid.UUID) -> str:
     now = datetime.datetime.now(UTC)
+    issued_at_ms = int(now.timestamp() * 1000)
     return jwt.encode(
         {
             "user_id": str(user_id),
             "product": "zhaodan",
             "typ": "access",
             "exp": now + timedelta(minutes=auth_settings.ACCESS_TOKEN_EXPIRE_MINUTES),
-            "iat": now,
+            "iat": issued_at_ms // 1000,
+            "iat_ms": issued_at_ms,
         },
         auth_settings.JWT_SECRET_KEY,
         algorithm=auth_settings.JWT_ALGORITHM,
@@ -86,6 +96,7 @@ def decode_token(token: str, token_type: str) -> dict:
         "typ": encoded_type,
         "exp": payload["exp"],
         "iat": payload["iat"],
+        "iat_ms": payload.get("iat_ms"),
         "jti": payload.get("jti"),
         "sub": str(user_id),
     }
@@ -109,12 +120,12 @@ async def is_refresh_token_revoked(db, jti: str) -> bool:
 
 
 async def revoke_all_refresh_tokens(db, user_id: uuid.UUID) -> None:
+    """在当前事务中吊销用户的全部 refresh token，由调用方统一提交。"""
     from goulong_auth.models import RefreshToken
 
     await db.execute(
         update(RefreshToken).where(RefreshToken.user_id == user_id, ~RefreshToken.revoked).values(revoked=True)
     )
-    await db.commit()
 
 
 @dataclass
@@ -139,6 +150,17 @@ async def get_current_user(request: Request, db=Depends(get_db_session)) -> Curr
     user = result.scalar_one_or_none()
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    password_changed_at = getattr(user, "password_changed_at", None)
+    if password_changed_at is not None:
+        if password_changed_at.tzinfo is None:
+            password_changed_at = password_changed_at.replace(tzinfo=UTC)
+        token_issued_at_ms = payload.get("iat_ms")
+        if token_issued_at_ms is None:
+            token_issued_at_ms = float(payload["iat"]) * 1000
+        password_changed_at_ms = password_changed_at.timestamp() * 1000
+        if token_issued_at_ms < password_changed_at_ms:
+            raise HTTPException(status_code=401, detail="Not authenticated")
 
     return CurrentUserContext(
         user_id=user.id,

@@ -8,6 +8,7 @@ import jwt
 import pytest
 from fastapi import FastAPI, HTTPException
 from httpx import ASGITransport, AsyncClient
+from goulong_auth.auth.jwt import decode_token as decode_shared_token
 
 from app.api.v1.auth import router as auth_router
 from app.core.auth import (
@@ -16,6 +17,7 @@ from app.core.auth import (
     decode_token,
     get_current_user,
 )
+from app.core.password_rules import validate_password
 from app.core.database import get_db_session
 from goulong_auth.config import auth_settings
 
@@ -28,7 +30,7 @@ def _signed_token(**overrides: object) -> str:
     payload: dict[str, object] = {
         "user_id": str(USER_ID),
         "product": "zhaodan",
-        "exp": now + datetime.timedelta(minutes=5),
+        "exp": now + datetime.timedelta(hours=1),
         "iat": now,
     }
     payload.update(overrides)
@@ -40,8 +42,9 @@ def _signed_token(**overrides: object) -> str:
 
 
 def test_new_tokens_are_explicitly_typed_and_product_scoped() -> None:
+    access_token = create_access_token(USER_ID)
     access = jwt.decode(
-        create_access_token(USER_ID),
+        access_token,
         auth_settings.JWT_SECRET_KEY,
         algorithms=[auth_settings.JWT_ALGORITHM],
     )
@@ -54,6 +57,9 @@ def test_new_tokens_are_explicitly_typed_and_product_scoped() -> None:
 
     assert access["typ"] == "access"
     assert access["product"] == "zhaodan"
+    assert isinstance(access["iat"], int)
+    assert isinstance(access["iat_ms"], int)
+    assert decode_shared_token(access_token).iat == access["iat"]
     assert "jti" not in access
     assert refresh["typ"] == "refresh"
     assert refresh["product"] == "zhaodan"
@@ -97,6 +103,19 @@ def test_legacy_token_compatibility_is_limited_by_jti(
     with pytest.raises(HTTPException) as exc_info:
         decode_token(token, requested_type)
     assert exc_info.value.status_code == 401
+
+
+def test_legacy_access_token_without_iat_ms_is_shared_compatible() -> None:
+    issued_at = int(datetime.datetime.now(datetime.UTC).timestamp())
+    token = _signed_token(iat=issued_at)
+
+    assert "iat_ms" not in jwt.decode(
+        token,
+        auth_settings.JWT_SECRET_KEY,
+        algorithms=[auth_settings.JWT_ALGORITHM],
+    )
+    assert decode_shared_token(token).iat == issued_at
+    assert decode_token(token, "access")["iat"] == issued_at
 
 
 @pytest.mark.parametrize("malformed_user_id", ["not-a-uuid", "", None, 123])
@@ -198,6 +217,73 @@ async def test_current_user_returns_verified_active_user() -> None:
 
     assert current.user_id == USER_ID
     assert current.is_active is True
+
+
+@pytest.mark.asyncio
+async def test_current_user_rejects_access_token_issued_before_password_change() -> None:
+    password_changed_at = datetime.datetime.now(datetime.UTC)
+    user = SimpleNamespace(id=USER_ID, is_active=True, password_changed_at=password_changed_at)
+    old_token = _signed_token(iat=int(password_changed_at.timestamp()) - 1)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user(_request(old_token), _UserSession(user))
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_current_user_rejects_access_token_issued_before_password_change_within_same_second() -> None:
+    password_changed_at = datetime.datetime.now(datetime.UTC).replace(microsecond=200_000)
+    user = SimpleNamespace(id=USER_ID, is_active=True, password_changed_at=password_changed_at)
+    old_token = _signed_token(iat=int(password_changed_at.timestamp()))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user(_request(old_token), _UserSession(user))
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_current_user_accepts_new_access_token_created_in_same_second_as_password_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.core.auth as auth_module
+
+    password_changed_at = datetime.datetime.now(datetime.UTC).replace(microsecond=200_000)
+    token_issued_at = password_changed_at.replace(microsecond=900_000)
+
+    class _FrozenDateTime(datetime.datetime):
+        @classmethod
+        def now(cls, tz: datetime.tzinfo | None = None) -> datetime.datetime:
+            return token_issued_at
+
+    monkeypatch.setattr(auth_module, "datetime", SimpleNamespace(datetime=_FrozenDateTime))
+    token = create_access_token(USER_ID)
+    user = SimpleNamespace(id=USER_ID, is_active=True, password_changed_at=password_changed_at)
+    token_payload = jwt.decode(
+        token,
+        auth_settings.JWT_SECRET_KEY,
+        algorithms=[auth_settings.JWT_ALGORITHM],
+    )
+
+    current = await get_current_user(_request(token), _UserSession(user))
+
+    assert current.user_id == USER_ID
+    assert token_payload["iat"] == int(token_issued_at.timestamp())
+    assert token_payload["iat_ms"] == int(token_issued_at.timestamp() * 1000)
+
+
+def test_password_validation_uses_bcrypt_byte_limit() -> None:
+    exact_limit = "A" * 60 + "a" * 10 + "1!"
+    ascii_over_limit = exact_limit + "!"
+    multibyte_over_limit = "Aa1" + "中" * 24
+
+    assert len(exact_limit.encode("utf-8")) == 72
+    assert validate_password(exact_limit) == []
+    assert "72 字节" in ";".join(validate_password(ascii_over_limit))
+    assert "72 字节" in "；".join(validate_password(multibyte_over_limit))
 
 
 @pytest.mark.asyncio

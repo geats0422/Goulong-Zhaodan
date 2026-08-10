@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -35,8 +36,13 @@ sys.modules["app.agents.inspector"] = fake_inspector_module
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
+from pydantic import ValidationError  # noqa: E402
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.exc import IntegrityError  # noqa: E402
 
-from app.core.database import async_session  # noqa: E402
+from app.api.v1.settings import BindPhoneRequest, PasswordRecoverRequest  # noqa: E402
+from app.core.database import async_session, get_db_session  # noqa: E402
+from goulong_auth.models import User  # noqa: E402
 from main import app  # noqa: E402
 from app.models.knowledge import EngineeringSubcategory, KnowledgeDocument  # noqa: E402
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
@@ -171,6 +177,76 @@ async def test_update_password(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_update_password_accepts_72_byte_old_and_new_password(client: AsyncClient):
+    boundary_password = "A" * 60 + "a" * 10 + "1!"
+    headers = await register_and_auth(client, "password_boundary_user", boundary_password)
+
+    response = await client.post(
+        "/settings/password",
+        headers=headers,
+        json={"old_password": boundary_password, "new_password": boundary_password},
+    )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_update_password_rejects_overlong_old_password_without_500(client: AsyncClient):
+    headers = await register_and_auth(client, "password_old_overlong_user")
+
+    response = await client.post(
+        "/settings/password",
+        headers=headers,
+        json={
+            "old_password": "A" * 60 + "a" * 10 + "1!!",
+            "new_password": "NewPass456",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "旧密码错误"}
+
+
+@pytest.mark.asyncio
+async def test_update_password_rejects_corrupt_hash_without_internal_error(client: AsyncClient):
+    headers = await register_and_auth(client, "password_corrupt_hash_user")
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(User).where(User.email == "password_corrupt_hash_user@test.com")
+        )
+        user = result.scalar_one()
+        user.hashed_password = "not-a-bcrypt-hash"
+        await session.commit()
+
+    response = await client.post(
+        "/settings/password",
+        headers=headers,
+        json={"old_password": VALID_PASSWORD, "new_password": "NewPass456"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "旧密码错误"}
+    assert "not-a-bcrypt-hash" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_update_password_rejects_overlong_new_password(client: AsyncClient):
+    headers = await register_and_auth(client, "password_new_overlong_user")
+
+    response = await client.post(
+        "/settings/password",
+        headers=headers,
+        json={
+            "old_password": VALID_PASSWORD,
+            "new_password": "A" * 60 + "a" * 10 + "1!!",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_password_change_revokes_refresh_tokens(client: AsyncClient):
     reg = await client.post("/auth/register", json={
         "email": "revoke_user@test.com",
@@ -197,6 +273,9 @@ async def test_password_change_revokes_refresh_tokens(client: AsyncClient):
     revoked_resp = await client.post("/auth/refresh")
     assert revoked_resp.status_code == 401
 
+    old_access_resp = await client.get("/auth/me", headers=headers)
+    assert old_access_resp.status_code == 401
+
 
 @pytest.mark.asyncio
 async def test_update_password_rejects_weak(client: AsyncClient):
@@ -213,9 +292,21 @@ async def test_update_password_rejects_weak(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_send_password_recover_code_uses_current_user_phone(client: AsyncClient, monkeypatch):
     headers = await register_and_auth(client, "recover_code_user")
-    await client.patch("/settings/profile", headers=headers, json={"phone": "13800138000"})
 
     from app.api.v1 import settings as settings_api
+
+    async def fake_verify_code(phone: str, code: str):
+        assert phone == "13800138000"
+        assert code == "123456"
+        return True
+
+    monkeypatch.setattr(settings_api.sms_service, "verify_code", fake_verify_code)
+    bind_response = await client.post(
+        "/settings/phone",
+        headers=headers,
+        json={"phone": "13800138000", "code": "123456"},
+    )
+    assert bind_response.status_code == 200
 
     async def fake_send_code(phone: str, *args, **kwargs):
         assert phone == "13800138000"
@@ -232,8 +323,15 @@ async def test_send_password_recover_code_uses_current_user_phone(client: AsyncC
 
 @pytest.mark.asyncio
 async def test_recover_password_with_sms_code(client: AsyncClient, monkeypatch):
-    headers = await register_and_auth(client, "recover_user", "OldPass123")
-    await client.patch("/settings/profile", headers=headers, json={"phone": "13800138001"})
+    registration = await client.post("/auth/register", json={
+        "email": "recover_user@test.com",
+        "nickname": "recover_user",
+        "password": "OldPass123",
+        "email_code": "123456",
+    })
+    assert registration.status_code == 201
+    headers = {"Authorization": f"Bearer {registration.json()['access_token']}"}
+    old_refresh_token = registration.cookies.get("refresh_token")
 
     from app.api.v1 import settings as settings_api
 
@@ -243,6 +341,12 @@ async def test_recover_password_with_sms_code(client: AsyncClient, monkeypatch):
         return True
 
     monkeypatch.setattr(settings_api.sms_service, "verify_code", fake_verify_code)
+    bind_response = await client.post(
+        "/settings/phone",
+        headers=headers,
+        json={"phone": "13800138001", "code": "123456"},
+    )
+    assert bind_response.status_code == 200
 
     resp = await client.post(
         "/settings/password/recover",
@@ -253,6 +357,39 @@ async def test_recover_password_with_sms_code(client: AsyncClient, monkeypatch):
     assert resp.status_code == 200
     assert (await client.post("/auth/login", json={"email": "recover_user@test.com", "password": "OldPass123"})).status_code == 401
     assert (await client.post("/auth/login", json={"email": "recover_user@test.com", "password": "NewPass456"})).status_code == 200
+
+    old_access_resp = await client.get("/auth/me", headers=headers)
+    assert old_access_resp.status_code == 401
+
+    client.cookies.set("refresh_token", old_refresh_token)
+    revoked_refresh = await client.post("/auth/refresh")
+    assert revoked_refresh.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_recover_password_rejects_overlong_new_password(client: AsyncClient, monkeypatch):
+    headers = await register_and_auth(client, "recover_overlong_user")
+
+    from app.api.v1 import settings as settings_api
+
+    async def fake_verify_code(phone: str, code: str):
+        return True
+
+    monkeypatch.setattr(settings_api.sms_service, "verify_code", fake_verify_code)
+    bind_response = await client.post(
+        "/settings/phone",
+        headers=headers,
+        json={"phone": "13800138002", "code": "123456"},
+    )
+    assert bind_response.status_code == 200
+
+    response = await client.post(
+        "/settings/password/recover",
+        headers=headers,
+        json={"phone_code": "123456", "new_password": "A" * 60 + "a" * 10 + "1!!"},
+    )
+
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -413,27 +550,313 @@ async def test_update_profile_model_name_invalid(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_update_profile_phone(client: AsyncClient):
+async def test_bind_phone_success(client: AsyncClient, monkeypatch):
     headers = await register_and_auth(client, "phone_user")
 
-    resp = await client.patch("/settings/profile", headers=headers, json={"phone": "13800138000"})
-    assert resp.status_code == 200
-    assert resp.json()["phone"] == "138****8000"
+    from app.api.v1 import settings as settings_api
 
+    async def fake_verify_code(phone: str, code: str):
+        assert phone == "13800138000"
+        assert code == "123456"
+        return True
+
+    monkeypatch.setattr(settings_api.sms_service, "verify_code", fake_verify_code)
+
+    response = await client.post(
+        "/settings/phone",
+        headers=headers,
+        json={"phone": "13800138000", "code": "123456"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"phone": "13800138000"}
     overview = await client.get("/settings/overview", headers=headers)
     assert overview.json()["profile"]["phone"] == "138****8000"
 
 
 @pytest.mark.asyncio
-async def test_update_profile_phone_unique_conflict(client: AsyncClient):
+async def test_bind_phone_cannot_replace_existing_phone(client: AsyncClient, monkeypatch):
+    headers = await register_and_auth(client, "phone_replace_user")
+
+    from app.api.v1 import settings as settings_api
+
+    verify_code = AsyncMock(return_value=True)
+    monkeypatch.setattr(settings_api.sms_service, "verify_code", verify_code)
+
+    first = await client.post(
+        "/settings/phone",
+        headers=headers,
+        json={"phone": "13800000009", "code": "123456"},
+    )
+    assert first.status_code == 200
+
+    replacement = await client.post(
+        "/settings/phone",
+        headers=headers,
+        json={"phone": "13900000009", "code": "123456"},
+    )
+
+    assert replacement.status_code == 409
+    assert replacement.json() == {"detail": "当前账号已绑定手机号，不能直接替换"}
+    assert verify_code.await_args_list == [
+        call("13800000009", "123456"),
+        call("13900000009", "123456"),
+    ]
+    overview = await client.get("/settings/overview", headers=headers)
+    assert overview.json()["profile"]["phone"] == "138****0009"
+
+
+@pytest.mark.asyncio
+async def test_send_password_recover_code_hides_provider_error(client: AsyncClient, monkeypatch):
+    headers = await register_and_auth(client, "recover_provider_error_user")
+
+    from app.api.v1 import settings as settings_api
+
+    monkeypatch.setattr(settings_api.sms_service, "verify_code", AsyncMock(return_value=True))
+    bind = await client.post(
+        "/settings/phone",
+        headers=headers,
+        json={"phone": "13900000010", "code": "123456"},
+    )
+    assert bind.status_code == 200
+
+    async def fail_send_code(*args, **kwargs):
+        raise settings_api.sms_service.SmsSendError("aliyun raw error")
+
+    monkeypatch.setattr(settings_api.sms_service, "send_code", fail_send_code)
+    response = await client.post("/settings/password/recover/code", headers=headers)
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": settings_api.sms_service.SMS_SERVICE_UNAVAILABLE_MESSAGE}
+    assert "aliyun raw error" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_bind_phone_wrong_code_does_not_write_user(client: AsyncClient, monkeypatch):
+    headers = await register_and_auth(client, "phone_wrong_code_user")
+
+    from app.api.v1 import settings as settings_api
+
+    async def fake_verify_code(phone: str, code: str):
+        return False
+
+    monkeypatch.setattr(settings_api.sms_service, "verify_code", fake_verify_code)
+
+    response = await client.post(
+        "/settings/phone",
+        headers=headers,
+        json={"phone": "13800138001", "code": "000000"},
+    )
+
+    assert response.status_code == 401
+    overview = await client.get("/settings/overview", headers=headers)
+    assert overview.json()["profile"]["phone"] is None
+
+
+@pytest.mark.asyncio
+async def test_bind_phone_unique_conflict(client: AsyncClient, monkeypatch):
     headers_a = await register_and_auth(client, "phone_a")
     headers_b = await register_and_auth(client, "phone_b")
 
-    first = await client.patch("/settings/profile", headers=headers_a, json={"phone": "13800138000"})
+    from app.api.v1 import settings as settings_api
+
+    async def fake_verify_code(phone: str, code: str):
+        return True
+
+    monkeypatch.setattr(settings_api.sms_service, "verify_code", fake_verify_code)
+
+    first = await client.post(
+        "/settings/phone",
+        headers=headers_a,
+        json={"phone": "13800138002", "code": "123456"},
+    )
     assert first.status_code == 200
 
-    conflict = await client.patch("/settings/profile", headers=headers_b, json={"phone": "13800138000"})
+    conflict = await client.post(
+        "/settings/phone",
+        headers=headers_b,
+        json={"phone": "13800138002", "code": "123456"},
+    )
     assert conflict.status_code == 409
+    overview_b = await client.get("/settings/overview", headers=headers_b)
+    assert overview_b.json()["profile"]["phone"] is None
+
+
+@pytest.mark.asyncio
+async def test_bind_phone_same_user_concurrent_requests_keep_first_phone(
+    client: AsyncClient,
+    monkeypatch,
+):
+    headers = await register_and_auth(client, "phone_race_user")
+
+    from app.api.v1 import settings as settings_api
+
+    second_verification_started = asyncio.Event()
+    release_second_verification = asyncio.Event()
+
+    async def controlled_verify(phone: str, code: str):
+        if phone == "13900000005":
+            second_verification_started.set()
+            await release_second_verification.wait()
+        return True
+
+    monkeypatch.setattr(settings_api.sms_service, "verify_code", controlled_verify)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client_a:
+        async with AsyncClient(transport=transport, base_url="http://test") as client_b:
+            second_request = asyncio.create_task(
+                client_b.post(
+                    "/settings/phone",
+                    headers=headers,
+                    json={"phone": "13900000005", "code": "123456"},
+                )
+            )
+            await second_verification_started.wait()
+            first_response = await client_a.post(
+                "/settings/phone",
+                headers=headers,
+                json={"phone": "13800000005", "code": "123456"},
+            )
+            release_second_verification.set()
+            second_response = await second_request
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 409
+    assert second_response.json() == {"detail": "当前账号已绑定手机号，不能直接替换"}
+
+    async with async_session() as session:
+        result = await session.execute(select(User).where(User.email == "phone_race_user@test.com"))
+        user = result.scalar_one()
+        assert user.phone == "13800000005"
+
+
+@pytest.mark.asyncio
+async def test_bind_phone_commit_integrity_error_returns_conflict_without_leaking_error(
+    client: AsyncClient,
+    monkeypatch,
+):
+    headers = await register_and_auth(client, "phone_commit_conflict_user")
+
+    from app.api.v1 import settings as settings_api
+
+    verify_results = iter([True, False])
+
+    async def fake_verify_code(phone: str, code: str):
+        return next(verify_results)
+
+    monkeypatch.setattr(settings_api.sms_service, "verify_code", fake_verify_code)
+    rollback_called = False
+
+    async def conflicting_db():
+        nonlocal rollback_called
+        async with async_session() as session:
+            original_rollback = session.rollback
+
+            async def rollback():
+                nonlocal rollback_called
+                rollback_called = True
+                await original_rollback()
+
+            async def commit():
+                raise IntegrityError("INSERT INTO users", {}, RuntimeError("duplicate phone"))
+
+            session.rollback = rollback
+            session.commit = commit
+            yield session
+
+    app.dependency_overrides[get_db_session] = conflicting_db
+    try:
+        transport = ASGITransport(app=app, raise_app_exceptions=False)
+        async with AsyncClient(transport=transport, base_url="http://test") as isolated_client:
+            response = await isolated_client.post(
+                "/settings/phone",
+                headers=headers,
+                json={"phone": "13800138004", "code": "123456"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_db_session, None)
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "手机号已被使用"}
+    assert rollback_called is True
+
+    replay = await client.post(
+        "/settings/phone",
+        headers=headers,
+        json={"phone": "13800138004", "code": "123456"},
+    )
+    assert replay.status_code == 401
+
+    overview = await client.get("/settings/overview", headers=headers)
+    assert overview.status_code == 200
+    assert overview.json()["profile"]["phone"] is None
+
+
+@pytest.mark.parametrize(
+    "phone",
+    [
+        "12800138000",
+        "1380013800",
+        "138001380000",
+        "+8613800138000",
+        "１３８００１３８０００",
+    ],
+)
+def test_bind_phone_request_rejects_unsupported_phone(phone: str):
+    with pytest.raises(ValidationError):
+        BindPhoneRequest(phone=phone, code="123456")
+
+
+@pytest.mark.parametrize("phone", ["13800138000", "19900138000"])
+def test_bind_phone_request_accepts_mainland_phone(phone: str):
+    assert BindPhoneRequest(phone=phone, code="123456").phone == phone
+
+
+@pytest.mark.parametrize("code", ["１２３４５６", "12345a", "12345", "123456\n"])
+def test_bind_phone_request_rejects_non_ascii_code(code: str):
+    with pytest.raises(ValidationError):
+        BindPhoneRequest(phone="13800138000", code=code)
+
+
+def test_password_recover_request_rejects_non_ascii_code():
+    with pytest.raises(ValidationError):
+        PasswordRecoverRequest(phone_code="１２３４５６", new_password="NewPass456")
+
+
+@pytest.mark.asyncio
+async def test_bind_phone_rejects_invalid_phone_or_code(client: AsyncClient):
+    headers = await register_and_auth(client, "phone_validation_user")
+
+    invalid_phone = await client.post(
+        "/settings/phone",
+        headers=headers,
+        json={"phone": "138-0013-8000", "code": "123456"},
+    )
+    invalid_code = await client.post(
+        "/settings/phone",
+        headers=headers,
+        json={"phone": "13800138003", "code": "12345"},
+    )
+
+    assert invalid_phone.status_code == 422
+    assert invalid_code.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_profile_rejects_phone_binding_bypass(client: AsyncClient):
+    headers = await register_and_auth(client, "profile_phone_bypass_user")
+
+    response = await client.patch(
+        "/settings/profile",
+        headers=headers,
+        json={"nickname": "仍可更新", "phone": "13800138004"},
+    )
+
+    assert response.status_code == 422
+    overview = await client.get("/settings/overview", headers=headers)
+    assert overview.json()["profile"]["nickname"] == "profile_phone_bypass_user"
+    assert overview.json()["profile"]["phone"] is None
 
 
 @pytest.mark.asyncio

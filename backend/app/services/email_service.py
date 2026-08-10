@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+from app.core.pii_masking import mask_email
 from app.core.redis_client import get_redis
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,7 @@ IP_RATE_LIMIT = 10
 IP_RATE_WINDOW = 3600
 VERIFY_MAX_ATTEMPTS = 5
 VERIFY_LOCKOUT_SECONDS = 300
+EMAIL_SERVICE_UNAVAILABLE_MESSAGE = "邮件服务暂不可用，请稍后再试"
 
 EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
@@ -110,7 +112,10 @@ class EmailInvalidAddressError(Exception):
 
 
 class EmailSendError(Exception):
-    """阿里云邮件推送下发失败"""
+    """邮件验证码发送或其基础设施不可用"""
+
+    def __init__(self, *_args: object) -> None:
+        super().__init__(EMAIL_SERVICE_UNAVAILABLE_MESSAGE)
 
 
 def validate_email(email: str) -> bool:
@@ -170,29 +175,36 @@ async def _send_via_aliyun(
     html_body: str,
     tag_name: str = "",
 ) -> str:
-    from alibabacloud_dm20151123 import models as dm_models
-    from alibabacloud_tea_util import models as util_models
-
-    request = dm_models.SingleSendMailRequest(
-        account_name=settings.aliyun_dm_account_name,
-        address_type=1,
-        reply_to_address="false",
-        subject=subject,
-        to_address=to_address,
-        html_body=html_body,
-        from_alias=settings.aliyun_dm_from_alias or "句龙·照胆",
-        tag_name=tag_name or None,
-    )
+    masked_address = mask_email(to_address) or "***"
     try:
+        from alibabacloud_dm20151123 import models as dm_models
+        from alibabacloud_tea_util import models as util_models
+
+        request = dm_models.SingleSendMailRequest(
+            account_name=settings.aliyun_dm_account_name,
+            address_type=1,
+            reply_to_address="false",
+            subject=subject,
+            to_address=to_address,
+            html_body=html_body,
+            from_alias=settings.aliyun_dm_from_alias or "句龙·照胆",
+            tag_name=tag_name or None,
+        )
         client = _get_dm_client()
         resp = await client.single_send_mail_with_options_async(request, util_models.RuntimeOptions())
         env_id = resp.body.env_id if resp.body else ""
-        logger.info("DirectMail sent to=%s*** env_id=%s", to_address[:3], env_id)
+        logger.info("DirectMail sent to=%s env_id=%s", masked_address, env_id)
         return env_id
-    except Exception as e:
-        msg = getattr(e, "message", str(e))
-        logger.error("DirectMail send failed to=%s*** err=%s", to_address[:3], msg)
-        raise EmailSendError(f"邮件发送失败: {msg}") from e
+    except EmailSendError:
+        logger.error("DirectMail send unavailable to=%s", masked_address)
+        raise
+    except Exception as exc:
+        logger.error(
+            "DirectMail send failed to=%s error_type=%s",
+            masked_address,
+            type(exc).__name__,
+        )
+        raise EmailSendError from exc
 
 
 async def send_verification_code(email: str, ip: str | None = None) -> tuple[str, int]:
@@ -203,39 +215,49 @@ async def send_verification_code(email: str, ip: str | None = None) -> tuple[str
     if not validate_email(email):
         raise EmailInvalidAddressError(f"邮箱格式错误: {email}")
 
-    redis = get_redis()
+    try:
+        redis = get_redis()
 
-    if ip:
-        ip_count = await redis.get(_ip_rate_key(ip))
-        if ip_count and int(ip_count) >= IP_RATE_LIMIT:
-            raise EmailRateLimitError("该 IP 发送次数过多，请稍后再试")
+        if ip:
+            ip_count = await redis.get(_ip_rate_key(ip))
+            if ip_count and int(ip_count) >= IP_RATE_LIMIT:
+                raise EmailRateLimitError("该 IP 发送次数过多，请稍后再试")
 
-    if await redis.exists(_rate_key(email)):
-        raise EmailRateLimitError("60 秒内重复请求")
+        if await redis.exists(_rate_key(email)):
+            raise EmailRateLimitError("60 秒内重复请求")
 
-    code = settings.email_fixed_code or generate_code()
-    if settings.email_fixed_code:
-        logger.warning("email_fixed_code is set — using fixed code (development only)")
-    else:
-        await _send_via_aliyun(
-            to_address=email,
-            subject="句龙·照胆 — 邮箱验证码",
-            html_body=_wrap_email(
-                title="邮箱验证",
-                body_html=_render("auth_code.html", code=code),
-                ref_code="REF.GL-AUTH",
-            ),
-            tag_name="auth",
+        code = settings.email_fixed_code or generate_code()
+        if settings.email_fixed_code:
+            logger.warning("email_fixed_code is set — using fixed code (development only)")
+        else:
+            await _send_via_aliyun(
+                to_address=email,
+                subject="句龙·照胆 — 邮箱验证码",
+                html_body=_wrap_email(
+                    title="邮箱验证",
+                    body_html=_render("auth_code.html", code=code),
+                    ref_code="REF.GL-AUTH",
+                ),
+                tag_name="auth",
+            )
+
+        await redis.set(_code_key(email), code, ex=CODE_TTL_SECONDS)
+        await redis.set(_rate_key(email), "1", ex=RATE_LIMIT_SECONDS)
+
+        if ip:
+            await redis.incr(_ip_rate_key(ip))
+            await redis.expire(_ip_rate_key(ip), IP_RATE_WINDOW)
+    except (EmailRateLimitError, EmailSendError):
+        raise
+    except Exception as exc:
+        logger.error(
+            "Email verification infrastructure failure to=%s error_type=%s",
+            mask_email(email) or "***",
+            type(exc).__name__,
         )
+        raise EmailSendError from exc
 
-    await redis.set(_code_key(email), code, ex=CODE_TTL_SECONDS)
-    await redis.set(_rate_key(email), "1", ex=RATE_LIMIT_SECONDS)
-
-    if ip:
-        await redis.incr(_ip_rate_key(ip))
-        await redis.expire(_ip_rate_key(ip), IP_RATE_WINDOW)
-
-    logger.info("Email code sent: to=%s*** expires_in=%ds", email[:3], CODE_TTL_SECONDS)
+    logger.info("Email code sent: to=%s expires_in=%ds", mask_email(email) or "***", CODE_TTL_SECONDS)
     return code, CODE_TTL_SECONDS
 
 

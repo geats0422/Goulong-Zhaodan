@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 _ALLOWED_SPECIAL = set("!@#$%^&*()_-+=[]{}|:;<>,.?/~")
+BCRYPT_MAX_PASSWORD_BYTES = 72
 _WEAK_PASSWORDS: set[str] | None = None
 
 
@@ -22,6 +23,8 @@ def validate_password(password: str) -> list[str]:
 
     if len(password) < 8:
         errors.append("密码长度不能少于 8 位")
+    if len(password.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES:
+        errors.append(f"密码长度不能超过 {BCRYPT_MAX_PASSWORD_BYTES} 字节")
     if len(password) > 128:
         errors.append("密码长度不能超过 128 位")
 

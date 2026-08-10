@@ -17,6 +17,11 @@ _TEST_EMAIL = "test@example.com"
 _FIXED_CODE = "123456"
 
 
+class _BrokenRedis:
+    async def exists(self, _key):
+        raise RuntimeError("redis password leaked")
+
+
 @pytest_asyncio.fixture
 async def redis_conn():
     """每个测试创建独立的 Redis 连接（避免 event loop 冲突）。"""
@@ -94,6 +99,17 @@ async def test_send_verification_code_success():
 async def test_send_verification_code_invalid_email():
     with pytest.raises(email_service.EmailInvalidAddressError):
         await email_service.send_verification_code("not-an-email")
+
+
+@pytest.mark.asyncio
+async def test_send_verification_code_hides_infrastructure_error(monkeypatch):
+    monkeypatch.setattr(email_service, "get_redis", lambda: _BrokenRedis())
+
+    with pytest.raises(email_service.EmailSendError) as exc_info:
+        await email_service.send_verification_code(_TEST_EMAIL)
+
+    assert str(exc_info.value) == email_service.EMAIL_SERVICE_UNAVAILABLE_MESSAGE
+    assert "redis password leaked" not in str(exc_info.value)
 
 
 @pytest.mark.asyncio

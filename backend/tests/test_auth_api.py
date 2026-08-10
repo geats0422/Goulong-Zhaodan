@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import datetime
 import sys
 import types
+import uuid
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -34,16 +36,57 @@ sys.modules["app.agents.inspector"] = fake_inspector_module
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 import redis.asyncio as redis_async  # noqa: E402
+from goulong_auth.models import User  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy import select  # noqa: E402
 
+from app.core.auth import create_refresh_token, hash_password  # noqa: E402
 from app.core.config import settings  # noqa: E402
+from app.core.database import async_session  # noqa: E402
+from app.services import sms_service  # noqa: E402
 from main import app  # noqa: E402
 from tests.conftest import assert_safe_database_for_cleanup  # noqa: E402
-
 
 VALID_PASSWORD = "TestPass123"
 EMAIL_CODE = "123456"
 PHONE_CODE = "123456"
+
+
+async def _create_user(
+    *,
+    username: str | None = None,
+    email: str | None = None,
+    phone: str | None = None,
+    is_active: bool = True,
+    stored_hash: str | None = None,
+) -> tuple[object, datetime.datetime]:
+    user = User(
+        username=username,
+        email=email,
+        phone=phone,
+        nickname=username or email or phone or "auth-user",
+        hashed_password=stored_hash or hash_password(VALID_PASSWORD),
+        is_active=is_active,
+    )
+    async with async_session() as db:
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    return user.id, user.updated_at
+
+
+async def _load_user(user_id: object) -> User:
+    async with async_session() as db:
+        result = await db.execute(select(User).where(User.id == user_id))
+        return result.scalar_one()
+
+
+async def _set_user_active_by_email(email: str, is_active: bool) -> None:
+    async with async_session() as db:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one()
+        user.is_active = is_active
+        await db.commit()
 
 
 async def _preset_code(key: str, code: str = EMAIL_CODE) -> None:
@@ -180,6 +223,20 @@ async def test_register_password_too_short(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_register_password_rejects_bcrypt_overlong_bytes(client: AsyncClient):
+    overlong_password = "A" * 60 + "a" * 10 + "1!!"
+
+    resp = await client.post("/auth/register", json={
+        "email": "bcrypt-register-overlong@example.com",
+        "nickname": "bcrypt-register-overlong",
+        "password": overlong_password,
+        "email_code": EMAIL_CODE,
+    })
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_register_password_no_uppercase(client: AsyncClient):
     resp = await client.post("/auth/register", json={
         "email": "noupc@example.com",
@@ -273,6 +330,154 @@ async def test_register_password_too_long(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "identity_payload",
+    [
+        {"password": VALID_PASSWORD},
+        {"email": "both-email@example.com", "phone": "13800000001", "password": VALID_PASSWORD},
+        {"email": "email-username@example.com", "username": "email_username", "password": VALID_PASSWORD},
+        {"phone": "13800000002", "username": "phone_username", "password": VALID_PASSWORD},
+    ],
+)
+async def test_login_requires_exactly_one_identity(client: AsyncClient, identity_payload: dict[str, str]):
+    resp = await client.post("/auth/login", json=identity_payload)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"username": "ab", "password": VALID_PASSWORD},
+        {"username": "a" * 51, "password": VALID_PASSWORD},
+        {"username": "bad user", "password": VALID_PASSWORD},
+        {"username": "bad$user", "password": VALID_PASSWORD},
+        {"username": "1valid_user", "password": VALID_PASSWORD},
+        {"username": "_valid_user", "password": VALID_PASSWORD},
+        {"username": ".valid_user", "password": VALID_PASSWORD},
+        {"username": "-valid_user", "password": VALID_PASSWORD},
+        {"username": "valid_user", "password": ""},
+        {"username": "valid_user", "password": "P" * 129},
+    ],
+)
+async def test_login_rejects_invalid_username_or_password_bounds(
+    client: AsyncClient,
+    payload: dict[str, str],
+):
+    resp = await client.post("/auth/login", json=payload)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_login_bad_hash_returns_generic_401(client: AsyncClient):
+    await _create_user(email="bad-hash@example.com", stored_hash="not-a-bcrypt-hash")
+
+    resp = await client.post("/auth/login", json={
+        "email": "bad-hash@example.com",
+        "password": VALID_PASSWORD,
+    })
+
+    assert resp.status_code == 401
+    assert resp.json() == {"detail": "用户名/邮箱/手机号或密码错误"}
+
+
+@pytest.mark.asyncio
+async def test_login_bcrypt_overlong_password_returns_generic_401(client: AsyncClient):
+    await _create_user(email="bcrypt-long-password@example.com")
+
+    resp = await client.post("/auth/login", json={
+        "email": "bcrypt-long-password@example.com",
+        "password": "P" * 128,
+    })
+
+    assert resp.status_code == 401
+    assert resp.json() == {"detail": "用户名/邮箱/手机号或密码错误"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("identity_field", "identity_value"),
+    [
+        ("username", "password_username"),
+        ("email", "password-email@example.com"),
+        ("phone", "13800000003"),
+    ],
+)
+async def test_password_login_updates_user_timestamp_and_binding(
+    client: AsyncClient,
+    identity_field: str,
+    identity_value: str,
+):
+    user_id, before = await _create_user(**{identity_field: identity_value})
+    login_value = f"  {identity_value.upper()}  " if identity_field == "username" else identity_value
+
+    resp = await client.post(
+        "/auth/login",
+        json={identity_field: login_value, "password": VALID_PASSWORD},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["require_phone_binding"] is (identity_field != "phone")
+    assert "refresh_token" not in data
+    assert "refresh_token" in resp.cookies
+    updated = await _load_user(user_id)
+    assert updated.updated_at > before
+
+
+@pytest.mark.asyncio
+async def test_username_login_normalizes_lookup_and_throttle_key(client: AsyncClient, monkeypatch):
+    await _create_user(username="normalized_user")
+    from app.api.v1 import auth
+
+    check = MagicMock(return_value=0)
+    reset = MagicMock()
+    monkeypatch.setattr(auth.login_throttle, "check", check)
+    monkeypatch.setattr(auth.login_throttle, "reset", reset)
+
+    resp = await client.post(
+        "/auth/login",
+        json={"username": "  NORMALIZED_USER  ", "password": VALID_PASSWORD},
+    )
+
+    assert resp.status_code == 200
+    check.assert_called_once_with("normalized_user")
+    reset.assert_called_once_with("normalized_user")
+
+
+@pytest.mark.asyncio
+async def test_username_and_password_errors_are_generic_401(client: AsyncClient):
+    await _create_user(username="generic_user")
+
+    wrong_password = await client.post(
+        "/auth/login",
+        json={"username": " GENERIC_USER ", "password": "WrongPass999"},
+    )
+    missing_username = await client.post(
+        "/auth/login",
+        json={"username": "missing_user", "password": VALID_PASSWORD},
+    )
+
+    assert wrong_password.status_code == 401
+    assert missing_username.status_code == 401
+    assert wrong_password.json()["detail"] == missing_username.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_inactive_username_login_returns_403_without_tokens(client: AsyncClient):
+    await _create_user(username="inactive_user", is_active=False)
+
+    resp = await client.post(
+        "/auth/login",
+        json={"username": " INACTIVE_USER ", "password": VALID_PASSWORD},
+    )
+
+    assert resp.status_code == 403
+    assert "access_token" not in resp.json()
+    assert "refresh_token" not in resp.cookies
+
+
+@pytest.mark.asyncio
 async def test_login_success(client: AsyncClient):
     await client.post("/auth/register", json={
         "email": "login@example.com",
@@ -332,6 +537,39 @@ async def test_refresh_success(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_refresh_rejects_inactive_user(client: AsyncClient):
+    email = "refresh-inactive@example.com"
+    reg = await client.post("/auth/register", json={
+        "email": email,
+        "nickname": "refresh-inactive",
+        "password": VALID_PASSWORD,
+        "email_code": EMAIL_CODE,
+    })
+    await _set_user_active_by_email(email, False)
+    client.cookies.set("refresh_token", reg.cookies.get("refresh_token"))
+
+    resp = await client.post("/auth/refresh")
+
+    assert resp.status_code == 403
+    assert resp.json() == {"detail": "账号已被停用"}
+    assert "access_token" not in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_refresh_rejects_missing_user(client: AsyncClient, monkeypatch):
+    from app.api.v1 import auth
+
+    refresh_token, _ = create_refresh_token(uuid.uuid4())
+    monkeypatch.setattr(auth, "is_refresh_token_revoked", AsyncMock(return_value=False))
+    client.cookies.set("refresh_token", refresh_token)
+
+    resp = await client.post("/auth/refresh")
+
+    assert resp.status_code == 401
+    assert "access_token" not in resp.json()
+
+
+@pytest.mark.asyncio
 async def test_refresh_invalid_token(client: AsyncClient):
     client.cookies.set("refresh_token", "invalid.token.here")
     resp = await client.post("/auth/refresh")
@@ -388,6 +626,22 @@ async def test_send_email_code_invalid_address(real_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_send_email_code_hides_provider_error(client: AsyncClient, monkeypatch):
+    from app.services import email_service
+
+    async def fail_send_code(*args, **kwargs):
+        raise email_service.EmailSendError("aliyun raw error")
+
+    monkeypatch.setattr(email_service, "send_verification_code", fail_send_code)
+
+    resp = await client.post("/auth/send-email-code", json={"email": "provider-error@example.com"})
+
+    assert resp.status_code == 502
+    assert resp.json() == {"detail": email_service.EMAIL_SERVICE_UNAVAILABLE_MESSAGE}
+    assert "aliyun raw error" not in resp.text
+
+
+@pytest.mark.asyncio
 async def test_send_sms_code_invalid_phone(real_client: AsyncClient):
     resp = await real_client.post("/auth/send-sms-code", json={"phone": "12345"})
     assert resp.status_code == 400
@@ -427,7 +681,7 @@ async def test_register_wrong_email_code(real_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_with_real_phone_code(real_client: AsyncClient):
     phone = "13900139000"
-    await _preset_code(f"SMS:code:{phone}", PHONE_CODE)
+    await _preset_code(sms_service._code_key(phone), PHONE_CODE)
     resp = await real_client.post("/auth/register", json={
         "phone": phone,
         "nickname": "phoneuser",
@@ -458,23 +712,52 @@ async def test_login_by_email_code(real_client: AsyncClient):
     resp = await real_client.post("/auth/login/code", json={"email": email, "code": EMAIL_CODE})
     assert resp.status_code == 200
     assert "access_token" in resp.json()
+    assert resp.json()["require_phone_binding"] is True
     assert "refresh_token" in resp.cookies
 
 
 @pytest.mark.asyncio
 async def test_login_by_phone_code(real_client: AsyncClient):
     phone = "13700137000"
-    await _preset_code(f"SMS:code:{phone}", PHONE_CODE)
+    await _preset_code(sms_service._code_key(phone), PHONE_CODE)
     await real_client.post("/auth/register", json={
         "phone": phone,
         "nickname": "phone login",
         "password": VALID_PASSWORD,
         "phone_code": PHONE_CODE,
     })
-    await _preset_code(f"SMS:code:{phone}", PHONE_CODE)
+    await _preset_code(sms_service._code_key(phone), PHONE_CODE)
     resp = await real_client.post("/auth/login/code", json={"phone": phone, "code": PHONE_CODE})
     assert resp.status_code == 200
     assert "access_token" in resp.json()
+    assert resp.json()["require_phone_binding"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("identity_field", "identity_value", "requires_phone_binding"),
+    [
+        ("email", "code-email-timestamp@example.com", True),
+        ("phone", "13800000004", False),
+    ],
+)
+async def test_login_by_code_updates_user_timestamp_and_binding(
+    client: AsyncClient,
+    identity_field: str,
+    identity_value: str,
+    requires_phone_binding: bool,
+):
+    user_id, before = await _create_user(**{identity_field: identity_value})
+
+    resp = await client.post(
+        "/auth/login/code",
+        json={identity_field: identity_value, "code": EMAIL_CODE},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["require_phone_binding"] is requires_phone_binding
+    updated = await _load_user(user_id)
+    assert updated.updated_at > before
 
 
 @pytest.mark.asyncio
@@ -504,6 +787,96 @@ async def test_login_by_code_wrong_code(real_client: AsyncClient):
 async def test_login_by_code_missing_identity(real_client: AsyncClient):
     resp = await real_client.post("/auth/login/code", json={"code": EMAIL_CODE})
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"email": "both-identities@example.com", "phone": "13800000005", "code": EMAIL_CODE},
+        {"email": "", "phone": "", "code": EMAIL_CODE},
+    ],
+)
+async def test_login_by_code_requires_exactly_one_identity(client: AsyncClient, payload: dict[str, str]):
+    resp = await client.post("/auth/login/code", json=payload)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        (
+            "/auth/register",
+            {
+                "email": "ascii-code-register@example.com",
+                "nickname": "ascii-code-register",
+                "password": VALID_PASSWORD,
+                "email_code": "１２３４５６",
+            },
+        ),
+        ("/auth/login/code", {"email": "ascii-code-login@example.com", "code": "１２３４５６"}),
+        (
+            "/auth/reset-password",
+            {"phone": "13800000006", "code": "１２３４５６", "new_password": "NewPass456"},
+        ),
+    ],
+)
+async def test_auth_code_fields_reject_non_ascii_digits(
+    client: AsyncClient,
+    path: str,
+    payload: dict[str, str],
+):
+    resp = await client.post(path, json=payload)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_send_sms_code_hides_provider_error(client: AsyncClient, monkeypatch):
+    async def fail_send_code(*args, **kwargs):
+        raise sms_service.SmsSendError("aliyun raw error")
+
+    monkeypatch.setattr(sms_service, "send_code", fail_send_code)
+
+    resp = await client.post("/auth/send-sms-code", json={"phone": "13800000007"})
+
+    assert resp.status_code == 502
+    assert resp.json() == {"detail": sms_service.SMS_SERVICE_UNAVAILABLE_MESSAGE}
+    assert "aliyun raw error" not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_reset_password_cannot_take_over_unbound_phone_after_binding(client: AsyncClient):
+    registration = await client.post(
+        "/auth/register",
+        json={
+            "email": "reset-takeover@example.com",
+            "nickname": "reset-takeover",
+            "password": VALID_PASSWORD,
+            "email_code": EMAIL_CODE,
+        },
+    )
+    assert registration.status_code == 201
+    auth_headers = {"Authorization": f"Bearer {registration.json()['access_token']}"}
+
+    bind = await client.post(
+        "/settings/phone",
+        headers=auth_headers,
+        json={"phone": "13800000008", "code": PHONE_CODE},
+    )
+    assert bind.status_code == 200
+
+    reset = await client.post(
+        "/auth/reset-password",
+        json={"phone": "13900000008", "code": PHONE_CODE, "new_password": "NewPass456"},
+    )
+
+    assert reset.status_code == 404
+    old_password_login = await client.post(
+        "/auth/login",
+        json={"email": "reset-takeover@example.com", "password": VALID_PASSWORD},
+    )
+    assert old_password_login.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -537,17 +910,68 @@ async def test_reset_password_success(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_reset_password_invalidates_existing_access_token(client: AsyncClient):
+    phone = "13600136001"
+    registered = await client.post("/auth/register", json={
+        "phone": phone,
+        "nickname": "reset-token-user",
+        "password": VALID_PASSWORD,
+        "phone_code": PHONE_CODE,
+    })
+    old_access_token = registered.json()["access_token"]
+    old_refresh_token = registered.cookies.get("refresh_token")
+
+    resp = await client.post("/auth/reset-password", json={
+        "phone": phone,
+        "code": PHONE_CODE,
+        "new_password": "NewPass456",
+    })
+
+    assert resp.status_code == 200
+    new_login = await client.post("/auth/login", json={"phone": phone, "password": "NewPass456"})
+    assert new_login.status_code == 200
+    current_user = await client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {old_access_token}"},
+    )
+    assert current_user.status_code == 401
+
+    client.cookies.set("refresh_token", old_refresh_token)
+    revoked_refresh = await client.post("/auth/refresh")
+    assert revoked_refresh.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_reset_password_rejects_bcrypt_overlong_new_password(client: AsyncClient):
+    phone = "13600136002"
+    await client.post("/auth/register", json={
+        "phone": phone,
+        "nickname": "reset-overlong",
+        "password": VALID_PASSWORD,
+        "phone_code": PHONE_CODE,
+    })
+
+    resp = await client.post("/auth/reset-password", json={
+        "phone": phone,
+        "code": PHONE_CODE,
+        "new_password": "A" * 60 + "a" * 10 + "1!!",
+    })
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_reset_password_wrong_code(real_client: AsyncClient):
     """验证码错误 → 401（真实 Redis 校验）。"""
     phone = "13500135000"
-    await _preset_code(f"SMS:code:{phone}", PHONE_CODE)
+    await _preset_code(sms_service._code_key(phone), PHONE_CODE)
     await real_client.post("/auth/register", json={
         "phone": phone,
         "nickname": "wrongreset",
         "password": VALID_PASSWORD,
         "phone_code": PHONE_CODE,
     })
-    await _preset_code(f"SMS:code:{phone}", PHONE_CODE)
+    await _preset_code(sms_service._code_key(phone), PHONE_CODE)
     resp = await real_client.post("/auth/reset-password", json={
         "phone": phone,
         "code": "000000",

@@ -231,6 +231,8 @@ def assert_production_security() -> None:
     )
     if not settings.data_encryption_key.strip():
         raise RuntimeError("生产环境必须配置 DATA_ENCRYPTION_KEY")
+    if settings.sms_fixed_code:
+        raise RuntimeError("生产环境禁止配置 SMS_FIXED_CODE")
     if "your-password" in settings.database_url:
         raise RuntimeError("生产环境必须修改 DATABASE_URL 中的默认密码")
     if settings.storage_backend == "oss":

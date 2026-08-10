@@ -10,7 +10,6 @@
 """
 from __future__ import annotations
 
-import hmac
 import json
 import logging
 import re
@@ -28,7 +27,28 @@ IP_RATE_WINDOW = 3600
 VERIFY_MAX_ATTEMPTS = 5
 VERIFY_LOCKOUT_SECONDS = 300
 
-PHONE_PATTERN = re.compile(r"^1[3-9]\d{9}$")
+PHONE_PATTERN = re.compile(r"^1[3-9][0-9]{9}$")
+CODE_PATTERN = re.compile(r"^[0-9]{6}$")
+
+SMS_SERVICE_UNAVAILABLE_MESSAGE = "短信服务暂不可用，请稍后再试"
+
+_VERIFY_CODE_SCRIPT = """
+local attempts = redis.call("GET", KEYS[2])
+if attempts and tonumber(attempts) >= tonumber(ARGV[2]) then
+    redis.call("DEL", KEYS[1])
+    return 0
+end
+
+local stored = redis.call("GET", KEYS[1])
+if stored and stored == ARGV[1] then
+    redis.call("DEL", KEYS[1], KEYS[2])
+    return 1
+end
+
+redis.call("INCR", KEYS[2])
+redis.call("EXPIRE", KEYS[2], tonumber(ARGV[3]))
+return 0
+"""
 
 # 短信场景 → 阿里云模板 CODE（照胆当前仅配置 login 模板，所有场景复用）
 DEFAULT_SCENE = "login"
@@ -50,10 +70,20 @@ class SmsInvalidPhoneError(Exception):
 class SmsSendError(Exception):
     """阿里云短信下发失败"""
 
+    def __init__(self, *_args: object) -> None:
+        super().__init__(SMS_SERVICE_UNAVAILABLE_MESSAGE)
+
+
+class SmsVerificationInfrastructureError(Exception):
+    """短信验证码校验依赖不可用。"""
+
+    def __init__(self, *_args: object) -> None:
+        super().__init__(SMS_SERVICE_UNAVAILABLE_MESSAGE)
+
 
 def validate_phone(phone: str) -> bool:
     """校验中国大陆手机号格式"""
-    return bool(phone and PHONE_PATTERN.match(phone))
+    return bool(phone and PHONE_PATTERN.fullmatch(phone))
 
 
 def generate_code() -> str:
@@ -62,15 +92,15 @@ def generate_code() -> str:
 
 
 def _rate_key(phone: str) -> str:
-    return f"SMS:rate:{phone}"
+    return f"SMS:{{{phone}}}:rate"
 
 
 def _code_key(phone: str) -> str:
-    return f"SMS:code:{phone}"
+    return f"SMS:{{{phone}}}:code"
 
 
 def _verify_attempts_key(phone: str) -> str:
-    return f"SMS:verify:{phone}"
+    return f"SMS:{{{phone}}}:verify"
 
 
 def _ip_rate_key(ip: str) -> str:
@@ -117,7 +147,7 @@ def _get_aliyun_client() -> object:
     from alibabacloud_tea_openapi import models as open_api_models
 
     if not settings.aliyun_access_key_id or not settings.aliyun_access_key_secret:
-        raise SmsSendError("阿里云未配置 aliyun_access_key_id/secret")
+        raise SmsSendError
 
     config = open_api_models.Config(
         access_key_id=settings.aliyun_access_key_id,
@@ -135,7 +165,7 @@ async def _send_via_aliyun(phone: str, code: str, scene: str) -> None:
 
     template_code = SCENE_TEMPLATES.get(scene, SCENE_TEMPLATES[DEFAULT_SCENE])
     if not template_code:
-        raise SmsSendError(f"阿里云短信模板未配置: scene={scene}")
+        raise SmsSendError
 
     request = dysmsapi_models.SendSmsRequest(
         phone_numbers=phone,
@@ -148,20 +178,18 @@ async def _send_via_aliyun(phone: str, code: str, scene: str) -> None:
         resp = await client.send_sms_with_options_async(request, util_models.RuntimeOptions())  # type: ignore[attr-defined]
         body = resp.body
         if body is None or body.code != "OK":
-            msg = getattr(body, "message", "unknown") if body else "empty body"
             logger.error(
-                "阿里云短信下发失败 phone=***%s code=%s msg=%s",
+                "阿里云短信下发失败 phone=***%s provider_code=%s",
                 phone[-4:],
                 getattr(body, "code", None),
-                msg,
             )
-            raise SmsSendError(f"短信发送失败: {msg}")
+            raise SmsSendError
         logger.info("阿里云短信下发成功 phone=***%s biz_id=%s", phone[-4:], getattr(body, "biz_id", ""))
     except SmsSendError:
         raise
     except Exception as e:
-        logger.exception("阿里云短信调用异常 phone=***%s", phone[-4:])
-        raise SmsSendError(f"短信服务异常: {e}") from e
+        logger.error("阿里云短信调用异常 phone=***%s", phone[-4:])
+        raise SmsSendError from e
 
 
 async def send_code(phone: str, ip: str | None = None, scene: str = DEFAULT_SCENE) -> tuple[str, int]:
@@ -201,29 +229,38 @@ async def send_code(phone: str, ip: str | None = None, scene: str = DEFAULT_SCEN
     return code, CODE_TTL_SECONDS
 
 
+async def _verify_code_atomically(redis: object, code_key: str, attempts_key: str, code: str) -> bool:
+    eval_command = getattr(redis, "eval", None)
+    if not callable(eval_command):
+        raise SmsVerificationInfrastructureError
+
+    try:
+        result = await eval_command(
+            _VERIFY_CODE_SCRIPT,
+            2,
+            code_key,
+            attempts_key,
+            code,
+            VERIFY_MAX_ATTEMPTS,
+            VERIFY_LOCKOUT_SECONDS,
+        )
+        return int(result) == 1
+    except Exception as exc:
+        logger.error("短信验证码原子校验失败")
+        raise SmsVerificationInfrastructureError from exc
+
+
 async def verify_code(phone: str, code: str) -> bool:
     """校验验证码。正确则删除（一次性）。失败 5 次后锁定该手机号验证码。"""
     if not validate_phone(phone):
         return False
+    if not isinstance(code, str) or CODE_PATTERN.fullmatch(code) is None:
+        return False
 
     redis = get_redis()
-
-    attempts_key = _verify_attempts_key(phone)
-    attempts = await redis.get(attempts_key)
-    if attempts is not None and int(attempts) >= VERIFY_MAX_ATTEMPTS:
-        await redis.delete(_code_key(phone))
-        return False
-
-    stored = await redis.get(_code_key(phone))
-
-    stored_code = stored.decode() if isinstance(stored, bytes) else stored
-    if stored_code is None or not hmac.compare_digest(stored_code, code):
-        pipe = redis.pipeline()
-        pipe.incr(attempts_key)
-        pipe.expire(attempts_key, VERIFY_LOCKOUT_SECONDS)
-        await pipe.execute()
-        return False
-
-    await redis.delete(_code_key(phone))
-    await redis.delete(attempts_key)
-    return True
+    return await _verify_code_atomically(
+        redis,
+        _code_key(phone),
+        _verify_attempts_key(phone),
+        code,
+    )

@@ -6,8 +6,9 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.api_key_scopes import SCOPE_TEMPLATES_META
@@ -63,6 +64,29 @@ class ProfileResponse(BaseModel):
     model_api_key_preview: str
     model_catalog: list[dict]
     scope_templates: list[dict]
+
+
+class BindPhoneRequest(BaseModel):
+    phone: str
+    code: str
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        if not sms_service.validate_phone(value):
+            raise ValueError("手机号格式不正确（中国大陆 11 位手机号）")
+        return value
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        if re.fullmatch(r"[0-9]{6}", value) is None:
+            raise ValueError("验证码必须为 6 位数字")
+        return value
+
+
+class BindPhoneResponse(BaseModel):
+    phone: str
 
 
 class SettingsDocument(BaseModel):
@@ -122,7 +146,13 @@ class ProfileUpdateRequest(BaseModel):
     model_name: str | None = None
     burn_after_read: bool | None = None
     email: str | None = None
-    phone: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_phone_binding(cls, value: Any) -> Any:
+        if isinstance(value, dict) and "phone" in value:
+            raise ValueError("手机号必须通过 /settings/phone 绑定")
+        return value
 
     @field_validator("nickname")
     @classmethod
@@ -161,16 +191,6 @@ class ProfileUpdateRequest(BaseModel):
             raise ValueError("model_name 必须在 MODEL_CATALOG 中")
         return value
 
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, value: str | None) -> str | None:
-        if value is None or value == "":
-            return None
-        value = value.strip()
-        if not re.match(r"^\+?\d{6,20}$", value):
-            raise ValueError("手机号格式不正确（6-20 位数字，可带 + 前缀）")
-        return value
-
     @field_validator("email")
     @classmethod
     def validate_email(cls, value: str | None) -> str | None:
@@ -202,7 +222,7 @@ class PasswordRecoverRequest(BaseModel):
     @field_validator("phone_code")
     @classmethod
     def validate_phone_code(cls, value: str) -> str:
-        if not re.match(r"^\d{6}$", value):
+        if re.fullmatch(r"[0-9]{6}", value) is None:
             raise ValueError("验证码必须为 6 位数字")
         return value
 
@@ -266,6 +286,13 @@ async def _get_user(db: AsyncSession, user_id: uuid.UUID) -> User:
     if db_user is None:
         raise HTTPException(status_code=401, detail="User not found")
     return db_user
+
+
+async def _verify_sms_code(phone: str, code: str) -> bool:
+    try:
+        return await sms_service.verify_code(phone, code)
+    except sms_service.SmsVerificationInfrastructureError:
+        raise HTTPException(status_code=503, detail=sms_service.SMS_SERVICE_UNAVAILABLE_MESSAGE) from None
 
 
 async def _get_or_create_profile(db: AsyncSession, db_user: User) -> ZhaodanUserProfile:
@@ -405,6 +432,46 @@ async def get_settings_overview(
     )
 
 
+@router.post("/phone", response_model=BindPhoneResponse)
+async def bind_phone(
+    body: BindPhoneRequest,
+    db=Depends(get_db_session),
+    user: CurrentUserContext = Depends(get_current_user),
+) -> BindPhoneResponse:
+    user_id = _current_user_id(user)
+    db_user = await _get_user(db, user_id)
+
+    if not await _verify_sms_code(body.phone, body.code):
+        raise HTTPException(status_code=401, detail="验证码错误或已过期")
+
+    locked_user_result = await db.execute(
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    db_user = locked_user_result.scalar_one_or_none()
+    if db_user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    if db_user.phone is not None:
+        raise HTTPException(status_code=409, detail="当前账号已绑定手机号，不能直接替换")
+
+    duplicate = await db.execute(
+        select(User).where(User.phone == body.phone, User.id != db_user.id)
+    )
+    if duplicate.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=409, detail="手机号已被使用")
+
+    db_user.phone = body.phone
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="手机号已被使用") from None
+    await db.refresh(db_user)
+    return BindPhoneResponse(phone=db_user.phone or "")
+
+
 @router.patch("/profile", response_model=ProfileResponse)
 async def update_profile(
     body: ProfileUpdateRequest,
@@ -424,15 +491,6 @@ async def update_profile(
 
     if body.model_name is not None:
         profile.model_name = body.model_name
-
-    if body.phone is not None:
-        if body.phone:
-            dup = await db.execute(
-                select(User).where(User.phone == body.phone, User.id != db_user.id)
-            )
-            if dup.scalar_one_or_none() is not None:
-                raise HTTPException(status_code=409, detail="手机号已被使用")
-        db_user.phone = body.phone
 
     if body.email is not None:
         if body.email:
@@ -464,6 +522,7 @@ async def update_password(
         raise HTTPException(status_code=400, detail="旧密码错误")
 
     db_user.hashed_password = hash_password(body.new_password)
+    db_user.password_changed_at = datetime.datetime.now(datetime.UTC)
     await revoke_all_refresh_tokens(db, user_id)
     await db.commit()
     return {"success": True}
@@ -484,8 +543,8 @@ async def send_password_recover_code(
         raise HTTPException(status_code=400, detail="手机号格式错误") from None
     except sms_service.SmsRateLimitError:
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试") from None
-    except sms_service.SmsSendError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from None
+    except sms_service.SmsSendError:
+        raise HTTPException(status_code=502, detail=sms_service.SMS_SERVICE_UNAVAILABLE_MESSAGE) from None
     return {"sent": True, "expires_in": expires_in}
 
 
@@ -499,10 +558,11 @@ async def recover_password(
     db_user = await _get_user(db, user_id)
     if not db_user.phone:
         raise HTTPException(status_code=400, detail="当前账号未绑定手机号，无法通过短信找回密码")
-    if not await sms_service.verify_code(db_user.phone, body.phone_code):
+    if not await _verify_sms_code(db_user.phone, body.phone_code):
         raise HTTPException(status_code=401, detail="验证码错误或已过期")
 
     db_user.hashed_password = hash_password(body.new_password)
+    db_user.password_changed_at = datetime.datetime.now(datetime.UTC)
     await revoke_all_refresh_tokens(db, user_id)
     await db.commit()
     return {"success": True}
