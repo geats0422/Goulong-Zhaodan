@@ -4,6 +4,7 @@ const props = defineProps({
   value: { type: [String, Number, Boolean], default: true },
   disabled: { type: Boolean, default: false },
   label: { type: String, default: '' },
+  ariaLabel: { type: String, default: '' },
 })
 
 const emit = defineEmits(['update:modelValue', 'change'])
@@ -41,6 +42,7 @@ function toggle() {
       class="base-checkbox-box"
       role="checkbox"
       :aria-checked="isChecked()"
+      :aria-label="ariaLabel || undefined"
       :disabled="disabled"
       @click.prevent="toggle"
     >

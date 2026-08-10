@@ -6,12 +6,19 @@ async function parseResponse(response) {
   if (response.status === 204) return null
   const data = await response.json()
   if (!response.ok) {
-    const detail = Array.isArray(data.detail)
-      ? data.detail.map(item => item.msg || JSON.stringify(item)).join('；')
-      : data.detail
+    const detail = formatErrorDetail(data?.detail)
     throw new Error(detail || '请求失败')
   }
   return data
+}
+
+function formatErrorDetail(value) {
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) return value.map(formatErrorDetail).filter(Boolean).join('；')
+  if (value && typeof value === 'object') {
+    return formatErrorDetail(value.msg ?? value.message ?? value.detail)
+  }
+  return ''
 }
 
 export async function getSettingsOverview() {
@@ -26,6 +33,14 @@ export async function updateProfile(payload) {
   }))
 }
 
+export async function bindPhone(payload) {
+  return parseResponse(await fetchWithAuth('/settings/phone', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }, { skipAuthRefresh: true }))
+}
+
 export async function updatePassword(payload) {
   return parseResponse(await fetchWithAuth('/settings/password', {
     method: 'POST',
@@ -37,7 +52,7 @@ export async function updatePassword(payload) {
 export async function sendPasswordRecoverCode() {
   return parseResponse(await fetchWithAuth('/settings/password/recover/code', {
     method: 'POST',
-  }))
+  }, { skipAuthRefresh: true }))
 }
 
 export async function recoverPassword(payload) {
@@ -45,7 +60,7 @@ export async function recoverPassword(payload) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-  }))
+  }, { skipAuthRefresh: true }))
 }
 
 export async function updateKnowledgeDocument(documentId, enabled) {

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 import { useTheme } from '../composables/useTheme.js'
 import BaseCheckbox from '../components/ui/BaseCheckbox.vue'
+import PhoneBindingModal from '../components/PhoneBindingModal.vue'
 
 const { login, sendSmsCode, loginByCode } = useAuth()
 const router = useRouter()
@@ -22,11 +23,17 @@ const smsSending = ref(false)
 
 const showPassword = ref(false)
 const agreedToTerms = ref(false)
+const showPhoneBinding = ref(false)
+
+const USERNAME_PATTERN = /^[a-z][a-z0-9_]{2,49}$/i
+const SMS_CODE_PATTERN = /^[0-9]{6}$/
 
 const identityValid = computed(() => {
-  if (!account.value) return false
-  // 接受 email 或手机号
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account.value) || /^1[3-9]\d{9}$/.test(account.value)
+  const identity = account.value.trim()
+  if (!identity) return false
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity)
+    || /^1[3-9]\d{9}$/.test(identity)
+    || USERNAME_PATTERN.test(identity)
 })
 const passwordValid = computed(() => password.value.length >= 8)
 const phoneValid = computed(() => /^1[3-9]\d{9}$/.test(phone.value))
@@ -34,7 +41,20 @@ const phoneValid = computed(() => /^1[3-9]\d{9}$/.test(phone.value))
 const canSubmitPassword = computed(() =>
   identityValid.value && passwordValid.value
 )
-const canSubmitSms = computed(() => phoneValid.value && smsCode.value.length === 6)
+const canSubmitSms = computed(() => phoneValid.value && SMS_CODE_PATTERN.test(smsCode.value))
+
+function formatLoginErrorValue(value) {
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) return value.map(formatLoginErrorValue).filter(Boolean).join('；')
+  if (value && typeof value === 'object') {
+    return formatLoginErrorValue(value.msg ?? value.message ?? value.detail)
+  }
+  return ''
+}
+
+function formatLoginError(error, fallback) {
+  return formatLoginErrorValue(error?.detail ?? error?.message ?? error) || fallback
+}
 
 let smsTimer = null
 
@@ -61,13 +81,14 @@ async function startSmsCountdown() {
     await sendSmsCode(phone.value, 'login')
     startCountdown()
   } catch (e) {
-    error.value = e.message
+    error.value = formatLoginError(e, '验证码发送失败')
   } finally {
     smsSending.value = false
   }
 }
 
 async function handleSmsLogin() {
+  if (loading.value) return
   error.value = ''
   if (!canSubmitSms.value) {
     error.value = '请输入有效的手机号和验证码'
@@ -82,16 +103,17 @@ async function handleSmsLogin() {
     await loginByCode({ phone: phone.value, code: smsCode.value })
     await router.push('/dashboard')
   } catch (e) {
-    error.value = e.message
+    error.value = formatLoginError(e, '验证码登录失败')
   } finally {
     loading.value = false
   }
 }
 
 async function handlePasswordLogin() {
+  if (loading.value) return
   error.value = ''
   if (!canSubmitPassword.value) {
-    error.value = '请输入有效的邮箱/手机号和密码（密码至少 8 位）'
+    error.value = '请输入有效的邮箱、手机号或用户名和密码（密码至少 8 位）'
     return
   }
   if (!agreedToTerms.value) {
@@ -100,10 +122,14 @@ async function handlePasswordLogin() {
   }
   loading.value = true
   try {
-    await login(account.value, password.value)
-    await router.push('/dashboard')
+    const data = await login(account.value, password.value)
+    if (data.require_phone_binding) {
+      showPhoneBinding.value = true
+    } else {
+      await router.push('/dashboard')
+    }
   } catch (e) {
-    error.value = e.message
+    error.value = formatLoginError(e, '登录失败')
   } finally {
     loading.value = false
   }
@@ -114,8 +140,22 @@ function switchTab(tab) {
   error.value = ''
 }
 
+function normalizeSmsCode(event) {
+  smsCode.value = event.target.value.replace(/[^0-9]/g, '').slice(0, 6)
+}
+
 function gotoRegister() {
   router.push('/register')
+}
+
+async function continueAfterPhoneBinding() {
+  showPhoneBinding.value = false
+  await router.push('/dashboard')
+}
+
+async function skipPhoneBinding() {
+  showPhoneBinding.value = false
+  await router.push('/dashboard')
 }
 </script>
 
@@ -197,6 +237,7 @@ function gotoRegister() {
                 inputmode="numeric"
                 maxlength="6"
                 placeholder="请输入短信验证码"
+                @input="normalizeSmsCode"
               />
               <button
                 type="button"
@@ -209,21 +250,21 @@ function gotoRegister() {
             </div>
           </label>
 
-          <button type="submit" class="primary-btn primary-btn-block" :disabled="!canSubmitSms">
-            立即登录
+          <button type="submit" class="primary-btn primary-btn-block" :disabled="loading || !canSubmitSms">
+            {{ loading ? '处理中…' : '立即登录' }}
           </button>
         </form>
 
         <form v-else class="form-body" @submit.prevent="handlePasswordLogin">
-          <p class="form-hint">使用注册时填写的邮箱或手机号登录</p>
+          <p class="form-hint">使用注册时填写的邮箱、手机号或用户名登录</p>
 
           <label class="field">
-            <span>邮箱 / 手机号</span>
+            <span>邮箱 / 手机号 / 用户名</span>
             <input
               v-model="account"
               type="text"
               autocomplete="username"
-              placeholder="请输入邮箱或手机号"
+              placeholder="请输入邮箱、手机号或用户名"
             />
           </label>
 
@@ -247,8 +288,14 @@ function gotoRegister() {
           </button>
         </form>
 
+        <PhoneBindingModal
+          v-if="showPhoneBinding"
+          @complete="continueAfterPhoneBinding"
+          @skip="skipPhoneBinding"
+        />
+
         <div class="terms-row">
-          <BaseCheckbox v-model="agreedToTerms" />
+          <BaseCheckbox v-model="agreedToTerms" aria-label="同意服务条款与隐私政策" />
           <span>登录即代表同意 <a href="#">《服务条款》</a> 与 <a href="#">《隐私政策》</a></span>
         </div>
 

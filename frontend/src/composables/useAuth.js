@@ -2,6 +2,7 @@ import { ref } from 'vue'
 
 const ACCESS_TOKEN_KEY = 'goulong_access_token'
 const USER_KEY = 'goulong_current_user'
+const PHONE_PATTERN = /^1[3-9]\d{9}$/
 
 let _accessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY)
 const currentUser = ref(null)
@@ -29,11 +30,30 @@ function getAuthHeaders() {
   return { Authorization: `Bearer ${_accessToken}` }
 }
 
-async function fetchWithAuth(url, options = {}) {
+function formatErrorValue(value) {
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) {
+    return value.map(formatErrorValue).filter(Boolean).join('；')
+  }
+  if (value && typeof value === 'object') {
+    return formatErrorValue(value.msg ?? value.message ?? value.detail)
+  }
+  return ''
+}
+
+export function formatErrorMessage(data, fallback = '请求失败') {
+  const detail = data && typeof data === 'object'
+    ? (data.detail ?? data.message)
+    : data
+  return formatErrorValue(detail) || fallback
+}
+
+async function fetchWithAuth(url, options = {}, authConfig = {}) {
+  const { skipAuthRefresh = false } = authConfig
   const headers = { ...options.headers, ...getAuthHeaders() }
   let response = await fetch(url, { ...options, headers, credentials: 'include' })
 
-  if (response.status === 401 && _accessToken) {
+  if (!skipAuthRefresh && response.status === 401 && _accessToken) {
     const refreshed = await refreshToken()
     if (refreshed) {
       headers.Authorization = `Bearer ${_accessToken}`
@@ -51,7 +71,7 @@ async function fetchWithAuth(url, options = {}) {
 
 async function readError(response) {
   try {
-    return await response.json()
+    return { detail: formatErrorMessage(await response.json(), `请求失败（HTTP ${response.status}）`) }
   } catch {
     return { detail: `请求失败（HTTP ${response.status}）` }
   }
@@ -64,11 +84,14 @@ function saveSession(data) {
   sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser.value))
 }
 
+function updateCurrentUserPhone(phone) {
+  if (!currentUser.value) return
+  currentUser.value = { ...currentUser.value, phone }
+  sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser.value))
+}
+
 async function login(identity, password) {
-  // 自动判断 identity 是 email 还是 phone
-  const body = identity.includes('@')
-    ? { email: identity, password }
-    : { phone: identity, password }
+  const body = buildLoginBody(identity, password)
 
   const response = await fetch('/auth/login', {
     method: 'POST',
@@ -79,12 +102,23 @@ async function login(identity, password) {
 
   if (!response.ok) {
     const data = await readError(response)
-    throw new Error(data.detail || '登录失败')
+    throw new Error(formatErrorMessage(data, '登录失败'))
   }
 
   const data = await response.json()
   saveSession(data)
   return data
+}
+
+export function buildLoginBody(identity, password) {
+  const normalizedIdentity = String(identity ?? '').trim()
+  if (normalizedIdentity.includes('@')) {
+    return { email: normalizedIdentity, password }
+  }
+  if (PHONE_PATTERN.test(normalizedIdentity)) {
+    return { phone: normalizedIdentity, password }
+  }
+  return { username: normalizedIdentity.toLowerCase(), password }
 }
 
 async function loginByCode({ phone, email, code }) {
@@ -101,7 +135,7 @@ async function loginByCode({ phone, email, code }) {
 
   if (!response.ok) {
     const data = await readError(response)
-    throw new Error(data.detail || '验证码登录失败')
+    throw new Error(formatErrorMessage(data, '验证码登录失败'))
   }
 
   const data = await response.json()
@@ -119,7 +153,7 @@ async function sendSmsCode(phone, scene = 'login') {
 
   if (!response.ok) {
     const data = await readError(response)
-    throw new Error(data.detail || '验证码发送失败')
+    throw new Error(formatErrorMessage(data, '验证码发送失败'))
   }
   return response.json()
 }
@@ -134,7 +168,7 @@ async function sendEmailCode(email) {
 
   if (!response.ok) {
     const data = await readError(response)
-    throw new Error(data.detail || '验证码发送失败')
+    throw new Error(formatErrorMessage(data, '验证码发送失败'))
   }
   return response.json()
 }
@@ -159,7 +193,7 @@ async function register({ email, phone, nickname, password, phoneCode, emailCode
 
   if (!response.ok) {
     const data = await readError(response)
-    throw new Error(data.detail || '注册失败')
+    throw new Error(formatErrorMessage(data, '注册失败'))
   }
 
   const data = await response.json()
@@ -191,6 +225,7 @@ export function useAuth() {
     isLoggedIn,
     getAuthHeaders,
     fetchWithAuth,
+    updateCurrentUserPhone,
     login,
     loginByCode,
     sendSmsCode,

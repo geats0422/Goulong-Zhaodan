@@ -7,6 +7,7 @@ import PaymentModal from '../components/PaymentModal.vue'
 import BaseToggle from '../components/ui/BaseToggle.vue'
 import BaseRadio from '../components/ui/BaseRadio.vue'
 import BaseCheckbox from '../components/ui/BaseCheckbox.vue'
+import PhoneBindingModal from '../components/PhoneBindingModal.vue'
 import {
   API_KEY_SCOPES,
   MODEL_CATALOG,
@@ -62,7 +63,8 @@ const knowledge = ref([])
 const tabooWords = ref([])
 
 const editingIdentity = ref(false)
-const identityForm = ref({ nickname: '', phone: '', email: '' })
+const identityForm = ref({ nickname: '', email: '' })
+const showPhoneBinding = ref(false)
 
 const showChangePasswordDialog = ref(false)
 const passwordForm = ref({ old_password: '', new_password: '', confirm_new_password: '' })
@@ -150,7 +152,6 @@ async function loadSettings() {
     burnAfterRead.value = data.profile.burn_after_read
     identityForm.value = {
       nickname: data.profile.nickname,
-      phone: data.profile.phone || '',
       email: data.profile.email || '',
     }
   } catch (err) {
@@ -171,7 +172,6 @@ async function loadApiKeys() {
 function startEditingIdentity() {
   identityForm.value = {
     nickname: profile.value.nickname,
-    phone: profile.value.phone || '',
     email: profile.value.email || '',
   }
   editingIdentity.value = true
@@ -187,7 +187,6 @@ async function saveIdentity() {
   try {
     profile.value = await updateProfile({
       nickname: identityForm.value.nickname,
-      phone: identityForm.value.phone || null,
       email: identityForm.value.email || null,
     })
     editingIdentity.value = false
@@ -207,6 +206,20 @@ async function saveIdentity() {
   } finally {
     saving.value = false
   }
+}
+
+function openPhoneBinding() {
+  showPhoneBinding.value = true
+}
+
+async function completePhoneBinding() {
+  showPhoneBinding.value = false
+  message.value = '手机号绑定成功'
+  await loadSettings()
+}
+
+function cancelPhoneBinding() {
+  showPhoneBinding.value = false
 }
 
 function openChangePasswordDialog() {
@@ -735,8 +748,9 @@ watch(
             </div>
             <div class="identity-row">
               <span class="identity-label">绑定手机号</span>
-              <span class="identity-value identity-muted">{{ profile.phone || '—' }}</span>
-              <button class="ghost-btn ghost-btn-sm" type="button" @click="startEditingIdentity">{{ profile.phone ? '更换' : '绑定' }}</button>
+              <span v-if="profile.phone" class="identity-value identity-muted">{{ profile.phone }} · 已绑定</span>
+              <span v-else class="identity-value identity-muted">未绑定</span>
+              <button v-if="!profile.phone" class="ghost-btn ghost-btn-sm" type="button" aria-label="绑定手机号" @click="openPhoneBinding">绑定</button>
             </div>
             <div class="identity-row">
               <span class="identity-label">绑定邮箱</span>
@@ -750,10 +764,6 @@ watch(
               <input v-model="identityForm.nickname" class="edit-input" />
             </label>
             <label class="identity-edit-row">
-              <span class="identity-label">手机号</span>
-              <input v-model="identityForm.phone" class="edit-input" placeholder="13xxxxxxxxx" />
-            </label>
-            <label class="identity-edit-row">
               <span class="identity-label">邮箱</span>
               <input v-model="identityForm.email" class="edit-input" placeholder="example@domain.com" />
             </label>
@@ -763,6 +773,12 @@ watch(
             </div>
           </div>
         </article>
+
+        <PhoneBindingModal
+          v-if="showPhoneBinding"
+          @complete="completePhoneBinding"
+          @skip="cancelPhoneBinding"
+        />
 
         <article class="settings-card">
           <header>
@@ -1287,8 +1303,8 @@ watch(
 .settings-breadcrumb .material-symbols-outlined { font-size: 16px; }
 .settings-header { margin: 24px 0 28px; padding-top: 16px; border-top: 1px solid rgba(212, 175, 55, 0.4); }
 .settings-header h1 { margin: 0; color: #e5e2e1; font-family: "Syne", sans-serif; font-size: clamp(32px, 4vw, 48px); font-weight: 700; line-height: 1.2; }
-.settings-tabs { display: flex; gap: 32px; border-bottom: 1px solid #353534; margin-bottom: 32px; }
-.settings-tabs button { position: relative; border: 0; padding: 0 0 16px; background: transparent; color: #d0c5af; font-size: 18px; cursor: pointer; font-family: "Hanken Grotesk", sans-serif; }
+.settings-tabs { display: flex; gap: 32px; overflow-x: auto; border-bottom: 1px solid #353534; margin-bottom: 32px; scrollbar-width: thin; }
+.settings-tabs button { position: relative; flex: 0 0 auto; white-space: nowrap; border: 0; padding: 0 0 16px; background: transparent; color: #d0c5af; font-size: 18px; cursor: pointer; font-family: "Hanken Grotesk", sans-serif; }
 .settings-tabs button.active { border-bottom: 2px solid #d4af37; color: #f2ca50; }
 .settings-tabs button.active::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 8px; height: 8px; transform: translateX(-50%); background: #d4af37; box-shadow: 0 0 12px rgba(212, 175, 55, 0.3); }
 
@@ -1542,5 +1558,11 @@ watch(
   .billing-tier-actions { align-items: flex-start; }
   .identity-row { grid-template-columns: 1fr; gap: 4px; }
   .third-party-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .settings-main { width: calc(100% - 24px); padding: 24px 0 64px; }
+  .settings-tabs { gap: 16px; margin-bottom: 24px; }
+  .settings-tabs button { padding-bottom: 12px; font-size: 15px; }
 }
 </style>
